@@ -1,0 +1,17 @@
+D:\Home Work\APASystem\src\Nbp.Pms.Application\bin\Release\net8.0\Nbp.Pms.Application.deps.json
+D:\Home Work\APASystem\src\Nbp.Pms.Application\bin\Release\net8.0\Nbp.Pms.Application.dll
+D:\Home Work\APASystem\src\Nbp.Pms.Application\bin\Release\net8.0\Nbp.Pms.Application.pdb
+D:\Home Work\APASystem\src\Nbp.Pms.Application\bin\Release\net8.0\Nbp.Pms.Contracts.dll
+D:\Home Work\APASystem\src\Nbp.Pms.Application\bin\Release\net8.0\Nbp.Pms.Domain.dll
+D:\Home Work\APASystem\src\Nbp.Pms.Application\bin\Release\net8.0\Nbp.Pms.Domain.pdb
+D:\Home Work\APASystem\src\Nbp.Pms.Application\bin\Release\net8.0\Nbp.Pms.Contracts.pdb
+D:\Home Work\APASystem\src\Nbp.Pms.Application\obj\Release\net8.0\Nbp.Pms.Application.csproj.AssemblyReference.cache
+D:\Home Work\APASystem\src\Nbp.Pms.Application\obj\Release\net8.0\Nbp.Pms.Application.GeneratedMSBuildEditorConfig.editorconfig
+D:\Home Work\APASystem\src\Nbp.Pms.Application\obj\Release\net8.0\Nbp.Pms.Application.AssemblyInfoInputs.cache
+D:\Home Work\APASystem\src\Nbp.Pms.Application\obj\Release\net8.0\Nbp.Pms.Application.AssemblyInfo.cs
+D:\Home Work\APASystem\src\Nbp.Pms.Application\obj\Release\net8.0\Nbp.Pms.Application.csproj.CoreCompileInputs.cache
+D:\Home Work\APASystem\src\Nbp.Pms.Application\obj\Release\net8.0\Nbp.Pms..C9FBE12A.Up2Date
+D:\Home Work\APASystem\src\Nbp.Pms.Application\obj\Release\net8.0\Nbp.Pms.Application.dll
+D:\Home Work\APASystem\src\Nbp.Pms.Application\obj\Release\net8.0\refint\Nbp.Pms.Application.dll
+D:\Home Work\APASystem\src\Nbp.Pms.Application\obj\Release\net8.0\Nbp.Pms.Application.pdb
+D:\Home Work\APASystem\src\Nbp.Pms.Application\obj\Release\net8.0\ref\Nbp.Pms.Application.dll

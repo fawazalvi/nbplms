@@ -1,0 +1,119 @@
+# =============================================================================
+# NBP PMS — Production Docker Compose
+# =============================================================================
+# Services: API, Worker (Hangfire), Web (React/nginx)
+# SQL Server and Redis are EXTERNAL managed services in production.
+# Only the web/nginx port is publicly exposed.
+# =============================================================================
+
+services:
+
+  # ─── React Frontend (nginx) ────────────────────────────────────────────────
+  web:
+    image: nbp-pms-web:${IMAGE_TAG:-latest}
+    build:
+      context: ../apps/web
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - VITE_API_BASE_URL=${APP_BASE_URL}/api/v1
+    depends_on:
+      - api
+    restart: unless-stopped
+    networks:
+      - pms-internal
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:80/health.html"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ─── ASP.NET Core Web API ──────────────────────────────────────────────────
+  api:
+    image: nbp-pms-api:${IMAGE_TAG:-latest}
+    build:
+      context: ..
+      dockerfile: src/Nbp.Pms.Api/Dockerfile
+    expose:
+      - "8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:8080
+      - ConnectionStrings__DefaultConnection=${DB_CONNECTION_STRING}
+      - Encryption__MasterKeyBase64=${ENCRYPTION_MASTER_KEY}
+      - Encryption__KeyVersion=${ENCRYPTION_KEY_VERSION:-1}
+      - Smtp__Host=${SMTP_HOST}
+      - Smtp__Port=${SMTP_PORT:-587}
+      - Smtp__Username=${SMTP_USERNAME}
+      - Smtp__Password=${SMTP_PASSWORD}
+      - Smtp__SenderEmail=${SMTP_SENDER_EMAIL}
+      - App__BaseUrl=${APP_BASE_URL}
+      - App__FrontendUrl=${APP_FRONTEND_URL}
+      - Hangfire__Dashboard__Enabled=false
+      - Serilog__MinimumLevel__Default=Information
+    volumes:
+      - api-keys:/app/keys
+      - api-uploads:/app/uploads
+    restart: unless-stopped
+    networks:
+      - pms-internal
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # ─── Hangfire Background Worker ────────────────────────────────────────────
+  worker:
+    image: nbp-pms-worker:${IMAGE_TAG:-latest}
+    build:
+      context: ..
+      dockerfile: src/Nbp.Pms.BackgroundJobs/Dockerfile
+    environment:
+      - DOTNET_ENVIRONMENT=Production
+      - ConnectionStrings__DefaultConnection=${DB_CONNECTION_STRING}
+      - Encryption__MasterKeyBase64=${ENCRYPTION_MASTER_KEY}
+      - Encryption__KeyVersion=${ENCRYPTION_KEY_VERSION:-1}
+      - Smtp__Host=${SMTP_HOST}
+      - Smtp__Port=${SMTP_PORT:-587}
+      - Smtp__Username=${SMTP_USERNAME}
+      - Smtp__Password=${SMTP_PASSWORD}
+      - Smtp__SenderEmail=${SMTP_SENDER_EMAIL}
+      - App__BaseUrl=${APP_BASE_URL}
+      - Hangfire__WorkerCount=${HANGFIRE_WORKER_COUNT:-5}
+    volumes:
+      - api-uploads:/app/uploads
+    restart: unless-stopped
+    networks:
+      - pms-internal
+    depends_on:
+      api:
+        condition: service_healthy
+
+  # ─── Redis (optional — for scale-out; comment out for single-node) ─────────
+  # redis:
+  #   image: redis:7-alpine
+  #   expose:
+  #     - "6379"
+  #   restart: unless-stopped
+  #   networks:
+  #     - pms-internal
+  #   volumes:
+  #     - redis-data:/data
+  #   command: redis-server --requirepass ${REDIS_PASSWORD}
+
+volumes:
+  api-keys:
+    driver: local
+  api-uploads:
+    driver: local
+  # redis-data:
+  #   driver: local
+
+networks:
+  pms-internal:
+    driver: bridge
+    internal: false  # api must reach external SMTP; set true if using internal relay

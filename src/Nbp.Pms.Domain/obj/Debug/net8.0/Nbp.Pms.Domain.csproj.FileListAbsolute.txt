@@ -1,0 +1,15 @@
+D:\Home Work\APASystem\src\Nbp.Pms.Domain\obj\Debug\net8.0\Nbp.Pms.Domain.GeneratedMSBuildEditorConfig.editorconfig
+D:\Home Work\APASystem\src\Nbp.Pms.Domain\obj\Debug\net8.0\Nbp.Pms.Domain.AssemblyInfoInputs.cache
+D:\Home Work\APASystem\src\Nbp.Pms.Domain\obj\Debug\net8.0\Nbp.Pms.Domain.AssemblyInfo.cs
+D:\Home Work\APASystem\src\Nbp.Pms.Domain\obj\Debug\net8.0\Nbp.Pms.Domain.csproj.CoreCompileInputs.cache
+D:\Home Work\APASystem\src\Nbp.Pms.Domain\bin\Debug\net8.0\Nbp.Pms.Domain.deps.json
+D:\Home Work\APASystem\src\Nbp.Pms.Domain\bin\Debug\net8.0\Nbp.Pms.Domain.dll
+D:\Home Work\APASystem\src\Nbp.Pms.Domain\bin\Debug\net8.0\Nbp.Pms.Domain.pdb
+D:\Home Work\APASystem\src\Nbp.Pms.Domain\bin\Debug\net8.0\Nbp.Pms.Contracts.dll
+D:\Home Work\APASystem\src\Nbp.Pms.Domain\bin\Debug\net8.0\Nbp.Pms.Contracts.pdb
+D:\Home Work\APASystem\src\Nbp.Pms.Domain\obj\Debug\net8.0\Nbp.Pms.Domain.csproj.AssemblyReference.cache
+D:\Home Work\APASystem\src\Nbp.Pms.Domain\obj\Debug\net8.0\Nbp.Pms..D2DFE541.Up2Date
+D:\Home Work\APASystem\src\Nbp.Pms.Domain\obj\Debug\net8.0\Nbp.Pms.Domain.dll
+D:\Home Work\APASystem\src\Nbp.Pms.Domain\obj\Debug\net8.0\refint\Nbp.Pms.Domain.dll
+D:\Home Work\APASystem\src\Nbp.Pms.Domain\obj\Debug\net8.0\Nbp.Pms.Domain.pdb
+D:\Home Work\APASystem\src\Nbp.Pms.Domain\obj\Debug\net8.0\ref\Nbp.Pms.Domain.dll

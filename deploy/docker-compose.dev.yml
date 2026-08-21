@@ -1,0 +1,105 @@
+# =============================================================================
+# NBP PMS — Local Development Docker Compose
+# =============================================================================
+# Extends production compose with a local SQL Server container.
+# ⚠ FOR LOCAL DEVELOPMENT ONLY — never use in production.
+# =============================================================================
+
+services:
+
+  # ─── SQL Server (local dev only) ──────────────────────────────────────────
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      - ACCEPT_EULA=Y
+      - MSSQL_SA_PASSWORD=Dev_Password_123!
+      - MSSQL_PID=Developer
+    ports:
+      - "14333:1433"   # Host port 14333 (avoids host 1433 conflict)
+    volumes:
+      - sqlserver-data:/var/opt/mssql
+    restart: unless-stopped
+    networks:
+      - pms-internal
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'Dev_Password_123!' -C -Q 'SELECT 1' || /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P 'Dev_Password_123!' -Q 'SELECT 1' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  # ─── API (dev config) ──────────────────────────────────────────────────────
+  api:
+    build:
+      context: ..
+      dockerfile: src/Nbp.Pms.Api/Dockerfile
+    ports:
+      - "8090:8080"   # Host port 8090 (avoids host 8080 conflict)
+      - "8091:8081"   # Host port 8091 (avoids host 8081 conflict)
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:8080
+      - ConnectionStrings__DefaultConnection=Server=sqlserver,1433;Database=NbpPmsDb_Dev;User Id=sa;Password=Dev_Password_123!;TrustServerCertificate=True;
+      - Encryption__Provider=Environment
+      - Encryption__MasterKeyBase64=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+      - Encryption__KeyVersion=1
+      - Smtp__Host=mailhog
+      - Smtp__Port=1025
+      - Smtp__UseSsl=false
+      - Smtp__Username=
+      - Smtp__Password=
+      - Smtp__SenderEmail=dev-pms@nbp.local
+      - App__BaseUrl=http://localhost:8090
+      - App__FrontendUrl=http://localhost:5173
+      - Hangfire__Dashboard__Enabled=true
+      - Hangfire__Dashboard__Username=admin
+      - Hangfire__Dashboard__Password=admin
+      - Serilog__MinimumLevel__Default=Debug
+    volumes:
+      - api-keys-dev:/app/keys
+      - api-uploads-dev:/app/uploads
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    networks:
+      - pms-internal
+
+  # ─── Background Worker (dev) ───────────────────────────────────────────────
+  worker:
+    build:
+      context: ..
+      dockerfile: src/Nbp.Pms.BackgroundJobs/Dockerfile
+    environment:
+      - DOTNET_ENVIRONMENT=Development
+      - ConnectionStrings__DefaultConnection=Server=sqlserver,1433;Database=NbpPmsDb_Dev;User Id=sa;Password=Dev_Password_123!;TrustServerCertificate=True;
+      - Encryption__Provider=Environment
+      - Encryption__MasterKeyBase64=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+      - Smtp__Host=mailhog
+      - Smtp__Port=1025
+      - Smtp__UseSsl=false
+      - Smtp__SenderEmail=dev-pms@nbp.local
+      - App__BaseUrl=http://localhost:8090
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    networks:
+      - pms-internal
+
+  # ─── MailHog (local SMTP trap) ────────────────────────────────────────────
+  mailhog:
+    image: mailhog/mailhog:latest
+    ports:
+      - "1025:1025"   # SMTP
+      - "8025:8025"   # Web UI — view captured emails at http://localhost:8025
+    networks:
+      - pms-internal
+    restart: unless-stopped
+
+volumes:
+  sqlserver-data:
+  api-keys-dev:
+  api-uploads-dev:
+
+networks:
+  pms-internal:
+    driver: bridge

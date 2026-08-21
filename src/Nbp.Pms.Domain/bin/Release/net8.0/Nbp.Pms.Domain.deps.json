@@ -1,0 +1,39 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v8.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v8.0": {
+      "Nbp.Pms.Domain/1.0.0": {
+        "dependencies": {
+          "Nbp.Pms.Contracts": "1.0.0"
+        },
+        "runtime": {
+          "Nbp.Pms.Domain.dll": {}
+        }
+      },
+      "Nbp.Pms.Contracts/1.0.0": {
+        "runtime": {
+          "Nbp.Pms.Contracts.dll": {
+            "assemblyVersion": "1.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      }
+    }
+  },
+  "libraries": {
+    "Nbp.Pms.Domain/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "Nbp.Pms.Contracts/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    }
+  }
+}

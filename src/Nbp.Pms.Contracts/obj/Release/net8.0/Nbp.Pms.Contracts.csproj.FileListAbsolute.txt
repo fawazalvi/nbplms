@@ -1,0 +1,11 @@
+D:\Home Work\APASystem\src\Nbp.Pms.Contracts\bin\Release\net8.0\Nbp.Pms.Contracts.deps.json
+D:\Home Work\APASystem\src\Nbp.Pms.Contracts\bin\Release\net8.0\Nbp.Pms.Contracts.dll
+D:\Home Work\APASystem\src\Nbp.Pms.Contracts\bin\Release\net8.0\Nbp.Pms.Contracts.pdb
+D:\Home Work\APASystem\src\Nbp.Pms.Contracts\obj\Release\net8.0\Nbp.Pms.Contracts.GeneratedMSBuildEditorConfig.editorconfig
+D:\Home Work\APASystem\src\Nbp.Pms.Contracts\obj\Release\net8.0\Nbp.Pms.Contracts.AssemblyInfoInputs.cache
+D:\Home Work\APASystem\src\Nbp.Pms.Contracts\obj\Release\net8.0\Nbp.Pms.Contracts.AssemblyInfo.cs
+D:\Home Work\APASystem\src\Nbp.Pms.Contracts\obj\Release\net8.0\Nbp.Pms.Contracts.csproj.CoreCompileInputs.cache
+D:\Home Work\APASystem\src\Nbp.Pms.Contracts\obj\Release\net8.0\Nbp.Pms.Contracts.dll
+D:\Home Work\APASystem\src\Nbp.Pms.Contracts\obj\Release\net8.0\refint\Nbp.Pms.Contracts.dll
+D:\Home Work\APASystem\src\Nbp.Pms.Contracts\obj\Release\net8.0\Nbp.Pms.Contracts.pdb
+D:\Home Work\APASystem\src\Nbp.Pms.Contracts\obj\Release\net8.0\ref\Nbp.Pms.Contracts.dll
