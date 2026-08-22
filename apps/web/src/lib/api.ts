@@ -76,10 +76,26 @@ export const api = {
 
   // Appraisal Cycles
   getCycles: () => fetchApi<any[]>('/Cycles'),
+  getCycleById: (id: string) => fetchApi<any>(`/Cycles/${id}`),
   createCycle: (data: any) => fetchApi<any>('/Cycles', { method: 'POST', body: JSON.stringify(data) }),
-  openCycle: (id: string) => fetchApi<any>(`/Cycles/${id}/open`, { method: 'POST' }),
-  suspendCycle: (id: string) => fetchApi<any>(`/Cycles/${id}/suspend`, { method: 'POST' }),
-  closeCycle: (id: string) => fetchApi<any>(`/Cycles/${id}/close`, { method: 'POST' }),
+  openCycle: (id: string, actorUserId?: string) =>
+    fetchApi<any>(`/Cycles/${id}/open${actorUserId ? `?actorUserId=${encodeURIComponent(actorUserId)}` : ''}`, { method: 'POST' }),
+  suspendCycle: (id: string, actorUserId?: string) =>
+    fetchApi<any>(`/Cycles/${id}/suspend${actorUserId ? `?actorUserId=${encodeURIComponent(actorUserId)}` : ''}`, { method: 'POST' }),
+  closeCycle: (id: string, actorUserId?: string) =>
+    fetchApi<any>(`/Cycles/${id}/close${actorUserId ? `?actorUserId=${encodeURIComponent(actorUserId)}` : ''}`, { method: 'POST' }),
+
+  // Cycle Employee Roster & Historical Snapshots
+  getCycleEmployees: (cycleId: string, params?: { group?: string; grade?: string; search?: string }) => {
+    const query = new URLSearchParams(params as any).toString();
+    return fetchApi<any[]>(`/Cycles/${cycleId}/employees${query ? `?${query}` : ''}`);
+  },
+  enrollCycleEmployees: (cycleId: string, data: any) =>
+    fetchApi<any>(`/Cycles/${cycleId}/employees/enroll`, { method: 'POST', body: JSON.stringify(data) }),
+  updateCycleEmployeeSnapshot: (cycleId: string, employeeCycleId: string, data: any) =>
+    fetchApi<any>(`/Cycles/${cycleId}/employees/${employeeCycleId}`, { method: 'PUT', body: JSON.stringify(data) }),
+  removeCycleEmployee: (cycleId: string, employeeCycleId: string, actorUserId?: string) =>
+    fetchApi<any>(`/Cycles/${cycleId}/employees/${employeeCycleId}${actorUserId ? `?actorUserId=${encodeURIComponent(actorUserId)}` : ''}`, { method: 'DELETE' }),
 
   // My Appraisal Form, Objectives & Appraiser Self-Service Updates
   getMyAppraisal: (sapId: string = '84920') => fetchApi<any>(`/Appraisals/my-cycle?sapId=${sapId}`),

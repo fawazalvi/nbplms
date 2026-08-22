@@ -14,6 +14,16 @@ public class EmployeeCycle
     public FormType AssignedFormType { get; set; }
     public WorkflowStatus CurrentStatus { get; set; } = WorkflowStatus.ObjectiveDraft;
 
+    // Historical Cycle Snapshot of Employee attributes at the time of cycle enrollment
+    public string? SnapshotGrade { get; set; }
+    public string? SnapshotDesignation { get; set; }
+    public string? SnapshotReportingGroup { get; set; }
+    public string? SnapshotDivision { get; set; }
+    public string? SnapshotWingDepartment { get; set; }
+    public string? SnapshotRegionBranch { get; set; }
+    public string? SnapshotLocation { get; set; }
+    public bool? SnapshotIsMrtOrMrc { get; set; }
+
     public Guid? FirstAppraiserId { get; set; }
     public Employee? FirstAppraiser { get; set; }
 

@@ -89,6 +89,18 @@ public class DbSeederService
                     ALTER TABLE EmployeeCycles ADD AppraiserValidatedBySapId NVARCHAR(50) NULL;
                 END
 
+                IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'EmployeeCycles' AND COLUMN_NAME = 'SnapshotGrade')
+                BEGIN
+                    ALTER TABLE EmployeeCycles ADD SnapshotGrade NVARCHAR(50) NULL;
+                    ALTER TABLE EmployeeCycles ADD SnapshotDesignation NVARCHAR(255) NULL;
+                    ALTER TABLE EmployeeCycles ADD SnapshotReportingGroup NVARCHAR(255) NULL;
+                    ALTER TABLE EmployeeCycles ADD SnapshotDivision NVARCHAR(255) NULL;
+                    ALTER TABLE EmployeeCycles ADD SnapshotWingDepartment NVARCHAR(255) NULL;
+                    ALTER TABLE EmployeeCycles ADD SnapshotRegionBranch NVARCHAR(255) NULL;
+                    ALTER TABLE EmployeeCycles ADD SnapshotLocation NVARCHAR(255) NULL;
+                    ALTER TABLE EmployeeCycles ADD SnapshotIsMrtOrMrc BIT NULL;
+                END
+
                 IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'SystemUsers')
                 BEGIN
                     CREATE TABLE SystemUsers (
@@ -363,19 +375,48 @@ public class DbSeederService
 
         _db.AppraisalCycles.AddRange(cycle2026, cycle2025);
 
-        // 6. EmployeeCycle for Fawaz Ahmed (AVP)
+        // 6. EmployeeCycle for Fawaz Ahmed (AVP in 2026 Cycle)
         var empCycleFawaz = new EmployeeCycle
         {
             Employee = avp,
             Cycle = cycle2026,
             AssignedFormType = FormType.KpiForm,
             CurrentStatus = WorkflowStatus.AnnualReviewSelfAssessment,
+            SnapshotGrade = "AVP",
+            SnapshotDesignation = "Assistant Vice President",
+            SnapshotReportingGroup = "Commercial Banking Group",
+            SnapshotDivision = "Corporate Banking",
+            SnapshotWingDepartment = "Relationship Management",
+            SnapshotRegionBranch = "Karachi Main",
+            SnapshotLocation = "Head Office Karachi",
+            SnapshotIsMrtOrMrc = false,
             FirstAppraiser = vp,
             SecondAppraiser = svp,
             AppraiserValidationStatus = "Validated"
         };
 
-        _db.EmployeeCycles.Add(empCycleFawaz);
+        // 6b. Historical 2025 Cycle for Fawaz Ahmed (OG I in Consumer Banking Group!)
+        var empCycleFawaz2025 = new EmployeeCycle
+        {
+            Employee = avp,
+            Cycle = cycle2025,
+            AssignedFormType = FormType.KpiForm,
+            CurrentStatus = WorkflowStatus.CycleClosed,
+            SnapshotGrade = "OG I",
+            SnapshotDesignation = "Senior Operations Officer",
+            SnapshotReportingGroup = "Consumer Banking Group",
+            SnapshotDivision = "Retail Operations",
+            SnapshotWingDepartment = "Branch Services",
+            SnapshotRegionBranch = "Lahore Main",
+            SnapshotLocation = "Lahore",
+            SnapshotIsMrtOrMrc = false,
+            FirstAppraiser = vp,
+            SecondAppraiser = svp,
+            AppraiserValidationStatus = "Validated",
+            CreatedAt = new DateTime(2025, 1, 15)
+        };
+
+        _db.EmployeeCycles.AddRange(empCycleFawaz, empCycleFawaz2025);
 
         // 7. Objectives for Fawaz Ahmed
         var obj1 = new Objective
@@ -517,12 +558,18 @@ public class DbSeederService
         };
         _db.BehaviourTraits.AddRange(bt1, bt2, bt3, bt4, bt5);
 
-        // B. EmployeeCycles for OTHER employees
+        // B. EmployeeCycles for OTHER employees with Snapshot attributes
         var zahidCycle = new EmployeeCycle {
             Employee = og1,
             Cycle = cycle2026,
             AssignedFormType = FormType.KpiForm,
             CurrentStatus = WorkflowStatus.ObjectiveDraft,
+            SnapshotGrade = "OG I",
+            SnapshotDesignation = "Operations Officer",
+            SnapshotReportingGroup = "Commercial Banking Group",
+            SnapshotDivision = "Operations Division",
+            SnapshotLocation = "Karachi",
+            SnapshotIsMrtOrMrc = false,
             FirstAppraiser = avp,
             SecondAppraiser = vp,
             AppraiserValidationStatus = "Validated"
@@ -532,6 +579,12 @@ public class DbSeederService
             Cycle = cycle2026,
             AssignedFormType = FormType.KpiForm,
             CurrentStatus = WorkflowStatus.ObjectiveDraft,
+            SnapshotGrade = "OG II",
+            SnapshotDesignation = "Customer Services Officer",
+            SnapshotReportingGroup = "Commercial Banking Group",
+            SnapshotDivision = "Retail Services",
+            SnapshotLocation = "Karachi",
+            SnapshotIsMrtOrMrc = false,
             FirstAppraiser = vp,
             AppraiserValidationStatus = "Validated"
         };
@@ -540,6 +593,12 @@ public class DbSeederService
             Cycle = cycle2026,
             AssignedFormType = FormType.BalancedScorecard,
             CurrentStatus = WorkflowStatus.AnnualReviewSelfAssessment,
+            SnapshotGrade = "VP",
+            SnapshotDesignation = "Vice President / Regional Head",
+            SnapshotReportingGroup = "Commercial Banking Group",
+            SnapshotDivision = "Corporate Banking",
+            SnapshotLocation = "Karachi",
+            SnapshotIsMrtOrMrc = false,
             FirstAppraiser = svp,
             SecondAppraiser = sevp,
             AppraiserValidationStatus = "Validated"
@@ -549,6 +608,12 @@ public class DbSeederService
             Cycle = cycle2026,
             AssignedFormType = FormType.RiskAdjustedBsc,
             CurrentStatus = WorkflowStatus.AnnualReviewSelfAssessment,
+            SnapshotGrade = "AVP",
+            SnapshotDesignation = "Chief Market Risk Analyst",
+            SnapshotReportingGroup = "Risk Management Group",
+            SnapshotDivision = "Risk Assessment Division",
+            SnapshotLocation = "Head Office Karachi",
+            SnapshotIsMrtOrMrc = true,
             FirstAppraiser = svp,
             SecondAppraiser = sevp,
             AppraiserValidationStatus = "Validated"
