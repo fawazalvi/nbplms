@@ -31,6 +31,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentRole, activeTab, onTabC
           { id: 'users', label: 'User & Role Management', icon: UserCog },
           { id: 'organization', label: 'Groups & Grade Hierarchy', icon: Building2 },
           { id: 'employees', label: 'Employee Master Data', icon: Users },
+          { id: 'email-config', label: 'Email & Exchange Setup', icon: Mail },
           { id: 'security', label: 'Security & Key Vault', icon: Lock },
           { id: 'audit', label: 'Audit & Compliance Logs', icon: Shield },
         ];

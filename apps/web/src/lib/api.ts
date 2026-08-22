@@ -131,4 +131,11 @@ export const api = {
   // Audit Events
   getAuditEvents: (search?: string) =>
     fetchApi<any[]>(`/Audit${search ? `?search=${encodeURIComponent(search)}` : ''}`),
+
+  // Email & Exchange Server Configuration
+  getEmailConfig: () => fetchApi<any>('/EmailConfig'),
+  saveEmailConfig: (data: any) =>
+    fetchApi<any>('/EmailConfig', { method: 'POST', body: JSON.stringify(data) }),
+  testEmailConfig: (data: any) =>
+    fetchApi<any>('/EmailConfig/test', { method: 'POST', body: JSON.stringify(data) }),
 };

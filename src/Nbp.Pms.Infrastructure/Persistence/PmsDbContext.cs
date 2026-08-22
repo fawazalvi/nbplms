@@ -24,6 +24,7 @@ public class PmsDbContext : DbContext
     public DbSet<GradeMapping> GradeMappings => Set<GradeMapping>();
     public DbSet<AppraisalFormAuditLog> AppraisalFormAuditLogs => Set<AppraisalFormAuditLog>();
     public DbSet<SystemUser> SystemUsers => Set<SystemUser>();
+    public DbSet<EmailConfiguration> EmailConfigurations => Set<EmailConfiguration>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

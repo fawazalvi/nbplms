@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Users, Shield, UserCog, Building2, Lock, Activity, RefreshCw, KeyRound, Server } from 'lucide-react';
+import { Users, Shield, UserCog, Building2, Lock, Activity, RefreshCw, KeyRound, Server, Mail } from 'lucide-react';
 import { api } from '@/lib/api';
 
 interface SuperAdminDashboardProps {
@@ -124,68 +124,90 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onNavi
       </div>
 
       {/* Quick Access Modules */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="border-slate-200/80 shadow-sm hover:border-emerald-700/50 transition-all cursor-pointer" onClick={() => onNavigate?.('users')}>
-          <CardHeader>
+          <CardHeader className="p-4">
             <div className="flex items-center space-x-3">
-              <div className="h-10 w-10 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center">
-                <UserCog className="h-5 w-5" />
+              <div className="h-9 w-9 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
+                <UserCog className="h-4 w-4" />
               </div>
               <div>
-                <CardTitle className="text-base font-bold text-slate-900">User & Role Management</CardTitle>
-                <CardDescription className="text-xs">Create, unlock, reset passwords and assign roles</CardDescription>
+                <CardTitle className="text-sm font-bold text-slate-900 leading-tight">User Management</CardTitle>
+                <CardDescription className="text-[11px]">Accounts, roles & unlock</CardDescription>
               </div>
             </div>
           </CardHeader>
-          <CardContent>
-            <p className="text-xs text-slate-600">
-              Manage all portal login credentials, active user statuses, role authorization, and employee linkages across all business units.
+          <CardContent className="p-4 pt-0">
+            <p className="text-[11px] text-slate-600 line-clamp-2">
+              Manage portal login credentials, active user statuses, and role authorization.
             </p>
-            <Button variant="outline" size="sm" className="mt-4 w-full text-xs font-bold border-emerald-700/30 text-emerald-900 hover:bg-emerald-50">
-              Open User Management →
+            <Button variant="outline" size="sm" className="mt-3 w-full text-[11px] font-bold border-emerald-700/30 text-emerald-900 hover:bg-emerald-50 h-8">
+              Open Users →
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card className="border-slate-200/80 shadow-sm hover:border-emerald-700/50 transition-all cursor-pointer" onClick={() => onNavigate?.('email-config')}>
+          <CardHeader className="p-4">
+            <div className="flex items-center space-x-3">
+              <div className="h-9 w-9 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
+                <Mail className="h-4 w-4" />
+              </div>
+              <div>
+                <CardTitle className="text-sm font-bold text-slate-900 leading-tight">Email & Exchange</CardTitle>
+                <CardDescription className="text-[11px]">SMTP, Exchange & Test</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="p-4 pt-0">
+            <p className="text-[11px] text-slate-600 line-clamp-2">
+              Configure SMTP/Exchange gateway, port, encryption, and test live email connection.
+            </p>
+            <Button variant="outline" size="sm" className="mt-3 w-full text-[11px] font-bold border-emerald-700/30 text-emerald-900 hover:bg-emerald-50 h-8">
+              Email Setup →
             </Button>
           </CardContent>
         </Card>
 
         <Card className="border-slate-200/80 shadow-sm hover:border-amber-700/50 transition-all cursor-pointer" onClick={() => onNavigate?.('security')}>
-          <CardHeader>
+          <CardHeader className="p-4">
             <div className="flex items-center space-x-3">
-              <div className="h-10 w-10 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center">
-                <KeyRound className="h-5 w-5" />
+              <div className="h-9 w-9 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center shrink-0">
+                <KeyRound className="h-4 w-4" />
               </div>
               <div>
-                <CardTitle className="text-base font-bold text-slate-900">Security & Key Vault</CardTitle>
-                <CardDescription className="text-xs">KMS encryption key rotation & security policies</CardDescription>
+                <CardTitle className="text-sm font-bold text-slate-900 leading-tight">Security & Key Vault</CardTitle>
+                <CardDescription className="text-[11px]">KMS encryption & keys</CardDescription>
               </div>
             </div>
           </CardHeader>
-          <CardContent>
-            <p className="text-xs text-slate-600">
-              Inspect active cryptographic key versions, perform audited key rotation drills, and verify AES-256-GCM envelope encryption status.
+          <CardContent className="p-4 pt-0">
+            <p className="text-[11px] text-slate-600 line-clamp-2">
+              Inspect active cryptographic key versions and verify AES-256-GCM envelope encryption.
             </p>
-            <Button variant="outline" size="sm" className="mt-4 w-full text-xs font-bold border-amber-700/30 text-amber-900 hover:bg-amber-50">
-              Open Key Vault →
+            <Button variant="outline" size="sm" className="mt-3 w-full text-[11px] font-bold border-amber-700/30 text-amber-900 hover:bg-amber-50 h-8">
+              Key Vault →
             </Button>
           </CardContent>
         </Card>
 
         <Card className="border-slate-200/80 shadow-sm hover:border-blue-700/50 transition-all cursor-pointer" onClick={() => onNavigate?.('audit')}>
-          <CardHeader>
+          <CardHeader className="p-4">
             <div className="flex items-center space-x-3">
-              <div className="h-10 w-10 rounded-lg bg-blue-100 text-blue-800 flex items-center justify-center">
-                <Shield className="h-5 w-5" />
+              <div className="h-9 w-9 rounded-lg bg-blue-100 text-blue-800 flex items-center justify-center shrink-0">
+                <Shield className="h-4 w-4" />
               </div>
               <div>
-                <CardTitle className="text-base font-bold text-slate-900">Audit & Compliance Logs</CardTitle>
-                <CardDescription className="text-xs">Immutable system audit trail & access history</CardDescription>
+                <CardTitle className="text-sm font-bold text-slate-900 leading-tight">Audit & Compliance</CardTitle>
+                <CardDescription className="text-[11px]">Immutable security logs</CardDescription>
               </div>
             </div>
           </CardHeader>
-          <CardContent>
-            <p className="text-xs text-slate-600">
-              Review tamper-evident security logs, track user authentication events, permission changes, and administrative actions with SHA-256 validation.
+          <CardContent className="p-4 pt-0">
+            <p className="text-[11px] text-slate-600 line-clamp-2">
+              Review tamper-evident security logs and track user authentication & admin actions.
             </p>
-            <Button variant="outline" size="sm" className="mt-4 w-full text-xs font-bold border-blue-700/30 text-blue-900 hover:bg-blue-50">
+            <Button variant="outline" size="sm" className="mt-3 w-full text-[11px] font-bold border-blue-700/30 text-blue-900 hover:bg-blue-50 h-8">
               View Audit Logs →
             </Button>
           </CardContent>

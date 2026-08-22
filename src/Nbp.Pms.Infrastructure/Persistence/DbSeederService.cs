@@ -110,6 +110,29 @@ public class DbSeederService
                     );
                     CREATE UNIQUE INDEX IX_SystemUsers_Username ON SystemUsers(Username);
                 END
+
+                IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'EmailConfigurations')
+                BEGIN
+                    CREATE TABLE EmailConfigurations (
+                        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+                        ProviderType NVARCHAR(50) NOT NULL DEFAULT 'SMTP',
+                        Host NVARCHAR(255) NOT NULL DEFAULT 'mailhog',
+                        Port INT NOT NULL DEFAULT 1025,
+                        EncryptionType NVARCHAR(50) NOT NULL DEFAULT 'None',
+                        RequireAuthentication BIT NOT NULL DEFAULT 0,
+                        Username NVARCHAR(255) NULL,
+                        Password NVARCHAR(500) NULL,
+                        SenderEmail NVARCHAR(255) NOT NULL DEFAULT 'pms-notifications@nbp.com.pk',
+                        SenderDisplayName NVARCHAR(255) NOT NULL DEFAULT 'NBP Performance Management System',
+                        ReplyToEmail NVARCHAR(255) NULL,
+                        IsActive BIT NOT NULL DEFAULT 1,
+                        LastTestedAt DATETIME2 NULL,
+                        LastTestStatus NVARCHAR(50) NULL,
+                        LastTestError NVARCHAR(MAX) NULL,
+                        UpdatedAt DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+                        UpdatedByUserId NVARCHAR(100) NULL
+                    );
+                END
             ";
 
             await _db.Database.ExecuteSqlRawAsync(sql);
@@ -138,6 +161,7 @@ public class DbSeederService
         if (await _db.BellCurvePolicies.AnyAsync()) _db.BellCurvePolicies.RemoveRange(_db.BellCurvePolicies);
         if (await _db.EmployeeCycles.AnyAsync()) _db.EmployeeCycles.RemoveRange(_db.EmployeeCycles);
         if (await _db.AppraisalCycles.AnyAsync()) _db.AppraisalCycles.RemoveRange(_db.AppraisalCycles);
+        if (await _db.EmailConfigurations.AnyAsync()) _db.EmailConfigurations.RemoveRange(_db.EmailConfigurations);
         if (await _db.SystemUsers.AnyAsync()) _db.SystemUsers.RemoveRange(_db.SystemUsers);
         if (await _db.Employees.AnyAsync()) _db.Employees.RemoveRange(_db.Employees);
         if (await _db.KeyVersions.AnyAsync()) _db.KeyVersions.RemoveRange(_db.KeyVersions);
@@ -593,6 +617,28 @@ public class DbSeederService
             new SystemUser { Username = mrtAvp.SapId, PasswordHash = BCrypt.Net.BCrypt.HashPassword($"Nbp{mrtAvp.SapId}!"), FullName = mrtAvp.FullName, Email = $"{mrtAvp.SapId}@nbp.com.pk", Role = "Employee", MustChangePassword = false, EmployeeId = mrtAvp.Id, Employee = mrtAvp }
         };
         _db.SystemUsers.AddRange(systemUsers);
+
+        // 8. Email Configuration (Default Dev / SMTP setup)
+        var defaultEmailConfig = new EmailConfiguration
+        {
+            ProviderType = "MailHog",
+            Host = "mailhog",
+            Port = 1025,
+            EncryptionType = "None",
+            RequireAuthentication = false,
+            Username = null,
+            Password = null,
+            SenderEmail = "pms-notifications@nbp.com.pk",
+            SenderDisplayName = "NBP Performance Management System",
+            ReplyToEmail = "hr-support@nbp.com.pk",
+            IsActive = true,
+            LastTestedAt = DateTime.UtcNow,
+            LastTestStatus = "Success",
+            LastTestError = null,
+            UpdatedAt = DateTime.UtcNow,
+            UpdatedByUserId = "SYSTEM_ADMIN"
+        };
+        _db.EmailConfigurations.Add(defaultEmailConfig);
 
         // 9. Audit Event
         var audit1 = new AuditEvent

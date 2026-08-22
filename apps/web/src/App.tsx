@@ -18,6 +18,7 @@ import { SecurityKeyVaultPage } from './pages/admin/SecurityKeyVaultPage';
 import { HelpCircularsPage } from './pages/help/HelpCircularsPage';
 import { UserManagementPage } from './pages/admin/UserManagementPage';
 import { OrganizationManagementPage } from './pages/admin/OrganizationManagementPage';
+import { EmailConfigurationPage } from './pages/admin/EmailConfigurationPage';
 
 export function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -51,6 +52,8 @@ export function App() {
           return <OrganizationManagementPage />;
         case 'employees':
           return <EmployeeDataPage />;
+        case 'email-config':
+          return <EmailConfigurationPage />;
         case 'security':
           return <SecurityKeyVaultPage />;
         case 'audit':
