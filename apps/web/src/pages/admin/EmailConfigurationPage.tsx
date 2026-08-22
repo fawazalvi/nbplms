@@ -596,6 +596,34 @@ export const EmailConfigurationPage: React.FC = () => {
                 </div>
               </div>
 
+              {requireAuthentication && (
+                <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-xl space-y-2 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-amber-900">SMTP Account:</span>
+                    <span className="font-mono text-slate-800">{username || '<No username specified>'}</span>
+                  </div>
+                  {!password && hasExistingPassword ? (
+                    <p className="text-[11px] text-emerald-800 font-semibold flex items-center space-x-1">
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-700" />
+                      <span>Using saved password from database for authentication.</span>
+                    </p>
+                  ) : !password && !hasExistingPassword ? (
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-rose-800">SMTP Password *</label>
+                      <Input
+                        type="password"
+                        placeholder="Enter SMTP password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        className="text-xs bg-white"
+                      />
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-slate-600 font-medium">Using password entered in form.</p>
+                  )}
+                </div>
+              )}
+
               <div className="space-y-1.5">
                 <label className="font-bold text-slate-700">Recipient Email Address for Test Message *</label>
                 <Input

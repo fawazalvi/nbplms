@@ -171,9 +171,25 @@ public class EmailConfigController : ControllerBase
 
             await client.ConnectAsync(dto.Host.Trim(), dto.Port, socketOptions);
 
-            if (dto.RequireAuthentication && !string.IsNullOrWhiteSpace(dto.Username) && !string.IsNullOrWhiteSpace(dto.Password))
+            if (dto.RequireAuthentication)
             {
-                await client.AuthenticateAsync(dto.Username.Trim(), dto.Password);
+                // Retrieve password from DTO or fallback to existing active DB configuration
+                var existingConfig = await _db.EmailConfigurations.FirstOrDefaultAsync(c => c.IsActive);
+                string? effectiveUsername = !string.IsNullOrWhiteSpace(dto.Username) ? dto.Username.Trim() : existingConfig?.Username;
+                string? effectivePassword = !string.IsNullOrWhiteSpace(dto.Password) ? dto.Password : existingConfig?.Password;
+
+                if (string.IsNullOrWhiteSpace(effectiveUsername) || string.IsNullOrWhiteSpace(effectivePassword))
+                {
+                    return Ok(new
+                    {
+                        success = false,
+                        message = "Connection failed: SMTP Authentication is enabled, but Username or Password is missing. Please enter your SMTP credentials in the form.",
+                        testedAt = DateTime.UtcNow
+                    });
+                }
+
+                client.AuthenticationMechanisms.Remove("XOAUTH2");
+                await client.AuthenticateAsync(effectiveUsername, effectivePassword);
             }
 
             var message = new MimeMessage();
