@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Shield, Search, Download, Lock, CheckCircle2 } from 'lucide-react';
+import { api } from '@/lib/api';
 
 interface AuditLogItem {
   id: string;
@@ -11,67 +12,32 @@ interface AuditLogItem {
   actorUserId: string;
   actorRole: string;
   targetEntityId: string;
-  preStatus: string;
-  postStatus: string;
+  targetEntityType?: string;
+  actionDescription?: string;
   timestamp: string;
-  ipAddress: string;
-  hashVerified: boolean;
+  ipAddress?: string;
+  hashVerified?: boolean;
 }
 
 export const AuditLogPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [auditEvents, setAuditEvents] = useState<AuditLogItem[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const auditEvents: AuditLogItem[] = [
-    {
-      id: 'AUD-89104',
-      eventType: 'WORKFLOW_TRANSITION_AnnualReviewSelfAssessment_TO_FirstAppraiserAssessment',
-      actorUserId: '84920 (Fawaz Ahmed)',
-      actorRole: 'Employee',
-      targetEntityId: 'EC-2026-9812',
-      preStatus: 'AnnualReviewSelfAssessment',
-      postStatus: 'FirstAppraiserAssessment',
-      timestamp: '2026-08-01 18:45:12',
-      ipAddress: '10.14.2.88',
-      hashVerified: true,
-    },
-    {
-      id: 'AUD-89103',
-      eventType: 'AES256_FIELD_DECRYPTION_ACCESS',
-      actorUserId: '91204 (Tariq Mahmood)',
-      actorRole: 'FirstAppraiser',
-      targetEntityId: 'SCORE-9812',
-      preStatus: 'N/A',
-      postStatus: 'N/A',
-      timestamp: '2026-08-01 18:40:02',
-      ipAddress: '10.14.2.91',
-      hashVerified: true,
-    },
-    {
-      id: 'AUD-89102',
-      eventType: 'BELL_CURVE_EXCEPTION_APPROVED',
-      actorUserId: 'PMW_ADMIN_01',
-      actorRole: 'PmwAdmin',
-      targetEntityId: 'POLICY-COMM-AVP',
-      preStatus: 'NonCompliant',
-      postStatus: 'ExceptionApproved',
-      timestamp: '2026-08-01 16:20:45',
-      ipAddress: '10.10.1.15',
-      hashVerified: true,
-    },
-    {
-      id: 'AUD-89101',
-      eventType: 'EMPLOYEE_BULK_DATA_IMPORT',
-      actorUserId: 'PMW_ADMIN_01',
-      actorRole: 'PmwAdmin',
-      targetEntityId: 'BATCH-2026-041',
-      preStatus: 'N/A',
-      postStatus: 'ImportCompleted',
-      timestamp: '2026-08-01 14:00:10',
-      ipAddress: '10.10.1.15',
-      hashVerified: true,
-    },
-  ];
-
+  useEffect(() => {
+    const fetchAuditEvents = async () => {
+      try {
+        setLoading(true);
+        const data = await api.getAuditEvents();
+        setAuditEvents(data);
+      } catch (error) {
+        console.error('Error fetching audit events:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchAuditEvents();
+  }, []);
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-12">
       {/* Banner */}

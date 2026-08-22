@@ -19,167 +19,253 @@ public class UsersController : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetUsers([FromQuery] string? role, [FromQuery] string? search)
     {
-        var query = _db.Employees.AsQueryable();
+        var query = _db.SystemUsers.Include(u => u.Employee).AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(role))
+        {
+            query = query.Where(u => u.Role == role);
+        }
 
         if (!string.IsNullOrWhiteSpace(search))
         {
-            query = query.Where(u => u.FullName.Contains(search) || u.SapId.Contains(search) || (u.Email != null && u.Email.Contains(search)));
+            query = query.Where(u =>
+                u.FullName.Contains(search) ||
+                u.Username.Contains(search) ||
+                (u.Email != null && u.Email.Contains(search)));
         }
 
-        var users = await query.Select(u => new
+        var users = await query.OrderBy(u => u.FullName).Select(u => new
         {
             u.Id,
-            u.SapId,
+            u.Username,
             u.FullName,
             u.Email,
-            u.Grade,
-            u.Designation,
-            u.ReportingGroup,
-            u.RegionBranch,
+            u.Role,
             u.IsActive,
             u.IsLockedOut,
-            Role = u.Grade.Contains("President") || u.Grade.Contains("SEVP") ? "PmwSuperAdmin" :
-                   u.Grade.Contains("VP") || u.Grade.Contains("SVP") ? "GroupPerformanceManager" :
-                   u.Grade.Contains("AVP") ? "FirstAppraiser" : "Employee"
+            u.FailedLoginAttempts,
+            u.LastLoginAt,
+            u.MustChangePassword,
+            u.CreatedAt,
+            EmployeeSapId = u.Employee != null ? u.Employee.SapId : null,
+            EmployeeGrade = u.Employee != null ? u.Employee.Grade : null,
+            EmployeeDesignation = u.Employee != null ? u.Employee.Designation : null,
+            EmployeeGroup = u.Employee != null ? u.Employee.ReportingGroup : null,
         }).ToListAsync();
 
         return Ok(users);
     }
 
     [HttpPost]
-    public async Task<IActionResult> CreateUser([FromBody] CreateUserDto dto)
+    public async Task<IActionResult> CreateUser([FromBody] CreateSystemUserDto dto)
     {
-        if (string.IsNullOrWhiteSpace(dto.SapId) || string.IsNullOrWhiteSpace(dto.FullName))
+        if (string.IsNullOrWhiteSpace(dto.Username) || string.IsNullOrWhiteSpace(dto.FullName))
         {
-            return BadRequest(new { message = "SAP ID and Full Name are required." });
+            return BadRequest(new { message = "Username and Full Name are required." });
         }
 
-        var existing = await _db.Employees.FirstOrDefaultAsync(u => u.SapId == dto.SapId);
+        var existing = await _db.SystemUsers.FirstOrDefaultAsync(u => u.Username == dto.Username.Trim());
         if (existing != null)
         {
-            return BadRequest(new { message = $"User with SAP ID {dto.SapId} already exists." });
+            return BadRequest(new { message = $"User with username '{dto.Username}' already exists." });
         }
 
-        var newUser = new Employee
+        // If linking to an employee, find the employee record
+        Guid? employeeId = null;
+        if (!string.IsNullOrWhiteSpace(dto.EmployeeSapId))
         {
-            Id = Guid.NewGuid(),
-            SapId = dto.SapId.Trim(),
+            var emp = await _db.Employees.FirstOrDefaultAsync(e => e.SapId == dto.EmployeeSapId.Trim());
+            if (emp != null)
+            {
+                employeeId = emp.Id;
+            }
+        }
+
+        string password = dto.Password ?? $"Nbp{dto.Username}!";
+        var newUser = new SystemUser
+        {
+            Username = dto.Username.Trim(),
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword(password),
             FullName = dto.FullName.Trim(),
-            Email = dto.Email?.Trim() ?? $"{dto.SapId}@nbp.com.pk",
-            Grade = dto.Grade?.Trim() ?? "OG I",
-            Designation = dto.Designation?.Trim() ?? "Officer",
-            Location = dto.Location?.Trim() ?? "Head Office",
-            ReportingGroup = dto.ReportingGroup?.Trim() ?? "General Banking",
-            Division = dto.Division?.Trim() ?? "Operations",
-            WingDepartment = dto.WingDepartment?.Trim() ?? "General",
-            RegionBranch = dto.RegionBranch?.Trim() ?? "Karachi Main",
+            Email = dto.Email?.Trim() ?? $"{dto.Username}@nbp.com.pk",
+            Role = dto.Role ?? "Employee",
+            EmployeeId = employeeId,
             IsActive = true,
-            IsLockedOut = false
+            MustChangePassword = true
         };
 
-        _db.Employees.Add(newUser);
+        _db.SystemUsers.Add(newUser);
 
-        var audit = new AuditEvent
+        _db.AuditEvents.Add(new AuditEvent
         {
             EventType = "USER_ACCOUNT_CREATED",
-            ActorUserId = dto.ActorUserId,
+            ActorUserId = dto.ActorUserId ?? "ADMIN",
             ActorRole = "PmwSuperAdmin",
             TargetEntityId = newUser.Id.ToString(),
-            TargetEntityType = nameof(Employee),
-            ActionDescription = $"Created new system user account for {newUser.FullName} (SAP ID: {newUser.SapId}, Role: {dto.AssignedRole}).",
+            TargetEntityType = nameof(SystemUser),
+            ActionDescription = $"Created system user '{newUser.Username}' ({newUser.FullName}) with role '{newUser.Role}'.",
             Timestamp = DateTime.UtcNow
-        };
-        _db.AuditEvents.Add(audit);
+        });
 
         await _db.SaveChangesAsync();
 
-        return Ok(new { message = "System user created successfully.", user = newUser });
+        return Ok(new
+        {
+            message = $"User '{newUser.FullName}' ({newUser.Username}) created successfully with role '{newUser.Role}'.",
+            userId = newUser.Id,
+            defaultPassword = password
+        });
+    }
+
+    [HttpPut("{id}")]
+    public async Task<IActionResult> UpdateUser(Guid id, [FromBody] UpdateSystemUserDto dto)
+    {
+        var user = await _db.SystemUsers.FindAsync(id);
+        if (user == null) return NotFound(new { message = "User not found." });
+
+        if (!string.IsNullOrWhiteSpace(dto.FullName)) user.FullName = dto.FullName.Trim();
+        if (!string.IsNullOrWhiteSpace(dto.Email)) user.Email = dto.Email.Trim();
+        if (!string.IsNullOrWhiteSpace(dto.Role)) user.Role = dto.Role;
+        user.UpdatedAt = DateTime.UtcNow;
+
+        // If linking to a different employee
+        if (dto.EmployeeSapId != null)
+        {
+            if (string.IsNullOrWhiteSpace(dto.EmployeeSapId))
+            {
+                user.EmployeeId = null;
+            }
+            else
+            {
+                var emp = await _db.Employees.FirstOrDefaultAsync(e => e.SapId == dto.EmployeeSapId.Trim());
+                if (emp != null) user.EmployeeId = emp.Id;
+            }
+        }
+
+        _db.AuditEvents.Add(new AuditEvent
+        {
+            EventType = "USER_ACCOUNT_UPDATED",
+            ActorUserId = dto.ActorUserId ?? "ADMIN",
+            ActorRole = "PmwSuperAdmin",
+            TargetEntityId = id.ToString(),
+            TargetEntityType = nameof(SystemUser),
+            ActionDescription = $"Updated user '{user.Username}' — Role: {user.Role}, Name: {user.FullName}.",
+            Timestamp = DateTime.UtcNow
+        });
+
+        await _db.SaveChangesAsync();
+        return Ok(new { message = $"User '{user.Username}' updated successfully." });
     }
 
     [HttpPost("{id}/toggle-status")]
-    public async Task<IActionResult> ToggleUserStatus(Guid id, [FromQuery] string actorUserId = "SUPER_ADMIN")
+    public async Task<IActionResult> ToggleUserStatus(Guid id, [FromQuery] string actorUserId = "ADMIN")
     {
-        var user = await _db.Employees.FindAsync(id);
+        var user = await _db.SystemUsers.FindAsync(id);
         if (user == null) return NotFound();
 
         user.IsActive = !user.IsActive;
+        user.UpdatedAt = DateTime.UtcNow;
 
-        var audit = new AuditEvent
+        _db.AuditEvents.Add(new AuditEvent
         {
             EventType = user.IsActive ? "USER_ACCOUNT_ACTIVATED" : "USER_ACCOUNT_DEACTIVATED",
             ActorUserId = actorUserId,
             ActorRole = "PmwSuperAdmin",
             TargetEntityId = id.ToString(),
-            TargetEntityType = nameof(Employee),
-            ActionDescription = $"User account status for {user.FullName} ({user.SapId}) toggled to {(user.IsActive ? "Active" : "Inactive")}.",
+            TargetEntityType = nameof(SystemUser),
+            ActionDescription = $"User '{user.Username}' ({user.FullName}) status changed to {(user.IsActive ? "Active" : "Inactive")}.",
             Timestamp = DateTime.UtcNow
-        };
-        _db.AuditEvents.Add(audit);
+        });
 
         await _db.SaveChangesAsync();
         return Ok(new { message = $"User status updated to {(user.IsActive ? "Active" : "Inactive")}.", isActive = user.IsActive });
     }
 
     [HttpPost("{id}/unlock")]
-    public async Task<IActionResult> UnlockUser(Guid id, [FromQuery] string actorUserId = "SUPER_ADMIN")
+    public async Task<IActionResult> UnlockUser(Guid id, [FromQuery] string actorUserId = "ADMIN")
     {
-        var user = await _db.Employees.FindAsync(id);
+        var user = await _db.SystemUsers.FindAsync(id);
         if (user == null) return NotFound();
 
         user.IsLockedOut = false;
+        user.FailedLoginAttempts = 0;
+        user.UpdatedAt = DateTime.UtcNow;
 
-        var audit = new AuditEvent
+        _db.AuditEvents.Add(new AuditEvent
         {
             EventType = "USER_ACCOUNT_UNLOCKED",
             ActorUserId = actorUserId,
             ActorRole = "PmwSuperAdmin",
             TargetEntityId = id.ToString(),
-            TargetEntityType = nameof(Employee),
-            ActionDescription = $"Unlocked user account for {user.FullName} ({user.SapId}).",
+            TargetEntityType = nameof(SystemUser),
+            ActionDescription = $"Unlocked user account '{user.Username}' ({user.FullName}).",
             Timestamp = DateTime.UtcNow
-        };
-        _db.AuditEvents.Add(audit);
+        });
 
         await _db.SaveChangesAsync();
         return Ok(new { message = "User account unlocked successfully." });
     }
 
     [HttpPost("{id}/reset-password")]
-    public async Task<IActionResult> ResetUserPassword(Guid id, [FromQuery] string actorUserId = "SUPER_ADMIN")
+    public async Task<IActionResult> ResetUserPassword(Guid id, [FromQuery] string actorUserId = "ADMIN")
     {
-        var user = await _db.Employees.FindAsync(id);
+        var user = await _db.SystemUsers.FindAsync(id);
         if (user == null) return NotFound();
 
-        string resetToken = Guid.NewGuid().ToString("N")[..12];
+        string tempPassword = $"Nbp{Guid.NewGuid().ToString("N")[..8]}!";
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(tempPassword);
+        user.MustChangePassword = true;
+        user.IsLockedOut = false;
+        user.FailedLoginAttempts = 0;
+        user.UpdatedAt = DateTime.UtcNow;
 
-        var audit = new AuditEvent
+        _db.AuditEvents.Add(new AuditEvent
         {
-            EventType = "USER_PASSWORD_RESET_INITIATED",
+            EventType = "USER_PASSWORD_RESET",
             ActorUserId = actorUserId,
             ActorRole = "PmwSuperAdmin",
             TargetEntityId = id.ToString(),
-            TargetEntityType = nameof(Employee),
-            ActionDescription = $"Admin initiated password reset for {user.FullName} ({user.SapId}). Temporary token generated.",
+            TargetEntityType = nameof(SystemUser),
+            ActionDescription = $"Password reset for '{user.Username}' ({user.FullName}) by admin.",
             Timestamp = DateTime.UtcNow
-        };
-        _db.AuditEvents.Add(audit);
+        });
 
         await _db.SaveChangesAsync();
-        return Ok(new { message = "Password reset token generated.", resetToken, employeeName = user.FullName });
+        return Ok(new { message = $"Password reset successfully. Temporary password: {tempPassword}", tempPassword, userName = user.FullName });
+    }
+
+    [HttpGet("roles")]
+    public IActionResult GetAvailableRoles()
+    {
+        var roles = new[]
+        {
+            new { value = "PmwSuperAdmin", label = "PMW Super Admin", description = "Full system access including key management" },
+            new { value = "PmwAdmin", label = "PMW Admin", description = "Cycle management, bulk operations, publication" },
+            new { value = "GroupPerformanceManager", label = "Group Performance Manager", description = "Manage assigned groups, bell curve, disagreements" },
+            new { value = "Employee", label = "Employee", description = "Own appraisal form, objectives, acknowledgement" },
+            new { value = "FirstAppraiser", label = "First Appraiser", description = "Appraise direct reports" },
+            new { value = "SecondAppraiser", label = "Second Appraiser", description = "Countersign/second review" },
+            new { value = "Auditor", label = "Auditor", description = "Read-only access to audit logs and forms" },
+            new { value = "SystemSupport", label = "System Support", description = "Technical support, user account management" },
+        };
+        return Ok(roles);
     }
 }
 
-public record CreateUserDto(
-    string SapId,
+public record CreateSystemUserDto(
+    string Username,
     string FullName,
     string? Email,
-    string Grade,
-    string Designation,
-    string? Location,
-    string ReportingGroup,
-    string? Division,
-    string? WingDepartment,
-    string? RegionBranch,
-    string AssignedRole,
-    string ActorUserId = "SUPER_ADMIN"
+    string? Role,
+    string? Password,
+    string? EmployeeSapId,
+    string? ActorUserId
+);
+
+public record UpdateSystemUserDto(
+    string? FullName,
+    string? Email,
+    string? Role,
+    string? EmployeeSapId,
+    string? ActorUserId
 );

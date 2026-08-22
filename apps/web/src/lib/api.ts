@@ -36,9 +36,18 @@ export const api = {
   importGradeMappings: (rows: any[]) => fetchApi<any>('/Organization/grades/import', { method: 'POST', body: JSON.stringify(rows) }),
   deleteGradeMapping: (id: string) => fetchApi<any>(`/Organization/grades/${id}`, { method: 'DELETE' }),
 
+  // Auth
+  login: (username: string, password: string) => 
+    fetchApi<any>('/Auth/login', { method: 'POST', body: JSON.stringify({ username, password }) }),
+  getMe: () => fetchApi<any>('/Auth/me'),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    fetchApi<any>('/Auth/change-password', { method: 'POST', body: JSON.stringify({ currentPassword, newPassword }) }),
+  getAvailableRoles: () => fetchApi<any[]>('/Users/roles'),
+
   // User Management
   getUsers: (search?: string) =>
     fetchApi<any[]>(`/Users${search ? `?search=${encodeURIComponent(search)}` : ''}`),
+  updateUser: (id: string, data: any) => fetchApi<any>(`/Users/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   createUser: (data: any) =>
     fetchApi<any>('/Users', { method: 'POST', body: JSON.stringify(data) }),
   toggleUserStatus: (id: string) =>

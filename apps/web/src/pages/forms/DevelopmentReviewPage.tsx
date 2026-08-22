@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ShieldCheck, FileCheck2, Send, Lock } from 'lucide-react';
+import { api } from '@/lib/api';
 
 interface DevReviewProps {
   userRole?: string;
@@ -11,20 +12,54 @@ interface DevReviewProps {
 export const DevelopmentReviewPage: React.FC<DevReviewProps> = ({ userRole = 'Employee' }) => {
   const isAppraiser = userRole === 'FirstAppraiser' || userRole === 'SecondAppraiser' || userRole === 'PmwAdmin';
 
-  const [strengths, setStrengths] = useState(
-    'Demonstrates exceptional credit risk evaluation skills, leadership in commercial banking, and strong adherence to NBP compliance standards.'
-  );
-  const [developmentAreas, setDevelopmentAreas] = useState(
-    'Advanced structured trade finance products, cross-functional team delegation, and digital treasury portal operations.'
-  );
-  const [actionPlan, setActionPlan] = useState(
-    '1. Enroll in NBP Staff College Advanced Credit Certification.\n2. Cross-training attachment with Treasury & Global Markets Division for 2 weeks.'
-  );
-  const [supervisorComments, setSupervisorComments] = useState(
-    'Recommended for high-potential leadership track within Commercial Banking Group.'
-  );
+  const [strengths, setStrengths] = useState('');
+  const [developmentAreas, setDevelopmentAreas] = useState('');
+  const [actionPlan, setActionPlan] = useState('');
+  const [supervisorComments, setSupervisorComments] = useState('');
+  const [employeeCycleId, setEmployeeCycleId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   const [isSubmitted, setIsSubmitted] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const appraisal = await api.getMyAppraisal('84920');
+        const cycleId = appraisal.employeeCycle.id;
+        setEmployeeCycleId(cycleId);
+
+        const review = await api.getDevelopmentReview(cycleId);
+        if (review) {
+          setStrengths(review.strengths || '');
+          setDevelopmentAreas(review.developmentAreas || '');
+          setActionPlan(review.actionPlan || '');
+          setSupervisorComments(review.supervisorComments || '');
+        }
+      } catch (error) {
+        console.error('Error fetching development review:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
+  const handleSave = async () => {
+    try {
+      if (!employeeCycleId) return;
+      await api.saveDevelopmentReview({
+        employeeCycleId,
+        strengths,
+        developmentAreas,
+        actionPlan,
+        supervisorComments
+      });
+      setIsSubmitted(true);
+    } catch (error) {
+      console.error('Error saving development review:', error);
+    }
+  };
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-12">
@@ -148,7 +183,7 @@ export const DevelopmentReviewPage: React.FC<DevReviewProps> = ({ userRole = 'Em
 
       {isAppraiser && !isSubmitted && (
         <div className="flex justify-end space-x-3">
-          <Button variant="nbp" onClick={() => setIsSubmitted(true)}>
+          <Button variant="nbp" onClick={handleSave}>
             <Send className="h-4 w-4 mr-1" />
             Submit Development Review to Employee
           </Button>

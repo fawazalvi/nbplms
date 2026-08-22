@@ -6,11 +6,12 @@ import { api } from '@/lib/api';
 
 interface NavbarProps {
   userRole: string;
+  currentUser?: any;
   onRoleChange: (role: string) => void;
   onLogout: () => void;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ userRole, onRoleChange, onLogout }) => {
+export const Navbar: React.FC<NavbarProps> = ({ userRole, currentUser, onRoleChange, onLogout }) => {
   const [showDbModal, setShowDbModal] = useState(false);
   const [dbStatus, setDbStatus] = useState<any>(null);
   const [loadingDb, setLoadingDb] = useState(false);
@@ -55,6 +56,17 @@ export const Navbar: React.FC<NavbarProps> = ({ userRole, onRoleChange, onLogout
     } finally {
       setLoadingDb(false);
     }
+  };
+
+  const getInitials = (name?: string) => {
+    if (!name) return 'U';
+    return name
+      .split(' ')
+      .map(part => part[0])
+      .filter(Boolean)
+      .slice(0, 2)
+      .join('')
+      .toUpperCase();
   };
 
   return (
@@ -110,6 +122,7 @@ export const Navbar: React.FC<NavbarProps> = ({ userRole, onRoleChange, onLogout
                 <option value="PmwAdmin">PMW Admin</option>
                 <option value="PmwSuperAdmin">PMW Super Admin</option>
                 <option value="Auditor">Auditor</option>
+                <option value="SystemSupport">System Support</option>
               </select>
             </div>
 
@@ -123,11 +136,15 @@ export const Navbar: React.FC<NavbarProps> = ({ userRole, onRoleChange, onLogout
 
             <div className="flex items-center space-x-3 border-l border-slate-200 pl-3">
               <div className="h-9 w-9 rounded-full bg-emerald-800 text-white flex items-center justify-center font-bold text-sm shadow-sm">
-                FA
+                {getInitials(currentUser?.fullName || 'User')}
               </div>
               <div className="hidden md:block text-left">
-                <p className="text-xs font-bold text-slate-900 leading-none">Fawaz Ahmed</p>
-                <p className="text-[11px] text-slate-500 leading-tight">SAP ID: 84920 | AVP</p>
+                <p className="text-xs font-bold text-slate-900 leading-none">
+                  {currentUser?.fullName || (userRole === 'PmwSuperAdmin' ? 'System Administrator' : 'Fawaz Ahmed')}
+                </p>
+                <p className="text-[11px] text-slate-500 leading-tight">
+                  {currentUser?.sapId ? `SAP ID: ${currentUser.sapId}` : `User: ${currentUser?.username || 'admin'}`} | {userRole}
+                </p>
               </div>
               <Button variant="ghost" size="icon" onClick={onLogout} title="Sign Out">
                 <LogOut className="h-4 w-4 text-slate-500 hover:text-red-600" />
@@ -172,6 +189,7 @@ export const Navbar: React.FC<NavbarProps> = ({ userRole, onRoleChange, onLogout
                 <span className="font-bold text-slate-800 uppercase tracking-wider block text-[11px]">Live Database Table Record Counts</span>
                 {dbStatus ? (
                   <div className="grid grid-cols-2 gap-2 text-slate-700 font-medium">
+                    <div>System Users: <strong>{dbStatus.systemUsersCount ?? 0}</strong></div>
                     <div>Employees: <strong>{dbStatus.employeesCount ?? 0}</strong></div>
                     <div>Appraisal Cycles: <strong>{dbStatus.cyclesCount ?? 0}</strong></div>
                     <div>Employee Cycles: <strong>{dbStatus.employeeCyclesCount ?? 0}</strong></div>

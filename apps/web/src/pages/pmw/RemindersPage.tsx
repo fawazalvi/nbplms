@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Mail, Send, Eye, Users, CheckCircle2, History, AlertCircle } from 'lucide-react';
+import { api } from '@/lib/api';
 
 export const RemindersPage: React.FC = () => {
   const [selectedGroup, setSelectedGroup] = useState('All Groups');
@@ -16,12 +17,25 @@ export const RemindersPage: React.FC = () => {
 
   const [previewActive, setPreviewActive] = useState(false);
   const [sentSuccess, setSentSuccess] = useState(false);
+  const [recipientPreview, setRecipientPreview] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  const recipientPreview = [
-    { sapId: '84920', name: 'Fawaz Ahmed', grade: 'AVP', group: 'Commercial Banking', status: 'Annual Self-Assessment' },
-    { sapId: '91204', name: 'Zahid Hussain', grade: 'OG I', group: 'Commercial Banking', status: 'Objective Draft' },
-    { sapId: '88392', name: 'Mariam Ali', grade: 'AVP', group: 'Consumer Banking', status: 'Objective Draft' },
-  ];
+  useEffect(() => {
+    const fetchPreview = async () => {
+      try {
+        setLoading(true);
+        const group = selectedGroup === 'All Groups' ? undefined : selectedGroup;
+        const grade = selectedGrade === 'All Grades' ? undefined : selectedGrade;
+        const data = await api.getReminderPreview(group, grade);
+        setRecipientPreview(data);
+      } catch (error) {
+        console.error('Error fetching preview:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchPreview();
+  }, [selectedGroup, selectedGrade]);
 
   const handleSendReminders = () => {
     setSentSuccess(true);

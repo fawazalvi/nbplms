@@ -88,6 +88,28 @@ public class DbSeederService
                     ALTER TABLE EmployeeCycles ADD AppraiserValidatedAt DATETIME2 NULL;
                     ALTER TABLE EmployeeCycles ADD AppraiserValidatedBySapId NVARCHAR(50) NULL;
                 END
+
+                IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'SystemUsers')
+                BEGIN
+                    CREATE TABLE SystemUsers (
+                        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+                        Username NVARCHAR(100) NOT NULL,
+                        PasswordHash NVARCHAR(500) NOT NULL,
+                        FullName NVARCHAR(255) NOT NULL,
+                        Email NVARCHAR(255) NULL,
+                        Role NVARCHAR(50) NOT NULL DEFAULT 'Employee',
+                        EmployeeId UNIQUEIDENTIFIER NULL,
+                        IsActive BIT NOT NULL DEFAULT 1,
+                        IsLockedOut BIT NOT NULL DEFAULT 0,
+                        FailedLoginAttempts INT NOT NULL DEFAULT 0,
+                        LastLoginAt DATETIME2 NULL,
+                        MustChangePassword BIT NOT NULL DEFAULT 1,
+                        CreatedAt DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+                        UpdatedAt DATETIME2 NULL,
+                        CONSTRAINT FK_SystemUsers_Employees FOREIGN KEY (EmployeeId) REFERENCES Employees(Id) ON DELETE SET NULL
+                    );
+                    CREATE UNIQUE INDEX IX_SystemUsers_Username ON SystemUsers(Username);
+                END
             ";
 
             await _db.Database.ExecuteSqlRawAsync(sql);
@@ -116,6 +138,7 @@ public class DbSeederService
         if (await _db.BellCurvePolicies.AnyAsync()) _db.BellCurvePolicies.RemoveRange(_db.BellCurvePolicies);
         if (await _db.EmployeeCycles.AnyAsync()) _db.EmployeeCycles.RemoveRange(_db.EmployeeCycles);
         if (await _db.AppraisalCycles.AnyAsync()) _db.AppraisalCycles.RemoveRange(_db.AppraisalCycles);
+        if (await _db.SystemUsers.AnyAsync()) _db.SystemUsers.RemoveRange(_db.SystemUsers);
         if (await _db.Employees.AnyAsync()) _db.Employees.RemoveRange(_db.Employees);
         if (await _db.KeyVersions.AnyAsync()) _db.KeyVersions.RemoveRange(_db.KeyVersions);
 
@@ -431,6 +454,145 @@ public class DbSeederService
         };
 
         _db.AppraisalFormAuditLogs.AddRange(log1, log2, log3, log4);
+
+        // A. BehaviourTraits
+        var bt1 = new BehaviourTrait {
+            EmployeeCycleId = empCycleFawaz.Id,
+            TraitName = "Integrity & Ethical Conduct",
+            Definition = "Demonstrates honesty, transparency and adherence to NBP's code of conduct and regulatory requirements.",
+            WeightagePercentage = 6.0m,
+            FirstAppraiserRating = 4
+        };
+        var bt2 = new BehaviourTrait {
+            EmployeeCycleId = empCycleFawaz.Id,
+            TraitName = "Teamwork & Collaboration",
+            Definition = "Works cooperatively with colleagues, shares knowledge and contributes to team objectives.",
+            WeightagePercentage = 6.0m,
+            FirstAppraiserRating = 4
+        };
+        var bt3 = new BehaviourTrait {
+            EmployeeCycleId = empCycleFawaz.Id,
+            TraitName = "Communication & Interpersonal Skills",
+            Definition = "Communicates effectively with clients, team members and stakeholders at all levels.",
+            WeightagePercentage = 6.0m,
+            FirstAppraiserRating = 3
+        };
+        var bt4 = new BehaviourTrait {
+            EmployeeCycleId = empCycleFawaz.Id,
+            TraitName = "Initiative & Innovation",
+            Definition = "Proactively identifies opportunities, proposes solutions and drives continuous improvement.",
+            WeightagePercentage = 6.0m,
+            FirstAppraiserRating = 4
+        };
+        var bt5 = new BehaviourTrait {
+            EmployeeCycleId = empCycleFawaz.Id,
+            TraitName = "Customer Focus & Service Excellence",
+            Definition = "Prioritizes customer needs, resolves issues promptly and maintains high service standards.",
+            WeightagePercentage = 6.0m,
+            FirstAppraiserRating = 5
+        };
+        _db.BehaviourTraits.AddRange(bt1, bt2, bt3, bt4, bt5);
+
+        // B. EmployeeCycles for OTHER employees
+        var zahidCycle = new EmployeeCycle {
+            Employee = og1,
+            Cycle = cycle2026,
+            AssignedFormType = FormType.KpiForm,
+            CurrentStatus = WorkflowStatus.ObjectiveDraft,
+            FirstAppraiser = avp,
+            SecondAppraiser = vp,
+            AppraiserValidationStatus = "Validated"
+        };
+        var mariamCycle = new EmployeeCycle {
+            Employee = og2,
+            Cycle = cycle2026,
+            AssignedFormType = FormType.KpiForm,
+            CurrentStatus = WorkflowStatus.ObjectiveDraft,
+            FirstAppraiser = vp,
+            AppraiserValidationStatus = "Validated"
+        };
+        var tariqCycle = new EmployeeCycle {
+            Employee = vp,
+            Cycle = cycle2026,
+            AssignedFormType = FormType.BalancedScorecard,
+            CurrentStatus = WorkflowStatus.AnnualReviewSelfAssessment,
+            FirstAppraiser = svp,
+            SecondAppraiser = sevp,
+            AppraiserValidationStatus = "Validated"
+        };
+        var usmanCycle = new EmployeeCycle {
+            Employee = mrtAvp,
+            Cycle = cycle2026,
+            AssignedFormType = FormType.RiskAdjustedBsc,
+            CurrentStatus = WorkflowStatus.AnnualReviewSelfAssessment,
+            FirstAppraiser = svp,
+            SecondAppraiser = sevp,
+            AppraiserValidationStatus = "Validated"
+        };
+        _db.EmployeeCycles.AddRange(zahidCycle, mariamCycle, tariqCycle, usmanCycle);
+
+        // C. Objectives for Zahid (og1)
+        var zahidObj1 = new Objective {
+            EmployeeCycleId = zahidCycle.Id,
+            Title = "Trade Finance Processing",
+            TargetDescription = "Process 150+ Letters of Credit and Bank Guarantees with zero discrepancy rate.",
+            WeightagePercentage = 25.0m
+        };
+        var zahidObj2 = new Objective {
+            EmployeeCycleId = zahidCycle.Id,
+            Title = "Customer Onboarding",
+            TargetDescription = "Onboard 50 new commercial clients with complete KYC documentation.",
+            WeightagePercentage = 25.0m
+        };
+        var zahidObj3 = new Objective {
+            EmployeeCycleId = zahidCycle.Id,
+            Title = "Regulatory Compliance",
+            TargetDescription = "Maintain 100% compliance with SBP AML/CFT regulations.",
+            WeightagePercentage = 20.0m
+        };
+        _db.Objectives.AddRange(zahidObj1, zahidObj2, zahidObj3);
+
+        // D. DevelopmentReview for Fawaz
+        var fawazDev = new DevelopmentReview {
+            EmployeeCycleId = empCycleFawaz.Id,
+            KeyStrengths = "Demonstrates exceptional credit risk evaluation skills with consistent portfolio quality maintenance. Strong relationship management capabilities with key corporate clients. Effective digital banking advocacy driving client migration to NBP digital platforms.",
+            DevelopmentAreas = "Leadership and mentoring skills need further development for future management roles. Technical knowledge of international trade finance instruments can be deepened.",
+            TrainingActionPlan = "1. Enroll in NBP Staff College Advanced Credit Certification program.\n2. Complete cross-training attachment in International Trade Finance Division (Q3 2026).\n3. Attend SBP-mandated Risk Management workshop.\n4. Participate in NBP Leadership Development Programme (LDP) for AVP-grade officers.",
+            IsSubmitted = true,
+            SubmittedByUserId = avp.Id
+        };
+        _db.DevelopmentReviews.Add(fawazDev);
+
+        // E. DisagreementCase for Zahid
+        var zahidDisagreement = new DisagreementCase {
+            EmployeeCycleId = zahidCycle.Id,
+            EmployeeId = og1.Id,
+            MandatoryDisagreementReason = "I believe my NPL recovery efforts (PKR 45M recovered) were not adequately reflected in the final rating. The recovery target was PKR 30M and I exceeded it by 50%.",
+            Status = "PendingGpmReview"
+        };
+        _db.DisagreementCases.Add(zahidDisagreement);
+
+        var ae1 = new AuditEvent { EventType = "EMPLOYEE_IMPORTED", ActorUserId = "SYSTEM", ActorRole = "System", TargetEntityType = "Employee", ActionDescription = "Imported employee Zahid Hussain", IpAddress = "127.0.0.1", Timestamp = DateTime.UtcNow.AddDays(-10) };
+        var ae2 = new AuditEvent { EventType = "CYCLE_OPENED", ActorUserId = "ADMIN", ActorRole = "PmwSuperAdmin", TargetEntityType = "AppraisalCycle", ActionDescription = "Opened 2026 cycle", IpAddress = "127.0.0.1", Timestamp = DateTime.UtcNow.AddDays(-5) };
+        var ae3 = new AuditEvent { EventType = "APPRAISER_MAPPING_CONFIRMED", ActorUserId = "10004", ActorRole = "FirstAppraiser", TargetEntityType = "EmployeeCycle", ActionDescription = "Confirmed mapping for Fawaz", IpAddress = "127.0.0.1", Timestamp = DateTime.UtcNow.AddDays(-4) };
+        var ae4 = new AuditEvent { EventType = "SELF_ASSESSMENT_SUBMITTED", ActorUserId = "84920", ActorRole = "Employee", TargetEntityType = "EmployeeCycle", ActionDescription = "Fawaz submitted self assessment", IpAddress = "127.0.0.1", Timestamp = DateTime.UtcNow.AddDays(-3) };
+        var ae5 = new AuditEvent { EventType = "DISAGREEMENT_RAISED", ActorUserId = "91204", ActorRole = "Employee", TargetEntityType = "DisagreementCase", ActionDescription = "Zahid raised disagreement", IpAddress = "127.0.0.1", Timestamp = DateTime.UtcNow.AddDays(-1) };
+        _db.AuditEvents.AddRange(ae1, ae2, ae3, ae4, ae5);
+
+        // SystemUsers
+        var systemUsers = new List<SystemUser>
+        {
+            new SystemUser { Username = "admin", PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin@Nbp2026!"), FullName = "System Administrator", Email = "admin@nbp.com.pk", Role = "PmwSuperAdmin", MustChangePassword = true },
+            new SystemUser { Username = pres.SapId, PasswordHash = BCrypt.Net.BCrypt.HashPassword($"Nbp{pres.SapId}!"), FullName = pres.FullName, Email = $"{pres.SapId}@nbp.com.pk", Role = "PmwSuperAdmin", MustChangePassword = false, EmployeeId = pres.Id, Employee = pres },
+            new SystemUser { Username = sevp.SapId, PasswordHash = BCrypt.Net.BCrypt.HashPassword($"Nbp{sevp.SapId}!"), FullName = sevp.FullName, Email = $"{sevp.SapId}@nbp.com.pk", Role = "PmwAdmin", MustChangePassword = false, EmployeeId = sevp.Id, Employee = sevp },
+            new SystemUser { Username = svp.SapId, PasswordHash = BCrypt.Net.BCrypt.HashPassword($"Nbp{svp.SapId}!"), FullName = svp.FullName, Email = $"{svp.SapId}@nbp.com.pk", Role = "SecondAppraiser", MustChangePassword = false, EmployeeId = svp.Id, Employee = svp },
+            new SystemUser { Username = vp.SapId, PasswordHash = BCrypt.Net.BCrypt.HashPassword($"Nbp{vp.SapId}!"), FullName = vp.FullName, Email = $"{vp.SapId}@nbp.com.pk", Role = "FirstAppraiser", MustChangePassword = false, EmployeeId = vp.Id, Employee = vp },
+            new SystemUser { Username = avp.SapId, PasswordHash = BCrypt.Net.BCrypt.HashPassword($"Nbp{avp.SapId}!"), FullName = avp.FullName, Email = $"{avp.SapId}@nbp.com.pk", Role = "Employee", MustChangePassword = false, EmployeeId = avp.Id, Employee = avp },
+            new SystemUser { Username = og1.SapId, PasswordHash = BCrypt.Net.BCrypt.HashPassword($"Nbp{og1.SapId}!"), FullName = og1.FullName, Email = $"{og1.SapId}@nbp.com.pk", Role = "Employee", MustChangePassword = false, EmployeeId = og1.Id, Employee = og1 },
+            new SystemUser { Username = og2.SapId, PasswordHash = BCrypt.Net.BCrypt.HashPassword($"Nbp{og2.SapId}!"), FullName = og2.FullName, Email = $"{og2.SapId}@nbp.com.pk", Role = "Employee", MustChangePassword = false, EmployeeId = og2.Id, Employee = og2 },
+            new SystemUser { Username = mrtAvp.SapId, PasswordHash = BCrypt.Net.BCrypt.HashPassword($"Nbp{mrtAvp.SapId}!"), FullName = mrtAvp.FullName, Email = $"{mrtAvp.SapId}@nbp.com.pk", Role = "Employee", MustChangePassword = false, EmployeeId = mrtAvp.Id, Employee = mrtAvp }
+        };
+        _db.SystemUsers.AddRange(systemUsers);
 
         // 9. Audit Event
         var audit1 = new AuditEvent

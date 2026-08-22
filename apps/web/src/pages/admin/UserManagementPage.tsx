@@ -1,92 +1,172 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { api } from '@/lib/api';
-import { Users, UserPlus, Search, RefreshCw, Lock, Unlock, KeyRound, CheckCircle2, Shield, UserX, UserCheck, X } from 'lucide-react';
+import { Users, UserPlus, Search, RefreshCw, Lock, Unlock, KeyRound, CheckCircle2, Shield, UserX, UserCheck, X, Edit, Eye, EyeOff } from 'lucide-react';
+import { SapIdAutocomplete } from '@/components/appraisal/SapIdAutocomplete';
 
 export const UserManagementPage: React.FC = () => {
   const [users, setUsers] = useState<any[]>([]);
+  const [roles, setRoles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [message, setMessage] = useState<string | null>(null);
+  const [roleFilter, setRoleFilter] = useState('All');
+  const [message, setMessage] = useState<{ type: 'success' | 'info' | 'error', text: string } | null>(null);
 
   // Modal State
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [sapId, setSapId] = useState('');
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  
+  // Form State
+  const [username, setUsername] = useState('');
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
-  const [grade, setGrade] = useState('AVP');
-  const [designation, setDesignation] = useState('Senior Officer');
-  const [group, setGroup] = useState('Commercial Banking Group');
-  const [assignedRole, setAssignedRole] = useState('PmwAdmin');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [selectedRole, setSelectedRole] = useState('');
+  const [employeeSapId, setEmployeeSapId] = useState('');
 
-  const loadUsers = async () => {
+  const loadData = async () => {
     setLoading(true);
     try {
-      const data = await api.getUsers(searchTerm);
-      setUsers(data);
+      const [usersData, rolesData] = await Promise.all([
+        api.getUsers(searchTerm),
+        api.getAvailableRoles().catch(() => [])
+      ]);
+      setUsers(usersData);
+      setRoles(rolesData);
+      if (rolesData.length > 0 && !selectedRole) {
+        setSelectedRole(rolesData[0].value);
+      }
     } catch (e: any) {
       console.error(e);
+      setMessage({ type: 'error', text: 'Failed to load data.' });
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadUsers();
-  }, []);
+    loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm]);
+
+  const filteredUsers = useMemo(() => {
+    if (roleFilter === 'All') return users;
+    return users.filter(u => u.role === roleFilter);
+  }, [users, roleFilter]);
+
+  const stats = useMemo(() => {
+    const total = users.length;
+    const active = users.filter(u => u.isActive).length;
+    const locked = users.filter(u => u.isLockedOut).length;
+    const admins = users.filter(u => u.role === 'PmwAdmin' || u.role === 'PmwSuperAdmin').length;
+    return { total, active, locked, admins };
+  }, [users]);
+
+  const resetForm = () => {
+    setUsername('');
+    setFullName('');
+    setEmail('');
+    setPassword('');
+    setEmployeeSapId('');
+    if (roles.length > 0) setSelectedRole(roles[0].value);
+    setShowPassword(false);
+    setEditingUserId(null);
+  };
+
+  const openCreateModal = () => {
+    resetForm();
+    setShowCreateModal(true);
+  };
+
+  const openEditModal = (user: any) => {
+    resetForm();
+    setEditingUserId(user.id);
+    setUsername(user.username || '');
+    setFullName(user.fullName || '');
+    setEmail(user.email || '');
+    setSelectedRole(user.role || (roles.length > 0 ? roles[0].value : ''));
+    setEmployeeSapId(user.employeeSapId || '');
+    setShowEditModal(true);
+  };
 
   const handleCreateUser = async () => {
-    if (!sapId || !fullName) return;
+    if (!username || !fullName || !password) {
+      setMessage({ type: 'error', text: 'Username, Full Name, and Password are required.' });
+      return;
+    }
     try {
       await api.createUser({
-        sapId,
+        username,
         fullName,
-        email: email || `${sapId}@nbp.com.pk`,
-        grade,
-        designation,
-        reportingGroup: group,
-        assignedRole
+        email,
+        role: selectedRole,
+        password,
+        employeeSapId,
+        actorUserId: 'Admin'
       });
-      setMessage(`User account ${fullName} (${sapId}) created successfully.`);
+      setMessage({ type: 'success', text: `User account ${fullName} (${username}) created successfully.` });
       setShowCreateModal(false);
-      setSapId('');
-      setFullName('');
-      setEmail('');
-      loadUsers();
+      resetForm();
+      loadData();
     } catch (e: any) {
-      alert(`Error creating user: ${e.message}`);
+      setMessage({ type: 'error', text: `Error creating user: ${e.message}` });
+    }
+  };
+
+  const handleEditUser = async () => {
+    if (!editingUserId || !fullName) {
+      setMessage({ type: 'error', text: 'Full Name is required.' });
+      return;
+    }
+    try {
+      await api.updateUser(editingUserId, {
+        fullName,
+        email,
+        role: selectedRole,
+        employeeSapId,
+        actorUserId: 'Admin'
+      });
+      setMessage({ type: 'success', text: `User account updated successfully.` });
+      setShowEditModal(false);
+      resetForm();
+      loadData();
+    } catch (e: any) {
+      setMessage({ type: 'error', text: `Error updating user: ${e.message}` });
     }
   };
 
   const handleToggleStatus = async (id: string) => {
     try {
       const res = await api.toggleUserStatus(id);
-      setMessage(res.message);
-      loadUsers();
+      setMessage({ type: 'success', text: res.message || 'Status toggled.' });
+      loadData();
     } catch (e: any) {
-      alert(e.message);
+      setMessage({ type: 'error', text: e.message });
     }
   };
 
   const handleUnlock = async (id: string) => {
     try {
       const res = await api.unlockUser(id);
-      setMessage(res.message);
-      loadUsers();
+      setMessage({ type: 'success', text: res.message || 'User unlocked.' });
+      loadData();
     } catch (e: any) {
-      alert(e.message);
+      setMessage({ type: 'error', text: e.message });
     }
   };
 
   const handleResetPassword = async (id: string) => {
     try {
       const res = await api.resetUserPassword(id);
-      setMessage(`Password reset token generated for ${res.employeeName}: ${res.resetToken}`);
+      alert(`Temporary password for ${res.userName}: ${res.tempPassword}`);
+      setMessage({ type: 'info', text: `Password reset successful for ${res.userName}.` });
     } catch (e: any) {
-      alert(e.message);
+      setMessage({ type: 'error', text: e.message });
     }
   };
 
@@ -106,11 +186,11 @@ export const UserManagementPage: React.FC = () => {
           </p>
         </div>
         <div className="flex items-center space-x-2">
-          <Button variant="secondary" size="sm" onClick={loadUsers}>
+          <Button variant="secondary" size="sm" onClick={loadData}>
             <RefreshCw className="h-4 w-4 mr-1" />
             Refresh
           </Button>
-          <Button variant="gold" size="sm" onClick={() => setShowCreateModal(true)}>
+          <Button variant="gold" size="sm" onClick={openCreateModal}>
             <UserPlus className="h-4 w-4 mr-1" />
             Create System User
           </Button>
@@ -118,14 +198,46 @@ export const UserManagementPage: React.FC = () => {
       </div>
 
       {message && (
-        <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs flex items-center justify-between font-semibold">
+        <div className={`p-4 rounded-xl border text-xs flex items-center justify-between font-semibold ${
+          message.type === 'error' ? 'bg-red-50 border-red-200 text-red-900' :
+          message.type === 'info' ? 'bg-blue-50 border-blue-200 text-blue-900' :
+          'bg-emerald-50 border-emerald-200 text-emerald-900'
+        }`}>
           <div className="flex items-center space-x-2">
-            <CheckCircle2 className="h-5 w-5 text-emerald-700 shrink-0" />
-            <span>{message}</span>
+            <CheckCircle2 className="h-5 w-5 shrink-0" />
+            <span>{message.text}</span>
           </div>
-          <button onClick={() => setMessage(null)} className="text-slate-400 font-bold text-xs">✕</button>
+          <button onClick={() => setMessage(null)} className="opacity-50 hover:opacity-100 font-bold text-xs">✕</button>
         </div>
       )}
+
+      {/* Stats Row */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="p-4 flex flex-col justify-center items-center">
+            <div className="text-3xl font-black text-slate-800">{stats.total}</div>
+            <div className="text-xs font-bold text-slate-500 uppercase">Total Users</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 flex flex-col justify-center items-center">
+            <div className="text-3xl font-black text-emerald-600">{stats.active}</div>
+            <div className="text-xs font-bold text-slate-500 uppercase">Active</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 flex flex-col justify-center items-center">
+            <div className="text-3xl font-black text-red-600">{stats.locked}</div>
+            <div className="text-xs font-bold text-slate-500 uppercase">Locked Out</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4 flex flex-col justify-center items-center">
+            <div className="text-3xl font-black text-purple-600">{stats.admins}</div>
+            <div className="text-xs font-bold text-slate-500 uppercase">Admins</div>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Filter Toolbar */}
       <Card>
@@ -133,14 +245,34 @@ export const UserManagementPage: React.FC = () => {
           <div className="flex items-center space-x-3 w-full md:w-96">
             <Search className="h-4 w-4 text-slate-400 shrink-0" />
             <Input
-              placeholder="Search users by SAP ID, Name, or Email..."
+              placeholder="Search users by Username or Name..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && loadUsers()}
               className="h-9 text-xs"
             />
           </div>
-          <Badge variant="nbp">{users.length} Registered System Users</Badge>
+          
+          <div className="flex items-center space-x-2 overflow-x-auto pb-2 md:pb-0">
+            <Button
+              variant={roleFilter === 'All' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setRoleFilter('All')}
+              className="whitespace-nowrap"
+            >
+              All Roles
+            </Button>
+            {roles.map(r => (
+              <Button
+                key={r.value}
+                variant={roleFilter === r.value ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setRoleFilter(r.value)}
+                className="whitespace-nowrap"
+              >
+                {r.label}
+              </Button>
+            ))}
+          </div>
         </CardContent>
       </Card>
 
@@ -148,7 +280,7 @@ export const UserManagementPage: React.FC = () => {
       <Card>
         <CardHeader>
           <CardTitle className="text-base font-bold text-slate-900">Registered System Accounts</CardTitle>
-          <CardDescription className="text-xs">Database-driven user records from Microsoft SQL Server</CardDescription>
+          <CardDescription className="text-xs">Database-driven user records</CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
@@ -158,26 +290,23 @@ export const UserManagementPage: React.FC = () => {
               <table className="w-full text-xs text-left">
                 <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase">
                   <tr>
-                    <th className="p-3">SAP ID</th>
+                    <th className="p-3">Username</th>
                     <th className="p-3">Full Name</th>
-                    <th className="p-3">Email Address</th>
-                    <th className="p-3">Grade & Designation</th>
-                    <th className="p-3">Reporting Group</th>
-                    <th className="p-3">System Role</th>
+                    <th className="p-3">Role</th>
+                    <th className="p-3">Employee Link</th>
                     <th className="p-3">Status</th>
+                    <th className="p-3">Last Login</th>
                     <th className="p-3 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {users.map((u) => (
+                  {filteredUsers.map((u) => (
                     <tr key={u.id} className="hover:bg-slate-50">
-                      <td className="p-3 font-mono font-bold text-slate-900">{u.sapId}</td>
+                      <td className="p-3 font-mono font-bold text-slate-900">{u.username}</td>
                       <td className="p-3 font-bold text-slate-900">{u.fullName}</td>
-                      <td className="p-3 text-slate-600 font-mono text-[11px]">{u.email}</td>
-                      <td className="p-3 text-slate-700">{u.grade} — {u.designation}</td>
-                      <td className="p-3 text-slate-500">{u.reportingGroup}</td>
                       <td className="p-3"><Badge variant="nbp" className="text-[10px]">{u.role}</Badge></td>
-                      <td className="p-3">
+                      <td className="p-3 text-slate-600 font-mono text-[11px]">{u.employeeSapId || '-'}</td>
+                      <td className="p-3 space-x-1">
                         {u.isLockedOut ? (
                           <Badge variant="danger" className="text-[10px]">Locked Out</Badge>
                         ) : u.isActive ? (
@@ -186,7 +315,11 @@ export const UserManagementPage: React.FC = () => {
                           <Badge variant="secondary" className="text-[10px]">Inactive</Badge>
                         )}
                       </td>
+                      <td className="p-3 text-slate-500">{u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleString() : 'Never'}</td>
                       <td className="p-3 text-right space-x-1">
+                        <Button variant="outline" size="sm" onClick={() => openEditModal(u)} title="Edit User">
+                          <Edit className="h-3.5 w-3.5 text-blue-600" />
+                        </Button>
                         {u.isLockedOut && (
                           <Button variant="outline" size="sm" onClick={() => handleUnlock(u.id)} title="Unlock Account">
                             <Unlock className="h-3.5 w-3.5 text-emerald-700" />
@@ -201,6 +334,11 @@ export const UserManagementPage: React.FC = () => {
                       </td>
                     </tr>
                   ))}
+                  {filteredUsers.length === 0 && (
+                    <tr>
+                      <td colSpan={7} className="p-4 text-center text-slate-500">No users found.</td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -218,7 +356,7 @@ export const UserManagementPage: React.FC = () => {
                   <UserPlus className="h-5 w-5 text-emerald-400" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-white leading-tight">Create System User Account</h3>
+                  <h3 className="text-base font-bold text-white leading-tight">Create System User</h3>
                   <p className="text-[11px] text-slate-300">Identity & Role Provisioning Wizard</p>
                 </div>
               </div>
@@ -230,64 +368,135 @@ export const UserManagementPage: React.FC = () => {
             <div className="p-6 space-y-3 text-xs">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="font-bold text-slate-700">SAP ID *</label>
-                  <Input value={sapId} onChange={(e) => setSapId(e.target.value)} placeholder="e.g. 98120" />
+                  <label className="font-bold text-slate-700">Username (Required)</label>
+                  <Input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="e.g. 98120 or admin" />
                 </div>
                 <div>
-                  <label className="font-bold text-slate-700">Full Name *</label>
+                  <label className="font-bold text-slate-700">Full Name (Required)</label>
                   <Input value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Full Employee Name" />
                 </div>
               </div>
 
               <div>
-                <label className="font-bold text-slate-700">Official Email</label>
-                <Input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@nbp.com.pk" />
+                <label className="font-bold text-slate-700">Email (Optional)</label>
+                <Input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@nbp.com.pk" type="email" />
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700">Password (Required)</label>
+                <div className="relative">
+                  <Input 
+                    value={password} 
+                    onChange={(e) => setPassword(e.target.value)} 
+                    placeholder="Enter strong password" 
+                    type={showPassword ? "text" : "password"}
+                  />
+                  <button 
+                    type="button" 
+                    className="absolute right-2 top-2 text-slate-400 hover:text-slate-600"
+                    onClick={() => setShowPassword(!showPassword)}
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="font-bold text-slate-700">Grade</label>
-                  <select value={grade} onChange={(e) => setGrade(e.target.value)} className="w-full h-9 px-3 bg-slate-50 border rounded-lg">
-                    <option value="OG III">OG III</option>
-                    <option value="OG II">OG II</option>
-                    <option value="OG I">OG I</option>
-                    <option value="AVP">AVP</option>
-                    <option value="VP">VP</option>
-                    <option value="SVP">SVP</option>
-                    <option value="EVP">EVP</option>
-                    <option value="SEVP">SEVP</option>
-                    <option value="President/CEO">President/CEO</option>
+                  <label className="font-bold text-slate-700">System Role</label>
+                  <select value={selectedRole} onChange={(e) => setSelectedRole(e.target.value)} className="w-full h-9 px-3 bg-slate-50 border rounded-lg">
+                    {roles.map(r => (
+                      <option key={r.value} value={r.value} title={r.description}>{r.label}</option>
+                    ))}
                   </select>
                 </div>
                 <div>
-                  <label className="font-bold text-slate-700">System Role</label>
-                  <select value={assignedRole} onChange={(e) => setAssignedRole(e.target.value)} className="w-full h-9 px-3 bg-slate-50 border rounded-lg">
-                    <option value="PmwAdmin">PMW Admin</option>
-                    <option value="PmwSuperAdmin">PMW Super Admin</option>
-                    <option value="GroupPerformanceManager">Group Performance Manager</option>
-                    <option value="FirstAppraiser">First Appraiser</option>
-                    <option value="SecondAppraiser">Second Appraiser</option>
-                    <option value="Employee">Employee</option>
-                    <option value="Auditor">Auditor</option>
-                  </select>
+                  <SapIdAutocomplete 
+                    label="Link Employee SAP ID (Optional)"
+                    value={employeeSapId} 
+                    onChange={setEmployeeSapId} 
+                    placeholder="Search Employee SAP ID"
+                  />
                 </div>
-              </div>
-
-              <div>
-                <label className="font-bold text-slate-700">Reporting Group</label>
-                <Input value={group} onChange={(e) => setGroup(e.target.value)} />
               </div>
             </div>
 
             <div className="p-4 bg-slate-50 border-t flex items-center justify-between">
               <Button variant="secondary" size="sm" onClick={() => setShowCreateModal(false)}>Cancel</Button>
               <Button variant="nbp" size="sm" onClick={handleCreateUser}>
-                Create User Account
+                Create User
               </Button>
             </div>
           </div>
         </div>
       )}
+
+      {/* Edit User Modal */}
+      {showEditModal && (
+        <div className="fixed inset-0 z-[100] bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
+          <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-200 my-auto">
+            <div className="bg-gradient-to-r from-slate-950 via-emerald-950 to-teal-950 p-5 text-white flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="h-10 w-10 rounded-xl bg-blue-700/40 p-2 flex items-center justify-center">
+                  <Edit className="h-5 w-5 text-blue-400" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white leading-tight">Edit System User</h3>
+                  <p className="text-[11px] text-slate-300">Update Identity & Role details</p>
+                </div>
+              </div>
+              <button onClick={() => setShowEditModal(false)} className="text-slate-300 hover:text-white">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-3 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700">Username (Read-Only)</label>
+                  <Input value={username} disabled className="bg-slate-100" />
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700">Full Name (Required)</label>
+                  <Input value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Full Employee Name" />
+                </div>
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700">Email</label>
+                <Input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@nbp.com.pk" type="email" />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700">System Role</label>
+                  <select value={selectedRole} onChange={(e) => setSelectedRole(e.target.value)} className="w-full h-9 px-3 bg-slate-50 border rounded-lg">
+                    {roles.map(r => (
+                      <option key={r.value} value={r.value} title={r.description}>{r.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <SapIdAutocomplete 
+                    label="Link Employee SAP ID"
+                    value={employeeSapId} 
+                    onChange={setEmployeeSapId} 
+                    placeholder="Search Employee SAP ID"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 bg-slate-50 border-t flex items-center justify-between">
+              <Button variant="secondary" size="sm" onClick={() => setShowEditModal(false)}>Cancel</Button>
+              <Button variant="nbp" size="sm" onClick={handleEditUser}>
+                Save Changes
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

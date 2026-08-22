@@ -1,0 +1,229 @@
+import React, { useState, useEffect } from 'react';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Users, Shield, UserCog, Building2, Lock, Activity, RefreshCw, KeyRound, Server } from 'lucide-react';
+import { api } from '@/lib/api';
+
+interface SuperAdminDashboardProps {
+  onNavigate?: (tab: string) => void;
+}
+
+export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onNavigate }) => {
+  const [dbStatus, setDbStatus] = useState<any>(null);
+  const [users, setUsers] = useState<any[]>([]);
+  const [auditEvents, setAuditEvents] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const [statusData, usersData, auditData] = await Promise.all([
+        api.getDbStatus().catch(() => null),
+        api.getUsers().catch(() => []),
+        api.getAuditEvents().catch(() => [])
+      ]);
+      setDbStatus(statusData);
+      setUsers(usersData || []);
+      setAuditEvents(auditData || []);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const totalUsers = users.length;
+  const activeUsers = users.filter(u => u.isActive && !u.isLockedOut).length;
+  const lockedUsers = users.filter(u => u.isLockedOut).length;
+
+  return (
+    <div className="space-y-6">
+      {/* System Admin Banner */}
+      <div className="rounded-2xl bg-gradient-to-r from-slate-950 via-slate-900 to-emerald-950 p-6 text-white shadow-xl border border-slate-800">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <div className="flex items-center space-x-2 text-emerald-400 text-xs font-bold uppercase tracking-wider mb-1">
+              <Shield className="h-4 w-4" />
+              <span>System & Security Administration Center</span>
+              <span>•</span>
+              <Badge variant="nbp" className="text-white bg-emerald-800">Super Admin Scope</Badge>
+            </div>
+            <h1 className="text-2xl font-black tracking-tight">
+              Enterprise System Governance & Identity Control
+            </h1>
+            <p className="text-slate-300 text-xs mt-1">
+              National Bank of Pakistan | Information Security & IT Infrastructure Division
+            </p>
+          </div>
+          <div className="flex items-center space-x-2">
+            <Button variant="secondary" size="sm" onClick={loadData} title="Refresh System Status">
+              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* Metrics Row */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card className="border-slate-200/80 shadow-xs">
+          <CardContent className="p-5 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold text-slate-500">System Portal Users</p>
+              <h3 className="text-2xl font-black text-slate-900 mt-1">{totalUsers}</h3>
+              <p className="text-[11px] text-emerald-600 font-bold mt-0.5">{activeUsers} active accounts</p>
+            </div>
+            <div className="h-12 w-12 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center">
+              <UserCog className="h-6 w-6" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-slate-200/80 shadow-xs">
+          <CardContent className="p-5 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold text-slate-500">Locked Out Accounts</p>
+              <h3 className="text-2xl font-black text-rose-600 mt-1">{lockedUsers}</h3>
+              <p className="text-[11px] text-slate-400 font-medium mt-0.5">Failed login protection</p>
+            </div>
+            <div className="h-12 w-12 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center">
+              <Lock className="h-6 w-6" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-slate-200/80 shadow-xs">
+          <CardContent className="p-5 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold text-slate-500">Active Encryption Key</p>
+              <h3 className="text-2xl font-black text-slate-900 mt-1">v1.0 (2026)</h3>
+              <p className="text-[11px] text-emerald-600 font-bold mt-0.5">AES-256-GCM Envelope</p>
+            </div>
+            <div className="h-12 w-12 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center">
+              <KeyRound className="h-6 w-6" />
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-slate-200/80 shadow-xs">
+          <CardContent className="p-5 flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold text-slate-500">Security Audit Events</p>
+              <h3 className="text-2xl font-black text-slate-900 mt-1">{auditEvents.length}</h3>
+              <p className="text-[11px] text-blue-600 font-bold mt-0.5">Tamper-evident log</p>
+            </div>
+            <div className="h-12 w-12 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center">
+              <Activity className="h-6 w-6" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Quick Access Modules */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Card className="border-slate-200/80 shadow-sm hover:border-emerald-700/50 transition-all cursor-pointer" onClick={() => onNavigate?.('users')}>
+          <CardHeader>
+            <div className="flex items-center space-x-3">
+              <div className="h-10 w-10 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center">
+                <UserCog className="h-5 w-5" />
+              </div>
+              <div>
+                <CardTitle className="text-base font-bold text-slate-900">User & Role Management</CardTitle>
+                <CardDescription className="text-xs">Create, unlock, reset passwords and assign roles</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xs text-slate-600">
+              Manage all portal login credentials, active user statuses, role authorization, and employee linkages across all business units.
+            </p>
+            <Button variant="outline" size="sm" className="mt-4 w-full text-xs font-bold border-emerald-700/30 text-emerald-900 hover:bg-emerald-50">
+              Open User Management →
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card className="border-slate-200/80 shadow-sm hover:border-amber-700/50 transition-all cursor-pointer" onClick={() => onNavigate?.('security')}>
+          <CardHeader>
+            <div className="flex items-center space-x-3">
+              <div className="h-10 w-10 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center">
+                <KeyRound className="h-5 w-5" />
+              </div>
+              <div>
+                <CardTitle className="text-base font-bold text-slate-900">Security & Key Vault</CardTitle>
+                <CardDescription className="text-xs">KMS encryption key rotation & security policies</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xs text-slate-600">
+              Inspect active cryptographic key versions, perform audited key rotation drills, and verify AES-256-GCM envelope encryption status.
+            </p>
+            <Button variant="outline" size="sm" className="mt-4 w-full text-xs font-bold border-amber-700/30 text-amber-900 hover:bg-amber-50">
+              Open Key Vault →
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card className="border-slate-200/80 shadow-sm hover:border-blue-700/50 transition-all cursor-pointer" onClick={() => onNavigate?.('audit')}>
+          <CardHeader>
+            <div className="flex items-center space-x-3">
+              <div className="h-10 w-10 rounded-lg bg-blue-100 text-blue-800 flex items-center justify-center">
+                <Shield className="h-5 w-5" />
+              </div>
+              <div>
+                <CardTitle className="text-base font-bold text-slate-900">Audit & Compliance Logs</CardTitle>
+                <CardDescription className="text-xs">Immutable system audit trail & access history</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xs text-slate-600">
+              Review tamper-evident security logs, track user authentication events, permission changes, and administrative actions with SHA-256 validation.
+            </p>
+            <Button variant="outline" size="sm" className="mt-4 w-full text-xs font-bold border-blue-700/30 text-blue-900 hover:bg-blue-50">
+              View Audit Logs →
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Database Schema Health Overview */}
+      <Card className="border-slate-200/80 shadow-xs">
+        <CardHeader>
+          <CardTitle className="text-sm font-bold text-slate-900 flex items-center space-x-2">
+            <Server className="h-4 w-4 text-emerald-700" />
+            <span>Database Storage & Record Health Summary</span>
+          </CardTitle>
+          <CardDescription className="text-xs">
+            Live Microsoft SQL Server relational entities state
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs font-medium text-slate-700">
+            <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
+              <span className="text-slate-500 block text-[11px]">System Users Table</span>
+              <span className="text-lg font-bold text-slate-900">{dbStatus?.systemUsersCount ?? 0} records</span>
+            </div>
+            <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
+              <span className="text-slate-500 block text-[11px]">Employees Master Table</span>
+              <span className="text-lg font-bold text-slate-900">{dbStatus?.employeesCount ?? 0} records</span>
+            </div>
+            <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
+              <span className="text-slate-500 block text-[11px]">Audit Events Table</span>
+              <span className="text-lg font-bold text-slate-900">{dbStatus?.auditEventsCount ?? 0} records</span>
+            </div>
+            <div className="p-3 bg-slate-50 rounded-lg border border-slate-200">
+              <span className="text-slate-500 block text-[11px]">Security Key Versions</span>
+              <span className="text-lg font-bold text-slate-900">1 active</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+};

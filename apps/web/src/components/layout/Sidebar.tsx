@@ -25,20 +25,26 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ currentRole, activeTab, onTabChange }) => {
   const getNavItems = () => {
     switch (currentRole) {
-      case 'PmwAdmin':
       case 'PmwSuperAdmin':
+        return [
+          { id: 'dashboard', label: 'System Admin Center', icon: LayoutDashboard },
+          { id: 'users', label: 'User & Role Management', icon: UserCog },
+          { id: 'organization', label: 'Groups & Grade Hierarchy', icon: Building2 },
+          { id: 'employees', label: 'Employee Master Data', icon: Users },
+          { id: 'security', label: 'Security & Key Vault', icon: Lock },
+          { id: 'audit', label: 'Audit & Compliance Logs', icon: Shield },
+        ];
+      case 'PmwAdmin':
         return [
           { id: 'dashboard', label: 'Cycle Control Center', icon: LayoutDashboard },
           { id: 'cycles', label: 'Appraisal Cycles', icon: Settings },
           { id: 'organization', label: 'Groups & Grade Hierarchy', icon: Building2 },
-          { id: 'users', label: 'User & Role Management', icon: UserCog },
           { id: 'employees', label: 'Employee Import & Data', icon: Users },
           { id: 'forms', label: 'Form Configurations', icon: FileSpreadsheet },
           { id: 'bellcurve', label: 'Bell Curve Calibration', icon: PieChart },
           { id: 'reminders', label: 'Reminders & Notifications', icon: Mail },
           { id: 'disagreements', label: 'Disagreement Register', icon: FileCheck },
           { id: 'audit', label: 'Audit & Compliance Logs', icon: Shield },
-          { id: 'security', label: 'Security & Key Vault', icon: Lock },
         ];
       case 'GroupPerformanceManager':
         return [

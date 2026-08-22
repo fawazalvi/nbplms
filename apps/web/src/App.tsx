@@ -4,6 +4,7 @@ import { Sidebar } from './components/layout/Sidebar';
 import { LoginPage } from './pages/auth/LoginPage';
 import { EmployeeDashboard } from './pages/dashboard/EmployeeDashboard';
 import { PmwDashboard } from './pages/dashboard/PmwDashboard';
+import { SuperAdminDashboard } from './pages/dashboard/SuperAdminDashboard';
 import { ObjectiveFormPage } from './pages/forms/ObjectiveFormPage';
 import { DevelopmentReviewPage } from './pages/forms/DevelopmentReviewPage';
 import { BellCurvePage } from './pages/pmw/BellCurvePage';
@@ -19,17 +20,20 @@ import { UserManagementPage } from './pages/admin/UserManagementPage';
 import { OrganizationManagementPage } from './pages/admin/OrganizationManagementPage';
 
 export function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const [userRole, setUserRole] = useState<string>('Employee');
   const [activeTab, setActiveTab] = useState<string>('dashboard');
 
-  const handleLoginSuccess = (role: string) => {
-    setUserRole(role);
+  const handleLoginSuccess = (user: any) => {
+    setCurrentUser(user);
+    setUserRole(user.roles && user.roles.length > 0 ? user.roles[0] : 'Employee');
     setIsAuthenticated(true);
     setActiveTab('dashboard');
   };
 
   const handleLogout = () => {
+    setCurrentUser(null);
     setIsAuthenticated(false);
   };
 
@@ -38,6 +42,25 @@ export function App() {
   }
 
   const renderContent = () => {
+    // PmwSuperAdmin restricted from Appraisal Cycles, Cycle Control Center, and Disagreements
+    if (userRole === 'PmwSuperAdmin') {
+      switch (activeTab) {
+        case 'users':
+          return <UserManagementPage />;
+        case 'organization':
+          return <OrganizationManagementPage />;
+        case 'employees':
+          return <EmployeeDataPage />;
+        case 'security':
+          return <SecurityKeyVaultPage />;
+        case 'audit':
+          return <AuditLogPage />;
+        case 'dashboard':
+        default:
+          return <SuperAdminDashboard onNavigate={setActiveTab} />;
+      }
+    }
+
     switch (activeTab) {
       case 'cycles':
         return <AppraisalCyclesPage />;
@@ -49,7 +72,7 @@ export function App() {
         return <EmployeeDataPage />;
       case 'my-appraisal':
       case 'forms':
-        return <ObjectiveFormPage formType={userRole === 'PmwAdmin' || userRole === 'PmwSuperAdmin' ? 'BSC' : 'KPI'} />;
+        return <ObjectiveFormPage formType={userRole === 'PmwAdmin' ? 'BSC' : 'KPI'} />;
       case 'team-reviews':
         return <TeamReviewInboxPage />;
       case 'dev-review':
@@ -69,7 +92,7 @@ export function App() {
         return <HelpCircularsPage />;
       case 'dashboard':
       default:
-        if (userRole === 'PmwAdmin' || userRole === 'PmwSuperAdmin') {
+        if (userRole === 'PmwAdmin') {
           return <PmwDashboard onNavigate={setActiveTab} />;
         }
         return <EmployeeDashboard onNavigate={setActiveTab} />;
@@ -80,6 +103,7 @@ export function App() {
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
       <Navbar
         userRole={userRole}
+        currentUser={currentUser}
         onRoleChange={(role) => {
           setUserRole(role);
           setActiveTab('dashboard');

@@ -41,6 +41,7 @@ import { ValidationSummaryPanel, ValidationErrorItem } from '@/components/apprai
 import { EvidenceUploaderModal } from '@/components/appraisal/EvidenceUploaderModal';
 import { EvidenceViewerModal } from '@/components/appraisal/EvidenceViewerModal';
 import { AppraisalFormAuditHistoryDrawer } from '@/components/appraisal/AppraisalFormAuditHistoryDrawer';
+import { SapIdAutocomplete } from '@/components/appraisal/SapIdAutocomplete';
 
 interface ObjectiveFormPageProps {
   formType?: 'KPI' | 'BSC' | 'RISK_BSC';
@@ -73,145 +74,20 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
   // Form State - Block Weightages
   const [blocks, setBlocks] = useState<BlockWeightageConfig[]>([]);
 
-  // Form State - Item Data (KPI)
-  const [kpiItems, setKpiItems] = useState<KPIItemData[]>([
-    {
-      id: 'kpi-1',
-      title: 'Commercial Portfolio Disbursement',
-      targetDescription: 'Achieve PKR 500 Million new commercial loan disbursements with NPL ratio under 1.5%.',
-      achievement: 'Disbursed PKR 520M in commercial loans with zero default rate.',
-      employeeComments: 'Exceeded disbursement target with zero defaults.',
-      appraiserComments: 'Strong commercial portfolio growth with clean recovery track record.',
-      evidenceRef: 'DOC-PDF-2026-COMM-9941.pdf',
-      appraiserRating: 4,
-    },
-    {
-      id: 'kpi-2',
-      title: 'NPL Recovery & CASA Deposit Mobilization',
-      targetDescription: 'Recover PKR 40 Million non-performing loans and mobilize PKR 200M low-cost CASA deposits.',
-      achievement: 'Recovered PKR 45M NPLs and mobilized PKR 220M CASA deposits.',
-      employeeComments: 'Recovered legacy NPL accounts.',
-      appraiserComments: 'Exceeded NPL recovery targets.',
-      evidenceRef: 'SBP-APPROVAL-REF-442.docx',
-      appraiserRating: 5,
-    },
-    {
-      id: 'kpi-3',
-      title: 'Digital Banking Migration',
-      targetDescription: 'Migrate 85% of corporate and commercial clients to NBP Digital Portal.',
-      achievement: 'Onboarded 88% of clients to NBP Digital Portal.',
-      employeeComments: 'Conducted corporate onboarding workshops.',
-      appraiserComments: 'Great digital adoption drive across region.',
-      appraiserRating: 4,
-    },
-  ]);
+  // Form State - Item Data (KPI) — loaded from API
+  const [kpiItems, setKpiItems] = useState<KPIItemData[]>([]);
 
-  const [traitItems, setTraitItems] = useState<TraitItemData[]>([
-    {
-      id: 'trait-1',
-      name: 'Integrity & NBP Core Values',
-      definition: 'Upholds ethical standards, compliance, and NBP core values in all financial dealings.',
-      expectedBehaviour: 'Strict adherence to code of conduct, zero compliance breaches, and transparent reporting.',
-      appraiserComments: 'Demonstrates strong integrity and ethical standards.',
-      appraiserRating: 5,
-    },
-    {
-      id: 'trait-2',
-      name: 'Customer Centricity & Service Excellence',
-      definition: 'Delivers prompt, courteous, and high-quality service to bank clients.',
-      expectedBehaviour: 'Prompt resolution of client inquiries with minimal turn-around time.',
-      appraiserComments: 'Prompt customer service with high satisfaction ratings.',
-      appraiserRating: 4,
-    },
-    {
-      id: 'trait-3',
-      name: 'Risk & SBP Compliance Orientation',
-      definition: 'Strictly adheres to State Bank of Pakistan guidelines and internal audit policies.',
-      expectedBehaviour: 'Zero high-risk audit observations and timely submission of compliance certificates.',
-      appraiserComments: 'Excellent compliance record with zero audit penalties.',
-      appraiserRating: 5,
-    },
-    {
-      id: 'trait-4',
-      name: 'Teamwork & Cross-Departmental Collaboration',
-      definition: 'Fosters collaboration across divisions and supports branch operations.',
-      expectedBehaviour: 'Collaborates with credit risk, operations, and IT teams to execute transactions.',
-      appraiserComments: 'Highly collaborative team player.',
-      appraiserRating: 4,
-    },
-  ]);
+  // Behavioural Traits — loaded from API
+  const [traitItems, setTraitItems] = useState<TraitItemData[]>([]);
 
-  // BSC Perspective Specific Items
-  const [financialItems, setFinancialItems] = useState<KPIItemData[]>([
-    {
-      id: 'fin-1',
-      title: 'Net Interest Margin & Fee Income Growth',
-      targetDescription: 'Achieve PKR 150 Million net interest income and PKR 25M trade commission.',
-      achievement: 'Achieved PKR 158M NIM and PKR 28M trade fee income.',
-      appraiserComments: 'Strong revenue performance exceeding targets.',
-      evidenceRef: 'DOC-XLS-9912 (Revenue_Report.xlsx)',
-      appraiserRating: 4,
-    },
-  ]);
+  // BSC Perspective Items — loaded from API
+  const [financialItems, setFinancialItems] = useState<KPIItemData[]>([]);
+  const [customerItems, setCustomerItems] = useState<KPIItemData[]>([]);
+  const [processItems, setProcessItems] = useState<KPIItemData[]>([]);
+  const [learningItems, setLearningItems] = useState<KPIItemData[]>([]);
 
-  const [customerItems, setCustomerItems] = useState<KPIItemData[]>([
-    {
-      id: 'cust-1',
-      title: 'Corporate Client Retention & NPS Score',
-      targetDescription: 'Maintain 95% client retention rate with NPS score > 75%.',
-      achievement: 'Retained 97% corporate clients with 82% NPS.',
-      appraiserComments: 'Outstanding client relationship management.',
-      evidenceRef: 'DOC-PDF-4412 (Client_Survey_NPS.pdf)',
-      appraiserRating: 5,
-    },
-  ]);
-
-  const [processItems, setProcessItems] = useState<KPIItemData[]>([
-    {
-      id: 'proc-1',
-      title: 'Credit Proposal Processing Turn-Around Time',
-      targetDescription: 'Maintain average credit approval TAT within 5 business days.',
-      achievement: 'Achieved average credit approval TAT of 4.2 days.',
-      appraiserComments: 'Efficient credit processing cycle.',
-      evidenceRef: 'DOC-DOCX-1092 (Credit_TAT_Audit.docx)',
-      appraiserRating: 4,
-    },
-  ]);
-
-  const [learningItems, setLearningItems] = useState<KPIItemData[]>([
-    {
-      id: 'lrn-1',
-      title: 'Mandatory Compliance & Anti-Money Laundering Training',
-      targetDescription: 'Complete 100% of mandatory SBP AML/CFT and Sanctions training modules.',
-      achievement: 'Completed all 5 certified modules with 95% test score.',
-      appraiserComments: 'Completed all required staff certifications on time.',
-      evidenceRef: 'DOC-PDF-8891 (SBP_AML_Certificate.pdf)',
-      appraiserRating: 5,
-    },
-  ]);
-
-  const [riskItems, setRiskItems] = useState<RiskItemData[]>([
-    {
-      id: 'risk-1',
-      title: 'SBP Non-Performing Loan & Prudential Regulation Compliance',
-      description: 'Strict adherence to SBP Prudential Regulations (PRs) and credit classification guidelines.',
-      complianceTarget: 'Zero SBP regulatory penalties and 100% PR compliance.',
-      actualComplianceResult: 'Zero SBP penalties incurred; 100% credit file compliance verified by SBP auditors.',
-      appraiserComments: 'Flawless compliance record with zero SBP audit exceptions.',
-      evidenceRef: 'DOC-PDF-2026-SBP-AUDIT.pdf',
-      appraiserRating: 5,
-    },
-    {
-      id: 'risk-2',
-      title: 'Internal Audit Exceptions & Risk Mitigation Execution',
-      description: 'Resolution of all internal audit observations within approved target timelines.',
-      complianceTarget: '100% closure of Category-A & B audit findings within 30 days.',
-      actualComplianceResult: 'All 4 audit findings closed within 15 days with risk committee clearance.',
-      appraiserComments: 'Proactive risk mitigation and prompt audit resolution.',
-      evidenceRef: 'DOC-XLS-AUDIT-CLEARANCE.xlsx',
-      appraiserRating: 4,
-    },
-  ]);
+  // Risk Adjustment Items — loaded from API
+  const [riskItems, setRiskItems] = useState<RiskItemData[]>([]);
 
   // Drawer & Modal States
   const [showBreakdown, setShowBreakdown] = useState(false);
@@ -250,7 +126,9 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
   }, [formMode]);
 
   // Load My Appraisal Data from API
+  const [formLoading, setFormLoading] = useState(true);
   const loadMyAppraisal = async () => {
+    setFormLoading(true);
     try {
       const data = await api.getMyAppraisal('84920');
       if (data && data.employeeCycle) {
@@ -258,15 +136,56 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
         setAppraiserStatus(data.employeeCycle.appraiserValidationStatus || 'Validated');
         setRejectionReason(data.employeeCycle.appraiserRejectionReason || null);
 
+        // Set form type based on assigned form
+        const ft = data.employeeCycle.assignedFormType;
+        if (ft === 1 || ft === 'BalancedScorecard') setFormMode('BSC');
+        else if (ft === 2 || ft === 'RiskAdjustedBsc') setFormMode('RISK_BSC');
+        else setFormMode('KPI');
+
         if (data.employeeCycle.firstAppraiser) {
-          setFirstAppraiserName(`${data.employeeCycle.firstAppraiser.fullName} (${data.employeeCycle.firstAppraiser.grade} - SAP ID: ${data.employeeCycle.firstAppraiser.sapId})`);
+          const fa = data.employeeCycle.firstAppraiser;
+          setFirstAppraiserName(`${fa.fullName} (${fa.grade} - SAP ID: ${fa.sapId})`);
+          setInputFirstSap(fa.sapId);
         }
         if (data.employeeCycle.secondAppraiser) {
-          setSecondAppraiserName(`${data.employeeCycle.secondAppraiser.fullName} (${data.employeeCycle.secondAppraiser.grade} - SAP ID: ${data.employeeCycle.secondAppraiser.sapId})`);
+          const sa = data.employeeCycle.secondAppraiser;
+          setSecondAppraiserName(`${sa.fullName} (${sa.grade} - SAP ID: ${sa.sapId})`);
+          setInputSecondSap(sa.sapId);
+        }
+
+        // Map Objectives from DB to KPI items
+        if (data.objectives && data.objectives.length > 0) {
+          const mapped: KPIItemData[] = data.objectives.map((o: any, idx: number) => ({
+            id: o.id || `kpi-${idx + 1}`,
+            title: o.title || '',
+            targetDescription: o.targetDescription || '',
+            achievement: o.achievementDetails || '',
+            employeeComments: '',
+            appraiserComments: '',
+            appraiserRating: o.firstAppraiserRating || 0,
+            evidenceRef: '',
+          }));
+          setKpiItems(mapped);
+        }
+
+        // Map Behavioural Traits from DB
+        if (data.traits && data.traits.length > 0) {
+          const mappedTraits: TraitItemData[] = data.traits.map((t: any, idx: number) => ({
+            id: t.id || `trait-${idx + 1}`,
+            name: t.traitName || '',
+            definition: t.definition || '',
+            expectedBehaviour: '',
+            appraiserComments: '',
+            appraiserRating: t.firstAppraiserRating || 0,
+          }));
+          setTraitItems(mappedTraits);
         }
       }
     } catch (e: any) {
-      console.error(e);
+      console.error('Failed to load appraisal data:', e);
+      setErrorMessage('Failed to load appraisal data from server.');
+    } finally {
+      setFormLoading(false);
     }
   };
 
@@ -938,29 +857,25 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
 
             <div className="p-6 space-y-4 text-xs">
               <p className="text-slate-600 leading-relaxed">
-                Enter the SAP IDs for your First Appraiser and Second Appraiser / Supervisor. Upon submission, your First Appraiser will confirm or modify your reporting line.
+                Start typing a SAP ID or employee name to search. Select the matching employee from the dropdown to auto-fill their details.
               </p>
 
-              <div className="space-y-3">
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">First Appraiser SAP ID (Mandatory)</label>
-                  <input
-                    value={inputFirstSap}
-                    onChange={(e) => setInputFirstSap(e.target.value)}
-                    placeholder="e.g. 10004 (Tariq Mahmood - VP)"
-                    className="w-full p-2 border border-slate-300 rounded font-mono text-xs"
-                  />
-                </div>
+              <div className="space-y-4">
+                <SapIdAutocomplete
+                  label="First Appraiser (Mandatory)"
+                  value={inputFirstSap}
+                  onChange={(sapId) => setInputFirstSap(sapId)}
+                  placeholder="Type SAP ID or name to search..."
+                  required
+                />
 
-                <div>
-                  <label className="font-bold text-slate-700 block mb-1">Second Appraiser / Supervisor SAP ID (Mandatory)</label>
-                  <input
-                    value={inputSecondSap}
-                    onChange={(e) => setInputSecondSap(e.target.value)}
-                    placeholder="e.g. 10003 (Rashid Khan - SVP)"
-                    className="w-full p-2 border border-slate-300 rounded font-mono text-xs"
-                  />
-                </div>
+                <SapIdAutocomplete
+                  label="Second Appraiser / Supervisor (Mandatory)"
+                  value={inputSecondSap}
+                  onChange={(sapId) => setInputSecondSap(sapId)}
+                  placeholder="Type SAP ID or name to search..."
+                  required
+                />
               </div>
             </div>
 

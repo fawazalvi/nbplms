@@ -23,6 +23,7 @@ public class PmsDbContext : DbContext
     public DbSet<ReportingGroup> ReportingGroups => Set<ReportingGroup>();
     public DbSet<GradeMapping> GradeMappings => Set<GradeMapping>();
     public DbSet<AppraisalFormAuditLog> AppraisalFormAuditLogs => Set<AppraisalFormAuditLog>();
+    public DbSet<SystemUser> SystemUsers => Set<SystemUser>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -110,5 +111,16 @@ public class PmsDbContext : DbContext
         modelBuilder.Entity<Score>()
             .Property(s => s.EncryptedAppraiserComments)
             .HasMaxLength(4000);
+
+        // SystemUser configuration
+        modelBuilder.Entity<SystemUser>()
+            .HasIndex(u => u.Username)
+            .IsUnique();
+
+        modelBuilder.Entity<SystemUser>()
+            .HasOne(u => u.Employee)
+            .WithMany()
+            .HasForeignKey(u => u.EmployeeId)
+            .OnDelete(DeleteBehavior.SetNull);
     }
 }

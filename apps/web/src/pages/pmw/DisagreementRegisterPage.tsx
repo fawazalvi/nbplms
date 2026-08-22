@@ -1,62 +1,43 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { AlertCircle, FileCheck, CheckCircle2, MessageSquare, Search, Filter } from 'lucide-react';
+import { api } from '@/lib/api';
 
 interface DisagreementCaseItem {
   id: string;
-  sapId: string;
-  employeeName: string;
-  grade: string;
-  group: string;
-  publishedRating: string;
-  disagreementReason: string;
-  status: 'PendingGpmReview' | 'EscalatedPmw' | 'Resolved';
-  raisedDate: string;
+  employeeCycleId?: string;
+  employeeId: string;
+  mandatoryDisagreementReason: string;
+  status: string;
+  resolutionNotes?: string;
+  raisedAt: string;
+  resolvedAt?: string;
 }
 
 export const DisagreementRegisterPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCase, setSelectedCase] = useState<DisagreementCaseItem | null>(null);
   const [resolutionNotes, setResolutionNotes] = useState('');
+  const [cases, setCases] = useState<DisagreementCaseItem[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const [cases, setCases] = useState<DisagreementCaseItem[]>([
-    {
-      id: 'DIS-2026-001',
-      sapId: '91204',
-      employeeName: 'Zahid Hussain',
-      grade: 'OG I',
-      group: 'Commercial Banking Group',
-      publishedRating: 'Good',
-      disagreementReason: 'My commercial loan recovery target of PKR 30M was fully met in Q3, but was not reflected in the final rating.',
-      status: 'PendingGpmReview',
-      raisedDate: '2026-07-28',
-    },
-    {
-      id: 'DIS-2026-002',
-      sapId: '88392',
-      employeeName: 'Mariam Ali',
-      grade: 'AVP',
-      group: 'Consumer Banking Group',
-      publishedRating: 'Needs Improvement',
-      disagreementReason: 'Cross-functional project leadership contribution was omitted during First Appraiser review.',
-      status: 'EscalatedPmw',
-      raisedDate: '2026-07-25',
-    },
-    {
-      id: 'DIS-2026-003',
-      sapId: '76210',
-      employeeName: 'Usman Farooq',
-      grade: 'VP',
-      group: 'Treasury & Global Markets',
-      publishedRating: 'Good',
-      disagreementReason: 'Disagreement regarding Risk Adjustment perspective score weighting.',
-      status: 'Resolved',
-      raisedDate: '2026-07-20',
-    },
-  ]);
+  useEffect(() => {
+    const fetchCases = async () => {
+      try {
+        setLoading(true);
+        const data = await api.getDisagreements();
+        setCases(data);
+      } catch (error) {
+        console.error('Error fetching disagreements:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchCases();
+  }, []);
 
   const handleResolve = () => {
     if (!selectedCase) return;
@@ -128,15 +109,15 @@ export const DisagreementRegisterPage: React.FC = () => {
                   <tr key={item.id} className="hover:bg-slate-50">
                     <td className="p-3 font-mono font-bold text-slate-900">{item.id}</td>
                     <td className="p-3 font-bold text-slate-900">
-                      <div>{item.employeeName}</div>
-                      <span className="text-[10px] text-slate-500 font-normal">SAP ID: {item.sapId}</span>
+                      <div>Employee {item.employeeId}</div>
+                      <span className="text-[10px] text-slate-500 font-normal">SAP ID: {item.employeeId}</span>
                     </td>
                     <td className="p-3 text-slate-700">
-                      <div>{item.group}</div>
-                      <span className="text-[10px] text-slate-500">{item.grade}</span>
+                      <div>-</div>
+                      <span className="text-[10px] text-slate-500">-</span>
                     </td>
                     <td className="p-3">
-                      <Badge variant="secondary" className="font-bold">{item.publishedRating}</Badge>
+                      <Badge variant="secondary" className="font-bold">-</Badge>
                     </td>
                     <td className="p-3">
                       <Badge
@@ -151,7 +132,7 @@ export const DisagreementRegisterPage: React.FC = () => {
                         {item.status}
                       </Badge>
                     </td>
-                    <td className="p-3 text-slate-500">{item.raisedDate}</td>
+                    <td className="p-3 text-slate-500">{item.raisedAt}</td>
                     <td className="p-3 text-right">
                       <Button
                         variant="outline"
@@ -180,7 +161,7 @@ export const DisagreementRegisterPage: React.FC = () => {
                     Review Disagreement — {selectedCase.id}
                   </CardTitle>
                   <CardDescription className="text-xs">
-                    {selectedCase.employeeName} (SAP ID: {selectedCase.sapId}) | {selectedCase.group}
+                    Employee {selectedCase.employeeId} (SAP ID: {selectedCase.employeeId})
                   </CardDescription>
                 </div>
                 <Badge variant="warning">{selectedCase.status}</Badge>
@@ -189,7 +170,7 @@ export const DisagreementRegisterPage: React.FC = () => {
             <CardContent className="p-6 space-y-4 text-xs">
               <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 space-y-1">
                 <span className="font-bold text-amber-900 block">Mandatory Employee Disagreement Reason:</span>
-                <p className="text-slate-800 leading-relaxed font-medium">"{selectedCase.disagreementReason}"</p>
+                <p className="text-slate-800 leading-relaxed font-medium">"{selectedCase.mandatoryDisagreementReason}"</p>
               </div>
 
               <div className="space-y-1">

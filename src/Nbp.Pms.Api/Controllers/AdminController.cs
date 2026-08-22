@@ -35,6 +35,7 @@ public class AdminController : ControllerBase
             developmentReviewsCount = await _db.DevelopmentReviews.CountAsync(),
             disagreementCasesCount = await _db.DisagreementCases.CountAsync(),
             bellCurvePoliciesCount = await _db.BellCurvePolicies.CountAsync(),
+            systemUsersCount = await _db.SystemUsers.CountAsync(),
             auditEventsCount = await _db.AuditEvents.CountAsync(),
             timestamp = DateTime.UtcNow
         };
@@ -64,6 +65,7 @@ public class AdminController : ControllerBase
         var counts = new
         {
             employees = await _db.Employees.CountAsync(),
+            systemUsers = await _db.SystemUsers.CountAsync(),
             cycles = await _db.AppraisalCycles.CountAsync(),
             objectives = await _db.Objectives.CountAsync(),
             scores = await _db.Scores.CountAsync(),

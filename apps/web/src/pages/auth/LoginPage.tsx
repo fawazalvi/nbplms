@@ -1,21 +1,21 @@
 import React, { useState } from 'react';
-import { ShieldCheck, Lock, User, KeyRound, AlertCircle } from 'lucide-react';
+import { Lock, User, KeyRound, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
+import { api } from '@/lib/api';
 
 interface LoginPageProps {
-  onLoginSuccess: (role: string) => void;
+  onLoginSuccess: (user: any) => void;
 }
 
 export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
-  const [username, setUsername] = useState('84920');
-  const [password, setPassword] = useState('NbpPms2026!');
-  const [selectedRole, setSelectedRole] = useState('Employee');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!username || !password) {
       setError('Please enter both SAP ID/Username and password.');
@@ -24,10 +24,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
     setLoading(true);
     setError(null);
 
-    setTimeout(() => {
+    try {
+      const response = await api.login(username, password);
+      onLoginSuccess(response.user);
+    } catch (err: any) {
+      setError(err.message || 'Login failed. Please check your credentials.');
+    } finally {
       setLoading(false);
-      onLoginSuccess(selectedRole);
-    }, 600);
+    }
   };
 
   return (
@@ -99,25 +103,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
               />
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-slate-700 flex items-center space-x-1">
-                <ShieldCheck className="h-3.5 w-3.5 text-emerald-700" />
-                <span>Target Role Context (Demo Selector)</span>
-              </label>
-              <select
-                value={selectedRole}
-                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSelectedRole(e.target.value)}
-                className="w-full h-10 px-3 py-2 text-xs font-bold bg-slate-50 border border-slate-200 rounded-lg text-slate-800 focus:ring-2 focus:ring-emerald-700 focus:outline-none"
-              >
-                <option value="Employee">Employee Workspace</option>
-                <option value="FirstAppraiser">First Appraiser Workspace</option>
-                <option value="SecondAppraiser">Second Appraiser Workspace</option>
-                <option value="GroupPerformanceManager">Group Performance Manager (GPM)</option>
-                <option value="PmwAdmin">PMW Admin Control Center</option>
-                <option value="PmwSuperAdmin">PMW Super Admin</option>
-                <option value="Auditor">Auditor View</option>
-              </select>
-            </div>
+
           </CardContent>
 
           <CardFooter className="flex flex-col space-y-3 pt-2">
