@@ -62,6 +62,13 @@ export const api = {
     const query = new URLSearchParams(params as any).toString();
     return fetchApi<any[]>(`/Employees${query ? `?${query}` : ''}`);
   },
+  getEmployeeById: (id: string) => fetchApi<any>(`/Employees/${id}`),
+  createEmployee: (data: any) =>
+    fetchApi<any>('/Employees', { method: 'POST', body: JSON.stringify(data) }),
+  updateEmployee: (id: string, data: any) =>
+    fetchApi<any>(`/Employees/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteEmployee: (id: string, actorUserId: string = 'PMW_ADMIN') =>
+    fetchApi<any>(`/Employees/${id}?actorUserId=${encodeURIComponent(actorUserId)}`, { method: 'DELETE' }),
   importEmployees: (rows: any[]) =>
     fetchApi<any>('/Employees/import', { method: 'POST', body: JSON.stringify(rows) }),
   bulkUpdateAppraisers: (mappings: any[], actorSapId: string = 'PMW_ADMIN') =>

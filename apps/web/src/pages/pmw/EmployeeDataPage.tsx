@@ -4,7 +4,27 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { api } from '@/lib/api';
-import { Users, Search, RefreshCw, Upload, FileSpreadsheet, CheckCircle2, AlertTriangle, Download, X, FileText, UserCheck, ShieldCheck } from 'lucide-react';
+import {
+  Users,
+  Search,
+  RefreshCw,
+  Upload,
+  FileSpreadsheet,
+  CheckCircle2,
+  AlertTriangle,
+  Download,
+  X,
+  FileText,
+  UserCheck,
+  UserPlus,
+  Edit2,
+  Trash2,
+  Building2,
+  Award,
+  ShieldAlert,
+  Layers
+} from 'lucide-react';
+import { SapIdAutocomplete } from '@/components/appraisal/SapIdAutocomplete';
 
 export const EmployeeDataPage: React.FC = () => {
   const [employees, setEmployees] = useState<any[]>([]);
@@ -12,6 +32,36 @@ export const EmployeeDataPage: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedGroup, setSelectedGroup] = useState('All Groups');
   const [selectedGrade, setSelectedGrade] = useState('All Grades');
+  const [groups, setGroups] = useState<any[]>([]);
+
+  // Add / Edit Modal State
+  const [showFormModal, setShowFormModal] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [formData, setFormData] = useState({
+    sapId: '',
+    fullName: '',
+    grade: 'OG I',
+    designation: 'Operations Officer',
+    location: 'Head Office Karachi',
+    reportingGroup: 'Consumer Banking Group',
+    division: 'Retail Banking Division',
+    wingDepartment: 'Branch Operations Wing',
+    regionBranch: 'Karachi Central Branch',
+    email: '',
+    isMrtOrMrc: false,
+    isActive: true,
+    firstAppraiserSapId: '',
+    secondAppraiserSapId: '',
+    createPortalUser: true,
+    portalUserRole: 'Employee'
+  });
+  const [submittingForm, setSubmittingForm] = useState(false);
+
+  // Delete Modal State
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [employeeToDelete, setEmployeeToDelete] = useState<any | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   // Staff Import Modal State
   const [showImportModal, setShowImportModal] = useState(false);
@@ -43,9 +93,124 @@ export const EmployeeDataPage: React.FC = () => {
     }
   };
 
+  const loadGroups = async () => {
+    try {
+      const groupData = await api.getReportingGroups();
+      setGroups(groupData || []);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   useEffect(() => {
     loadEmployees();
   }, [selectedGroup, selectedGrade]);
+
+  useEffect(() => {
+    loadGroups();
+  }, []);
+
+  const handleOpenAddModal = () => {
+    setIsEditing(false);
+    setEditingId(null);
+    setFormData({
+      sapId: '',
+      fullName: '',
+      grade: 'OG I',
+      designation: 'Operations Officer',
+      location: 'Head Office Karachi',
+      reportingGroup: groups.length > 0 ? groups[0].groupName : 'Consumer Banking Group',
+      division: 'Retail Banking Division',
+      wingDepartment: 'Branch Operations Wing',
+      regionBranch: 'Karachi Central Branch',
+      email: '',
+      isMrtOrMrc: false,
+      isActive: true,
+      firstAppraiserSapId: '',
+      secondAppraiserSapId: '',
+      createPortalUser: true,
+      portalUserRole: 'Employee'
+    });
+    setShowFormModal(true);
+  };
+
+  const handleOpenEditModal = (emp: any) => {
+    setIsEditing(true);
+    setEditingId(emp.id);
+    setFormData({
+      sapId: emp.sapId,
+      fullName: emp.fullName,
+      grade: emp.grade,
+      designation: emp.designation,
+      location: emp.location,
+      reportingGroup: emp.reportingGroup,
+      division: emp.division,
+      wingDepartment: emp.wingDepartment,
+      regionBranch: emp.regionBranch,
+      email: emp.email || '',
+      isMrtOrMrc: emp.isMrtOrMrc || false,
+      isActive: emp.isActive !== false,
+      firstAppraiserSapId: emp.firstAppraiserSapId || '',
+      secondAppraiserSapId: emp.secondAppraiserSapId || '',
+      createPortalUser: false,
+      portalUserRole: 'Employee'
+    });
+    setShowFormModal(true);
+  };
+
+  const handleSaveEmployee = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmittingForm(true);
+    try {
+      if (isEditing && editingId) {
+        await api.updateEmployee(editingId, {
+          fullName: formData.fullName,
+          grade: formData.grade,
+          designation: formData.designation,
+          location: formData.location,
+          reportingGroup: formData.reportingGroup,
+          division: formData.division,
+          wingDepartment: formData.wingDepartment,
+          regionBranch: formData.regionBranch,
+          email: formData.email,
+          isMrtOrMrc: formData.isMrtOrMrc,
+          isActive: formData.isActive,
+          firstAppraiserSapId: formData.firstAppraiserSapId || null,
+          secondAppraiserSapId: formData.secondAppraiserSapId || null,
+          actorUserId: 'PMW_ADMIN'
+        });
+        setImportMessage(`Employee '${formData.fullName}' (SAP ID: ${formData.sapId}) updated successfully.`);
+      } else {
+        await api.createEmployee({
+          ...formData,
+          actorUserId: 'PMW_ADMIN'
+        });
+        setImportMessage(`Employee '${formData.fullName}' (SAP ID: ${formData.sapId}) created successfully.`);
+      }
+      setShowFormModal(false);
+      await loadEmployees();
+    } catch (e: any) {
+      alert(e.message || 'Failed to save employee.');
+    } finally {
+      setSubmittingForm(false);
+    }
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!employeeToDelete) return;
+    setDeleting(true);
+    try {
+      await api.deleteEmployee(employeeToDelete.id, 'PMW_ADMIN');
+      setImportMessage(`Employee '${employeeToDelete.fullName}' (SAP ID: ${employeeToDelete.sapId}) removed successfully.`);
+      setShowDeleteModal(false);
+      setEmployeeToDelete(null);
+      await loadEmployees();
+    } catch (e: any) {
+      alert(e.message || 'Failed to remove employee.');
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   // Sample CSV Template Generator for Staff Import
   const handleDownloadSampleCsv = () => {
@@ -224,39 +389,46 @@ export const EmployeeDataPage: React.FC = () => {
     }
   };
 
+  // Stats calculation
+  const totalCount = employees.length;
+  const kpiCount = employees.filter(e => e.formTypeAssigned?.includes('KPI') || (!e.isMrtOrMrc && ['OG III', 'OG II', 'OG I', 'AVP'].includes(e.grade))).length;
+  const bscCount = employees.filter(e => !e.isMrtOrMrc && ['VP', 'SVP', 'EVP', 'SEVP', 'President/CEO'].includes(e.grade)).length;
+  const mrtCount = employees.filter(e => e.isMrtOrMrc).length;
+
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-12">
       {/* Header Banner */}
       <div className="rounded-2xl bg-gradient-to-r from-slate-900 via-emerald-950 to-teal-950 p-6 text-white shadow-xl flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <div className="flex items-center space-x-2 text-emerald-400 text-xs font-bold uppercase tracking-wider mb-1">
+            <Users className="h-4 w-4" />
             <span>SAP ID Master Data & Form Mapping</span>
             <span>•</span>
             <Badge variant="nbp" className="bg-emerald-700 text-white">Database Driven</Badge>
           </div>
-          <h1 className="text-2xl font-black tracking-tight">Employee Directory & Data Import</h1>
+          <h1 className="text-2xl font-black tracking-tight">Employee Directory & Management</h1>
           <p className="text-slate-300 text-xs mt-1">
-            Browse SAP staff records, appraiser assignments, and administrative appraiser/supervisor overrides.
+            Create, edit, remove, and import employee records, appraiser hierarchies, and material risk classifications.
           </p>
         </div>
-        <div className="flex items-center space-x-2">
-          <Button variant="secondary" size="sm" onClick={loadEmployees}>
-            <RefreshCw className="h-4 w-4 mr-1" />
-            Refresh Directory
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="nbp" size="sm" onClick={handleOpenAddModal} className="font-bold shadow-md">
+            <UserPlus className="h-4 w-4 mr-1.5" />
+            Add Employee
           </Button>
 
           <Button
             variant="outline"
             size="sm"
-            className="bg-white/10 text-white hover:bg-white/20 border-white/20"
+            className="bg-white/10 text-white hover:bg-white/20 border-white/20 font-semibold"
             onClick={() => {
               setParsedAppraiserRows([]);
               setBulkAppraiserText('');
               setShowBulkAppraiserModal(true);
             }}
           >
-            <UserCheck className="h-4 w-4 mr-1 text-emerald-400" />
-            Bulk Appraiser Override
+            <UserCheck className="h-4 w-4 mr-1.5 text-emerald-400" />
+            Bulk Appraisers
           </Button>
 
           <Button
@@ -266,30 +438,86 @@ export const EmployeeDataPage: React.FC = () => {
               setImportMessage(null);
               setShowImportModal(true);
             }}
+            className="font-semibold"
           >
-            <Upload className="h-4 w-4 mr-1" />
-            Upload Staff CSV
+            <Upload className="h-4 w-4 mr-1.5" />
+            Import CSV
+          </Button>
+
+          <Button variant="secondary" size="sm" onClick={loadEmployees} title="Refresh Directory">
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
           </Button>
         </div>
       </div>
 
       {importMessage && (
-        <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs flex items-center justify-between font-semibold">
+        <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs flex items-center justify-between font-semibold shadow-xs">
           <div className="flex items-center space-x-2">
             <CheckCircle2 className="h-5 w-5 text-emerald-700 shrink-0" />
             <span>{importMessage}</span>
           </div>
-          <button onClick={() => setImportMessage(null)} className="text-slate-400 font-bold text-xs">✕</button>
+          <button onClick={() => setImportMessage(null)} className="text-slate-400 hover:text-slate-600 font-bold text-xs">✕</button>
         </div>
       )}
 
+      {/* Stats Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <Card className="border-slate-200 shadow-xs">
+          <CardContent className="p-4 flex items-center space-x-3">
+            <div className="h-10 w-10 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-bold shrink-0">
+              <Users className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Total Staff</p>
+              <h3 className="text-xl font-black text-slate-900">{totalCount}</h3>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-slate-200 shadow-xs">
+          <CardContent className="p-4 flex items-center space-x-3">
+            <div className="h-10 w-10 rounded-xl bg-blue-100 text-blue-800 flex items-center justify-center font-bold shrink-0">
+              <Layers className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">AVP & Below (KPI)</p>
+              <h3 className="text-xl font-black text-blue-900">{kpiCount}</h3>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-slate-200 shadow-xs">
+          <CardContent className="p-4 flex items-center space-x-3">
+            <div className="h-10 w-10 rounded-xl bg-purple-100 text-purple-800 flex items-center justify-center font-bold shrink-0">
+              <Award className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">VP & Above (BSC)</p>
+              <h3 className="text-xl font-black text-purple-900">{bscCount}</h3>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-slate-200 shadow-xs">
+          <CardContent className="p-4 flex items-center space-x-3">
+            <div className="h-10 w-10 rounded-xl bg-rose-100 text-rose-800 flex items-center justify-center font-bold shrink-0">
+              <ShieldAlert className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">MRT / MRC</p>
+              <h3 className="text-xl font-black text-rose-900">{mrtCount}</h3>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Filter Toolbar */}
-      <Card>
+      <Card className="border-slate-200 shadow-xs">
         <CardContent className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 text-xs">
           <div className="flex items-center space-x-3 w-full md:w-80">
             <Search className="h-4 w-4 text-slate-400 shrink-0" />
             <Input
-              placeholder="Search by Name or SAP ID..."
+              placeholder="Search by Name, SAP ID, or Email..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && loadEmployees()}
@@ -297,18 +525,25 @@ export const EmployeeDataPage: React.FC = () => {
             />
           </div>
 
-          <div className="flex items-center space-x-4">
+          <div className="flex flex-wrap items-center gap-3">
             <div className="flex items-center space-x-2">
               <span className="font-bold text-slate-700">Group:</span>
               <select
                 value={selectedGroup}
                 onChange={(e) => setSelectedGroup(e.target.value)}
-                className="h-9 px-3 bg-slate-50 border border-slate-200 rounded-lg font-bold text-slate-900"
+                className="h-9 px-3 bg-slate-50 border border-slate-200 rounded-lg font-semibold text-slate-900 text-xs"
               >
                 <option value="All Groups">All Reporting Groups</option>
-                <option value="Commercial Banking Group">Commercial Banking Group</option>
-                <option value="Consumer Banking Group">Consumer Banking Group</option>
-                <option value="Risk Management Group">Risk Management Group</option>
+                {groups.map(g => (
+                  <option key={g.id} value={g.groupName}>{g.groupName}</option>
+                ))}
+                {groups.length === 0 && (
+                  <>
+                    <option value="Commercial Banking Group">Commercial Banking Group</option>
+                    <option value="Consumer Banking Group">Consumer Banking Group</option>
+                    <option value="Risk Management Group">Risk Management Group</option>
+                  </>
+                )}
               </select>
             </div>
 
@@ -317,7 +552,7 @@ export const EmployeeDataPage: React.FC = () => {
               <select
                 value={selectedGrade}
                 onChange={(e) => setSelectedGrade(e.target.value)}
-                className="h-9 px-3 bg-slate-50 border border-slate-200 rounded-lg font-bold text-slate-900"
+                className="h-9 px-3 bg-slate-50 border border-slate-200 rounded-lg font-semibold text-slate-900 text-xs"
               >
                 <option value="All Grades">All Grades</option>
                 <option value="OG III">OG III</option>
@@ -326,6 +561,9 @@ export const EmployeeDataPage: React.FC = () => {
                 <option value="AVP">AVP</option>
                 <option value="VP">VP</option>
                 <option value="SVP">SVP</option>
+                <option value="EVP">EVP</option>
+                <option value="SEVP">SEVP</option>
+                <option value="President/CEO">President/CEO</option>
               </select>
             </div>
           </div>
@@ -333,51 +571,103 @@ export const EmployeeDataPage: React.FC = () => {
       </Card>
 
       {/* Directory Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base font-bold text-slate-900">Employee Master Directory</CardTitle>
-          <CardDescription className="text-xs">Database-driven staff records from Microsoft SQL Server ({employees.length} records)</CardDescription>
+      <Card className="border-slate-200 shadow-xs">
+        <CardHeader className="flex flex-row items-center justify-between pb-3">
+          <div>
+            <CardTitle className="text-base font-bold text-slate-900">Employee Master Directory</CardTitle>
+            <CardDescription className="text-xs">Database-driven staff records ({employees.length} employees)</CardDescription>
+          </div>
         </CardHeader>
         <CardContent>
           {loading ? (
             <div className="p-8 text-center text-xs text-slate-500 font-medium">Loading employee records from DB...</div>
           ) : employees.length === 0 ? (
             <div className="p-8 text-center text-xs text-slate-500 border border-dashed border-slate-200 rounded-xl">
-              No staff records found in database. Click <strong>"Upload Staff CSV"</strong> or <strong>"Database Tools ➔ Seed Sample NBP Data"</strong>!
+              No staff records found matching your filters. Click <strong>"Add Employee"</strong> or <strong>"Import CSV"</strong>!
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-xs text-left">
-                <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase">
+                <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider">
                   <tr>
                     <th className="p-3">SAP ID</th>
                     <th className="p-3">Employee Name</th>
-                    <th className="p-3">Grade</th>
-                    <th className="p-3">Designation</th>
-                    <th className="p-3">Reporting Group</th>
-                    <th className="p-3">Region / Branch</th>
+                    <th className="p-3">Grade & Designation</th>
+                    <th className="p-3">Reporting Group & Location</th>
+                    <th className="p-3">Appraiser & Supervisor</th>
                     <th className="p-3">Assigned Form Type</th>
-                    <th className="p-3">MRT/MRC</th>
+                    <th className="p-3">Status</th>
+                    <th className="p-3 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {employees.map((emp) => (
-                    <tr key={emp.id} className="hover:bg-slate-50">
-                      <td className="p-3 font-mono font-bold text-slate-900">{emp.sapId}</td>
-                      <td className="p-3 font-bold text-slate-900">{emp.fullName}</td>
-                      <td className="p-3"><Badge variant="secondary">{emp.grade}</Badge></td>
-                      <td className="p-3 text-slate-700">{emp.designation}</td>
-                      <td className="p-3 text-slate-700">{emp.reportingGroup}</td>
-                      <td className="p-3 text-slate-500">{emp.regionBranch}</td>
+                    <tr key={emp.id} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="p-3 font-mono font-bold text-slate-900">
+                        {emp.sapId}
+                      </td>
+                      <td className="p-3">
+                        <div className="font-bold text-slate-900">{emp.fullName}</div>
+                        <div className="text-[11px] text-slate-500 font-mono">{emp.email || `${emp.sapId}@nbp.com.pk`}</div>
+                      </td>
+                      <td className="p-3">
+                        <div className="flex items-center space-x-1.5">
+                          <Badge variant="secondary" className="font-bold">{emp.grade}</Badge>
+                          {emp.isMrtOrMrc && <Badge variant="danger" className="text-[9px]">MRT/MRC</Badge>}
+                        </div>
+                        <div className="text-[11px] text-slate-600 mt-0.5">{emp.designation}</div>
+                      </td>
+                      <td className="p-3">
+                        <div className="font-medium text-slate-800">{emp.reportingGroup}</div>
+                        <div className="text-[11px] text-slate-400">{emp.location} • {emp.regionBranch}</div>
+                      </td>
+                      <td className="p-3">
+                        {emp.firstAppraiserSapId ? (
+                          <div className="text-[11px]">
+                            <span className="font-semibold text-slate-700">1st:</span>{' '}
+                            <span className="font-mono text-emerald-800">{emp.firstAppraiserSapId}</span>
+                            {emp.firstAppraiserName && <span className="text-slate-500"> ({emp.firstAppraiserName.split(' ')[0]})</span>}
+                          </div>
+                        ) : (
+                          <span className="text-[10px] text-slate-400 italic">No 1st Appraiser</span>
+                        )}
+                        {emp.secondAppraiserSapId && (
+                          <div className="text-[11px] text-slate-500">
+                            <span className="font-semibold">2nd:</span>{' '}
+                            <span className="font-mono text-slate-700">{emp.secondAppraiserSapId}</span>
+                          </div>
+                        )}
+                      </td>
                       <td className="p-3">
                         <Badge variant="nbp" className="text-[10px]">{emp.formTypeAssigned}</Badge>
                       </td>
                       <td className="p-3">
-                        {emp.isMrtOrMrc ? (
-                          <Badge variant="danger" className="text-[10px]">MRT/MRC</Badge>
+                        {emp.isActive !== false ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">Active</span>
                         ) : (
-                          <span className="text-slate-400">Standard</span>
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600">Inactive</span>
                         )}
+                      </td>
+                      <td className="p-3 text-right">
+                        <div className="flex items-center justify-end space-x-1">
+                          <button
+                            onClick={() => handleOpenEditModal(emp)}
+                            className="p-1.5 rounded-lg text-slate-500 hover:text-emerald-800 hover:bg-emerald-50 transition-colors"
+                            title="Edit Employee"
+                          >
+                            <Edit2 className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              setEmployeeToDelete(emp);
+                              setShowDeleteModal(true);
+                            }}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-700 hover:bg-rose-50 transition-colors"
+                            title="Remove Employee"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -387,6 +677,285 @@ export const EmployeeDataPage: React.FC = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Add / Edit Employee Modal */}
+      {showFormModal && (
+        <div className="fixed inset-0 z-[100] bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
+          <div className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-200 my-auto">
+            <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-emerald-950 p-5 text-white flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="h-10 w-10 rounded-xl bg-emerald-700/40 p-2 flex items-center justify-center border border-emerald-500/30">
+                  {isEditing ? <Edit2 className="h-5 w-5 text-emerald-400" /> : <UserPlus className="h-5 w-5 text-emerald-400" />}
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white leading-tight">
+                    {isEditing ? 'Edit Employee Details' : 'Add New Employee'}
+                  </h3>
+                  <p className="text-[11px] text-slate-300">
+                    {isEditing ? `Update master record for SAP ID ${formData.sapId}` : 'Register new bank staff into database'}
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => setShowFormModal(false)} className="p-1 text-slate-300 hover:text-white">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEmployee}>
+              <div className="p-6 space-y-4 text-xs max-h-[75vh] overflow-y-auto">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="font-bold text-slate-700">SAP ID *</label>
+                    <Input
+                      type="text"
+                      required
+                      disabled={isEditing}
+                      placeholder="e.g. 95101"
+                      value={formData.sapId}
+                      onChange={(e) => setFormData({ ...formData, sapId: e.target.value })}
+                      className="font-mono text-xs"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2 space-y-1.5">
+                    <label className="font-bold text-slate-700">Full Name *</label>
+                    <Input
+                      type="text"
+                      required
+                      placeholder="e.g. Tariq Mahmood"
+                      value={formData.fullName}
+                      onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
+                      className="text-xs font-semibold"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="font-bold text-slate-700">Grade *</label>
+                    <select
+                      required
+                      value={formData.grade}
+                      onChange={(e) => setFormData({ ...formData, grade: e.target.value })}
+                      className="w-full h-9 px-3 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:ring-2 focus:ring-emerald-700 focus:outline-none"
+                    >
+                      <option value="OG III">OG III (Officer Grade III)</option>
+                      <option value="OG II">OG II (Officer Grade II)</option>
+                      <option value="OG I">OG I (Officer Grade I)</option>
+                      <option value="AVP">AVP (Assistant Vice President)</option>
+                      <option value="VP">VP (Vice President)</option>
+                      <option value="SVP">SVP (Senior Vice President)</option>
+                      <option value="EVP">EVP (Executive Vice President)</option>
+                      <option value="SEVP">SEVP (Senior Executive Vice President)</option>
+                      <option value="President/CEO">President / CEO</option>
+                    </select>
+                  </div>
+
+                  <div className="sm:col-span-2 space-y-1.5">
+                    <label className="font-bold text-slate-700">Designation *</label>
+                    <Input
+                      type="text"
+                      required
+                      placeholder="e.g. Branch Manager / Operations Officer"
+                      value={formData.designation}
+                      onChange={(e) => setFormData({ ...formData, designation: e.target.value })}
+                      className="text-xs"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="font-bold text-slate-700">Reporting Group *</label>
+                    <select
+                      required
+                      value={formData.reportingGroup}
+                      onChange={(e) => setFormData({ ...formData, reportingGroup: e.target.value })}
+                      className="w-full h-9 px-3 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-emerald-700 focus:outline-none"
+                    >
+                      {groups.map(g => (
+                        <option key={g.id} value={g.groupName}>{g.groupName}</option>
+                      ))}
+                      {groups.length === 0 && (
+                        <>
+                          <option value="Consumer Banking Group">Consumer Banking Group</option>
+                          <option value="Commercial Banking Group">Commercial Banking Group</option>
+                          <option value="Risk Management Group">Risk Management Group</option>
+                          <option value="Operations & IT Group">Operations & IT Group</option>
+                        </>
+                      )}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="font-bold text-slate-700">Official Email Address</label>
+                    <Input
+                      type="email"
+                      placeholder="e.g. employee@nbp.com.pk"
+                      value={formData.email}
+                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      className="text-xs font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="font-bold text-slate-700">Division</label>
+                    <Input
+                      type="text"
+                      placeholder="e.g. Retail Banking"
+                      value={formData.division}
+                      onChange={(e) => setFormData({ ...formData, division: e.target.value })}
+                      className="text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="font-bold text-slate-700">Wing / Department</label>
+                    <Input
+                      type="text"
+                      placeholder="e.g. Operations Wing"
+                      value={formData.wingDepartment}
+                      onChange={(e) => setFormData({ ...formData, wingDepartment: e.target.value })}
+                      className="text-xs"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="font-bold text-slate-700">Location / City</label>
+                    <Input
+                      type="text"
+                      placeholder="e.g. Karachi / Lahore"
+                      value={formData.location}
+                      onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                      className="text-xs"
+                    />
+                  </div>
+                </div>
+
+                {/* Appraiser & Supervisor Selection */}
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+                  <span className="font-bold text-slate-900 block text-xs">Assigned Appraisers (Reporting Hierarchy)</span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <SapIdAutocomplete
+                      label="1st Appraiser (Immediate Supervisor)"
+                      placeholder="Type SAP ID or Name..."
+                      value={formData.firstAppraiserSapId}
+                      onChange={(sapId) => setFormData({ ...formData, firstAppraiserSapId: sapId })}
+                    />
+                    <SapIdAutocomplete
+                      label="2nd Appraiser / Countersigning Officer"
+                      placeholder="Type SAP ID or Name..."
+                      value={formData.secondAppraiserSapId}
+                      onChange={(sapId) => setFormData({ ...formData, secondAppraiserSapId: sapId })}
+                    />
+                  </div>
+                </div>
+
+                {/* Policy Flags */}
+                <div className="flex flex-wrap items-center justify-between gap-4 p-3 bg-emerald-50/50 border border-emerald-200 rounded-xl">
+                  <label className="flex items-center space-x-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.isMrtOrMrc}
+                      onChange={(e) => setFormData({ ...formData, isMrtOrMrc: e.target.checked })}
+                      className="rounded border-slate-300 text-emerald-700 focus:ring-emerald-700 h-4 w-4"
+                    />
+                    <div>
+                      <span className="font-bold text-slate-800 text-xs">Material Risk Taker / Controller (MRT/MRC)</span>
+                      <p className="text-[10px] text-slate-500">Assigns 5-Perspective Risk-Adjusted Balanced Scorecard</p>
+                    </div>
+                  </label>
+
+                  <label className="flex items-center space-x-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.isActive}
+                      onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+                      className="rounded border-slate-300 text-emerald-700 focus:ring-emerald-700 h-4 w-4"
+                    />
+                    <span className="font-bold text-slate-800 text-xs">Active Employee Status</span>
+                  </label>
+                </div>
+
+                {!isEditing && (
+                  <label className="flex items-center space-x-2 cursor-pointer p-3 bg-slate-50 border border-slate-200 rounded-xl">
+                    <input
+                      type="checkbox"
+                      checked={formData.createPortalUser}
+                      onChange={(e) => setFormData({ ...formData, createPortalUser: e.target.checked })}
+                      className="rounded border-slate-300 text-emerald-700 focus:ring-emerald-700 h-4 w-4"
+                    />
+                    <div>
+                      <span className="font-bold text-slate-800 text-xs">Auto-create Portal Login Account</span>
+                      <p className="text-[10px] text-slate-500">Username: SAP ID • Default Temporary Password: <code className="font-mono text-emerald-800">Nbp@12345!</code></p>
+                    </div>
+                  </label>
+                )}
+              </div>
+
+              <div className="p-4 bg-slate-50 border-t flex items-center justify-between">
+                <Button variant="secondary" size="sm" type="button" onClick={() => setShowFormModal(false)}>
+                  Cancel
+                </Button>
+                <Button variant="nbp" size="sm" type="submit" disabled={submittingForm} className="font-bold">
+                  {submittingForm ? 'Saving...' : isEditing ? 'Update Employee' : 'Create Employee Record'}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && employeeToDelete && (
+        <div className="fixed inset-0 z-[100] bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden border border-rose-200">
+            <div className="bg-gradient-to-r from-rose-950 via-rose-900 to-slate-950 p-5 text-white flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="h-10 w-10 rounded-xl bg-rose-700/40 p-2 flex items-center justify-center border border-rose-500/30">
+                  <Trash2 className="h-5 w-5 text-rose-400" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white leading-tight">Remove Employee</h3>
+                  <p className="text-[11px] text-rose-200">Permanent Database Deletion</p>
+                </div>
+              </div>
+              <button onClick={() => setShowDeleteModal(false)} className="p-1 text-slate-300 hover:text-white">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-3 text-xs">
+              <p className="text-slate-700">
+                Are you sure you want to permanently delete the employee record for:
+              </p>
+              <div className="p-3 bg-rose-50 rounded-xl border border-rose-200 font-medium text-rose-950 space-y-1">
+                <div className="font-bold text-sm">{employeeToDelete.fullName}</div>
+                <div className="text-xs font-mono">SAP ID: {employeeToDelete.sapId} • Grade: {employeeToDelete.grade}</div>
+                <div className="text-[11px] text-rose-800">{employeeToDelete.reportingGroup}</div>
+              </div>
+              <p className="text-[11px] text-slate-500 leading-relaxed">
+                This action will unlink any direct reports assigned to this employee, remove associated draft cycle records, and log an audited removal event.
+              </p>
+            </div>
+
+            <div className="p-4 bg-slate-50 border-t flex items-center justify-between">
+              <Button variant="secondary" size="sm" onClick={() => setShowDeleteModal(false)}>
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleConfirmDelete}
+                disabled={deleting}
+                className="font-bold"
+              >
+                {deleting ? 'Removing...' : 'Confirm Remove Employee'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Bulk Appraiser Override Modal */}
       {showBulkAppraiserModal && (
