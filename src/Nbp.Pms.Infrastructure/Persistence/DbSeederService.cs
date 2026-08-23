@@ -207,7 +207,10 @@ public class DbSeederService
         // First ensure schema has all required tables and physical columns
         await MigrateDatabaseSchemaAsync();
 
-        // Avoid duplicate seeding
+        // Ensure default system accounts (admin, pmwadmin, employee portal accounts) always exist
+        await EnsureDefaultUsersAsync();
+
+        // Avoid duplicate master data seeding
         if (await _db.Employees.AnyAsync())
         {
             return;
@@ -689,20 +692,7 @@ public class DbSeederService
         var ae5 = new AuditEvent { EventType = "DISAGREEMENT_RAISED", ActorUserId = "91204", ActorRole = "Employee", TargetEntityType = "DisagreementCase", ActionDescription = "Zahid raised disagreement", IpAddress = "127.0.0.1", Timestamp = DateTime.UtcNow.AddDays(-1) };
         _db.AuditEvents.AddRange(ae1, ae2, ae3, ae4, ae5);
 
-        // SystemUsers
-        var systemUsers = new List<SystemUser>
-        {
-            new SystemUser { Username = "admin", PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin@Nbp2026!"), FullName = "System Administrator", Email = "admin@nbp.com.pk", Role = "PmwSuperAdmin", MustChangePassword = true },
-            new SystemUser { Username = pres.SapId, PasswordHash = BCrypt.Net.BCrypt.HashPassword($"Nbp{pres.SapId}!"), FullName = pres.FullName, Email = $"{pres.SapId}@nbp.com.pk", Role = "PmwSuperAdmin", MustChangePassword = false, EmployeeId = pres.Id, Employee = pres },
-            new SystemUser { Username = sevp.SapId, PasswordHash = BCrypt.Net.BCrypt.HashPassword($"Nbp{sevp.SapId}!"), FullName = sevp.FullName, Email = $"{sevp.SapId}@nbp.com.pk", Role = "PmwAdmin", MustChangePassword = false, EmployeeId = sevp.Id, Employee = sevp },
-            new SystemUser { Username = svp.SapId, PasswordHash = BCrypt.Net.BCrypt.HashPassword($"Nbp{svp.SapId}!"), FullName = svp.FullName, Email = $"{svp.SapId}@nbp.com.pk", Role = "SecondAppraiser", MustChangePassword = false, EmployeeId = svp.Id, Employee = svp },
-            new SystemUser { Username = vp.SapId, PasswordHash = BCrypt.Net.BCrypt.HashPassword($"Nbp{vp.SapId}!"), FullName = vp.FullName, Email = $"{vp.SapId}@nbp.com.pk", Role = "FirstAppraiser", MustChangePassword = false, EmployeeId = vp.Id, Employee = vp },
-            new SystemUser { Username = avp.SapId, PasswordHash = BCrypt.Net.BCrypt.HashPassword($"Nbp{avp.SapId}!"), FullName = avp.FullName, Email = $"{avp.SapId}@nbp.com.pk", Role = "Employee", MustChangePassword = false, EmployeeId = avp.Id, Employee = avp },
-            new SystemUser { Username = og1.SapId, PasswordHash = BCrypt.Net.BCrypt.HashPassword($"Nbp{og1.SapId}!"), FullName = og1.FullName, Email = $"{og1.SapId}@nbp.com.pk", Role = "Employee", MustChangePassword = false, EmployeeId = og1.Id, Employee = og1 },
-            new SystemUser { Username = og2.SapId, PasswordHash = BCrypt.Net.BCrypt.HashPassword($"Nbp{og2.SapId}!"), FullName = og2.FullName, Email = $"{og2.SapId}@nbp.com.pk", Role = "Employee", MustChangePassword = false, EmployeeId = og2.Id, Employee = og2 },
-            new SystemUser { Username = mrtAvp.SapId, PasswordHash = BCrypt.Net.BCrypt.HashPassword($"Nbp{mrtAvp.SapId}!"), FullName = mrtAvp.FullName, Email = $"{mrtAvp.SapId}@nbp.com.pk", Role = "Employee", MustChangePassword = false, EmployeeId = mrtAvp.Id, Employee = mrtAvp }
-        };
-        _db.SystemUsers.AddRange(systemUsers);
+        // SystemUsers and Portal Accounts are seeded by EnsureDefaultUsersAsync() below
 
         // 8. Email Configuration (Default Dev / SMTP setup)
         var defaultEmailConfig = new EmailConfiguration
@@ -739,6 +729,75 @@ public class DbSeederService
         };
 
         _db.AuditEvents.Add(audit1);
+        await _db.SaveChangesAsync();
+
+        await EnsureDefaultUsersAsync();
+    }
+
+    private async Task EnsureDefaultUsersAsync()
+    {
+        if (!await _db.SystemUsers.AnyAsync(u => u.Username.ToLower() == "admin"))
+        {
+            _db.SystemUsers.Add(new SystemUser
+            {
+                Username = "admin",
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin@Nbp2026!"),
+                FullName = "System Administrator",
+                Email = "admin@nbp.com.pk",
+                Role = "PmwSuperAdmin",
+                IsActive = true,
+                IsLockedOut = false,
+                MustChangePassword = false,
+                CreatedAt = DateTime.UtcNow
+            });
+        }
+
+        if (!await _db.SystemUsers.AnyAsync(u => u.Username.ToLower() == "pmwadmin"))
+        {
+            _db.SystemUsers.Add(new SystemUser
+            {
+                Username = "pmwadmin",
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin@Nbp2026!"),
+                FullName = "PMW Central Administrator",
+                Email = "pmwadmin@nbp.com.pk",
+                Role = "PmwAdmin",
+                IsActive = true,
+                IsLockedOut = false,
+                MustChangePassword = false,
+                CreatedAt = DateTime.UtcNow
+            });
+        }
+
+        var employees = await _db.Employees.ToListAsync();
+        foreach (var emp in employees)
+        {
+            if (!await _db.SystemUsers.AnyAsync(u => u.Username == emp.SapId))
+            {
+                string role = emp.Grade switch
+                {
+                    "President/CEO" => "PmwSuperAdmin",
+                    "SEVP" => "PmwAdmin",
+                    "SVP" => "SecondAppraiser",
+                    "VP" => "FirstAppraiser",
+                    _ => "Employee"
+                };
+
+                _db.SystemUsers.Add(new SystemUser
+                {
+                    Username = emp.SapId,
+                    PasswordHash = BCrypt.Net.BCrypt.HashPassword($"Nbp{emp.SapId}!"),
+                    FullName = emp.FullName,
+                    Email = emp.Email ?? $"{emp.SapId}@nbp.com.pk",
+                    Role = role,
+                    IsActive = true,
+                    IsLockedOut = false,
+                    MustChangePassword = false,
+                    EmployeeId = emp.Id,
+                    CreatedAt = DateTime.UtcNow
+                });
+            }
+        }
+
         await _db.SaveChangesAsync();
     }
 }
