@@ -753,6 +753,142 @@ public class CyclesController : ControllerBase
     }
 
     /// <summary>
+    /// Selectively snapshots master reporting groups and/or grades into a specific appraisal cycle.
+    /// Supports selecting specific RPSA codes, ESG codes, or snapping all groups/grades with clean upsert.
+    /// </summary>
+    [HttpPost("{id}/snapshot/selective-org")]
+    public async Task<IActionResult> SnapshotSelectiveOrg(Guid id, [FromBody] SnapshotSelectiveOrgDto dto)
+    {
+        var cycle = await _db.AppraisalCycles.FirstOrDefaultAsync(c => c.Id == id);
+        if (cycle == null) return NotFound(new { message = "Appraisal cycle not found." });
+
+        var snapshottedAt = DateTime.UtcNow;
+        var actorUserId = dto.ActorUserId ?? "PMW_ADMIN";
+
+        int groupsAdded = 0;
+        int groupsUpdated = 0;
+        int gradesAdded = 0;
+        int gradesUpdated = 0;
+
+        // 1. Process Master Reporting Groups Selection
+        if (dto.SnapshotAllGroups || (dto.RpsaCodes != null && dto.RpsaCodes.Any()))
+        {
+            var masterGroupsQuery = _db.ReportingGroups.Where(rg => rg.IsActive != false);
+            if (!dto.SnapshotAllGroups && dto.RpsaCodes != null)
+            {
+                var rpsaSet = dto.RpsaCodes.Select(r => r.Trim().PadLeft(4, '0')).ToHashSet();
+                var rawCodeSet = dto.RpsaCodes.Select(r => r.Trim()).ToHashSet();
+                masterGroupsQuery = masterGroupsQuery.Where(rg => rpsaSet.Contains(rg.RpsaCode) || rawCodeSet.Contains(rg.GroupCode));
+            }
+            var masterGroups = await masterGroupsQuery.ToListAsync();
+
+            var existingCycleGroups = await _db.CycleReportingGroups.Where(g => g.CycleId == id).ToListAsync();
+
+            foreach (var mg in masterGroups)
+            {
+                string rpsa = !string.IsNullOrWhiteSpace(mg.RpsaCode) ? mg.RpsaCode.PadLeft(4, '0') : "0000";
+                var snapGroup = existingCycleGroups.FirstOrDefault(g => g.RpsaCode == rpsa || g.GroupCode == mg.GroupCode);
+                if (snapGroup != null)
+                {
+                    snapGroup.GroupName = mg.GroupName;
+                    snapGroup.HeadOfGroupSapId = mg.HeadOfGroupSapId;
+                    snapGroup.UpdatedAt = snapshottedAt;
+                    snapGroup.UpdatedBy = actorUserId;
+                    groupsUpdated++;
+                }
+                else
+                {
+                    _db.CycleReportingGroups.Add(new CycleReportingGroup
+                    {
+                        CycleId = id,
+                        RpsaCode = rpsa,
+                        GroupCode = mg.GroupCode,
+                        GroupName = mg.GroupName,
+                        HeadOfGroupSapId = mg.HeadOfGroupSapId,
+                        SnapshottedAt = snapshottedAt,
+                        SnapshottedBy = actorUserId
+                    });
+                    groupsAdded++;
+                }
+            }
+        }
+
+        // 2. Process Master ESG Grades Selection
+        if (dto.SnapshotAllGrades || (dto.EsgCodes != null && dto.EsgCodes.Any()))
+        {
+            var masterGradesQuery = _db.GradeMappings.Where(g => g.IsActive);
+            if (!dto.SnapshotAllGrades && dto.EsgCodes != null)
+            {
+                var esgSet = dto.EsgCodes.Select(e => e.Trim().PadLeft(2, '0')).ToHashSet();
+                var rawGradeSet = dto.EsgCodes.Select(e => e.Trim()).ToHashSet();
+                masterGradesQuery = masterGradesQuery.Where(g => esgSet.Contains(g.EsgCode) || rawGradeSet.Contains(g.GradeCode));
+            }
+            var masterGrades = await masterGradesQuery.OrderBy(g => g.RankOrder).ToListAsync();
+
+            var existingCycleGrades = await _db.CycleGradeMappings.Where(g => g.CycleId == id).ToListAsync();
+
+            foreach (var mg in masterGrades)
+            {
+                string esg = !string.IsNullOrWhiteSpace(mg.EsgCode) ? mg.EsgCode.PadLeft(2, '0') : mg.RankOrder.ToString("D2");
+                var snapGrade = existingCycleGrades.FirstOrDefault(g => g.EsgCode == esg || g.GradeCode == mg.GradeCode);
+                if (snapGrade != null)
+                {
+                    snapGrade.GradeCode = mg.GradeCode;
+                    snapGrade.GradeName = mg.GradeName;
+                    snapGrade.HierarchyOrder = mg.RankOrder;
+                    snapGrade.DefaultFormType = mg.DefaultFormType;
+                    snapGrade.UpdatedAt = snapshottedAt;
+                    snapGrade.UpdatedBy = actorUserId;
+                    gradesUpdated++;
+                }
+                else
+                {
+                    _db.CycleGradeMappings.Add(new CycleGradeMapping
+                    {
+                        CycleId = id,
+                        EsgCode = esg,
+                        GradeCode = mg.GradeCode,
+                        GradeName = mg.GradeName,
+                        HierarchyOrder = mg.RankOrder,
+                        DefaultFormType = mg.DefaultFormType,
+                        SnapshottedAt = snapshottedAt,
+                        SnapshottedBy = actorUserId
+                    });
+                    gradesAdded++;
+                }
+            }
+        }
+
+        _db.AuditEvents.Add(new AuditEvent
+        {
+            EventType = "CYCLE_SELECTIVE_ORGANIZATION_SNAPSHOTTED",
+            ActorUserId = actorUserId,
+            ActorRole = "PmwAdmin",
+            TargetEntityType = nameof(AppraisalCycle),
+            TargetEntityId = id.ToString(),
+            ActionDescription = $"Selectively snapshotted organizational hierarchy for Cycle '{cycle.Title}': {groupsAdded + groupsUpdated} Groups, {gradesAdded + gradesUpdated} Grades.",
+            Timestamp = snapshottedAt
+        });
+
+        await _db.SaveChangesAsync();
+
+        var totalGroups = await _db.CycleReportingGroups.CountAsync(g => g.CycleId == id);
+        var totalGrades = await _db.CycleGradeMappings.CountAsync(g => g.CycleId == id);
+
+        return Ok(new
+        {
+            message = $"Successfully snapshotted {groupsAdded + groupsUpdated} group(s) and {gradesAdded + gradesUpdated} grade(s) into '{cycle.Title}'.",
+            groupsCount = totalGroups,
+            gradesCount = totalGrades,
+            groupsAdded,
+            groupsUpdated,
+            gradesAdded,
+            gradesUpdated,
+            snapshottedAt
+        });
+    }
+
+    /// <summary>
     /// Explicit on-demand employee snapshot for a cycle. Supports bank-wide or group-wise snapshot by RPSA code.
     /// Strict SAP ID deduplication ensures repeated snapshots cleanly update rather than duplicate.
     /// </summary>
@@ -1542,5 +1678,13 @@ public record CreateCycleSnapshotGradeDto(
 public record UpdateSnapshotGradeDto(
     string GradeName,
     string DefaultFormType,
+    string? ActorUserId = "PMW_ADMIN"
+);
+
+public record SnapshotSelectiveOrgDto(
+    List<string>? RpsaCodes,
+    List<string>? EsgCodes,
+    bool SnapshotAllGroups = false,
+    bool SnapshotAllGrades = false,
     string? ActorUserId = "PMW_ADMIN"
 );

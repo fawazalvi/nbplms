@@ -43,7 +43,7 @@ export const CycleSnapshotManagerPage: React.FC<CycleSnapshotManagerPageProps> =
 }) => {
   const [cycles, setCycles] = useState<any[]>([]);
   const [activeCycleId, setActiveCycleId] = useState<string>('');
-  const [activeTab, setActiveTab] = useState<'roster' | 'groups' | 'grades' | 'sync'>('roster');
+  const [activeTab, setActiveTab] = useState<'org-snapshot' | 'staff-snapshot' | 'roster' | 'groups' | 'grades'>('org-snapshot');
 
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
@@ -55,6 +55,14 @@ export const CycleSnapshotManagerPage: React.FC<CycleSnapshotManagerPageProps> =
   const [snapshotGrades, setSnapshotGrades] = useState<any[]>([]);
   const [cycleEmployees, setCycleEmployees] = useState<any[]>([]);
   const [masterGroups, setMasterGroups] = useState<any[]>([]);
+  const [masterGrades, setMasterGrades] = useState<any[]>([]);
+
+  // Org Snapshot Selective State
+  const [selectedOrgGroupCodes, setSelectedOrgGroupCodes] = useState<string[]>([]);
+  const [selectedOrgEsgCodes, setSelectedOrgEsgCodes] = useState<string[]>([]);
+  const [orgGroupSearch, setOrgGroupSearch] = useState('');
+  const [orgGradeSearch, setOrgGradeSearch] = useState('');
+  const [orgSubView, setOrgSubView] = useState<'all' | 'groups' | 'grades'>('all');
 
   // Filtering State
   const [searchTerm, setSearchTerm] = useState('');
@@ -90,8 +98,20 @@ export const CycleSnapshotManagerPage: React.FC<CycleSnapshotManagerPageProps> =
   const [editingGradeId, setEditingGradeId] = useState<string | null>(null);
   const [gradeEditForm, setGradeEditForm] = useState<any>({});
 
-  // Sync Wizard Selected Groups State
+  // Sync Wizard Selected Groups State (for Staff Snapshot)
   const [selectedSyncGroupCodes, setSelectedSyncGroupCodes] = useState<string[]>([]);
+
+  // Single Staff Enrollment Modal
+  const [showEnrollModal, setShowEnrollModal] = useState(false);
+  const [enrollForm, setEnrollForm] = useState({
+    sapId: '',
+    grade: '04',
+    reportingGroup: '0001',
+    designation: '',
+    formType: 'KPI_FORM',
+    firstAppraiserSapId: '',
+    secondAppraiserSapId: ''
+  });
 
   // Load Cycles
   const loadCycles = async () => {
@@ -124,23 +144,29 @@ export const CycleSnapshotManagerPage: React.FC<CycleSnapshotManagerPageProps> =
     if (!cycleId) return;
     setLoading(true);
     try {
-      const [summary, groups, grades, employees, mGroups] = await Promise.all([
+      const [summary, groups, grades, employees, mGroups, mGrades] = await Promise.all([
         api.getCycleSnapshotSummary(cycleId).catch(() => null),
         api.getCycleSnapshotGroups(cycleId).catch(() => []),
         api.getCycleSnapshotGrades(cycleId).catch(() => []),
         api.getCycleEmployees(cycleId).catch(() => []),
-        api.getReportingGroups().catch(() => [])
+        api.getReportingGroups().catch(() => []),
+        api.getGradeMappings().catch(() => [])
       ]);
       setSnapshotSummary(summary);
       setSnapshotGroups(groups || []);
       setSnapshotGrades(grades || []);
       setCycleEmployees(employees || []);
       setMasterGroups(mGroups || []);
+      setMasterGrades(mGrades || []);
       setSelectedEmployeeIds([]);
       
-      // Default sync selection to all available master groups
+      // Default Org selections to all available master records
       if (mGroups && mGroups.length > 0) {
+        setSelectedOrgGroupCodes(mGroups.map((g: any) => g.rpsaCode || g.groupCode));
         setSelectedSyncGroupCodes(mGroups.map((g: any) => g.rpsaCode || g.groupCode));
+      }
+      if (mGrades && mGrades.length > 0) {
+        setSelectedOrgEsgCodes(mGrades.map((g: any) => g.esgCode || g.gradeNumericCode || g.gradeCode));
       }
     } catch (e) {
       console.error('Failed to load cycle snapshot data', e);
@@ -154,6 +180,95 @@ export const CycleSnapshotManagerPage: React.FC<CycleSnapshotManagerPageProps> =
       loadCycleData(activeCycleId);
     }
   }, [activeCycleId]);
+
+  // Selective Org Hierarchy Snapshot Operations
+  const handleSnapshotAllOrg = async () => {
+    if (!activeCycleId) return;
+    setActionLoading(true);
+    try {
+      const res = await api.snapshotCycleSelectiveOrg(activeCycleId, {
+        snapshotAllGroups: true,
+        snapshotAllGrades: true,
+        actorUserId: 'PMW_ADMIN'
+      });
+      setMessage(res.message || 'Complete Master Groups and ESG Grades hierarchy successfully snapshotted into this cycle!');
+      await loadCycleData(activeCycleId);
+    } catch (e: any) {
+      alert(e.message || 'Failed to snapshot entire organizational hierarchy.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleSnapshotSelectedOrgGroups = async () => {
+    if (!activeCycleId || selectedOrgGroupCodes.length === 0) return;
+    setActionLoading(true);
+    try {
+      const res = await api.snapshotCycleSelectiveOrg(activeCycleId, {
+        rpsaCodes: selectedOrgGroupCodes,
+        actorUserId: 'PMW_ADMIN'
+      });
+      setMessage(res.message || `Successfully snapshotted ${selectedOrgGroupCodes.length} Reporting Groups into this cycle!`);
+      await loadCycleData(activeCycleId);
+    } catch (e: any) {
+      alert(e.message || 'Failed to snapshot selected groups.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleSnapshotSelectedOrgGrades = async () => {
+    if (!activeCycleId || selectedOrgEsgCodes.length === 0) return;
+    setActionLoading(true);
+    try {
+      const res = await api.snapshotCycleSelectiveOrg(activeCycleId, {
+        esgCodes: selectedOrgEsgCodes,
+        actorUserId: 'PMW_ADMIN'
+      });
+      setMessage(res.message || `Successfully snapshotted ${selectedOrgEsgCodes.length} ESG Grades into this cycle!`);
+      await loadCycleData(activeCycleId);
+    } catch (e: any) {
+      alert(e.message || 'Failed to snapshot selected grades.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleSnapshotSingleOrgGroup = async (group: any) => {
+    if (!activeCycleId) return;
+    setActionLoading(true);
+    try {
+      const code = group.rpsaCode || group.groupCode;
+      const res = await api.snapshotCycleSelectiveOrg(activeCycleId, {
+        rpsaCodes: [code],
+        actorUserId: 'PMW_ADMIN'
+      });
+      setMessage(res.message || `Group '${group.groupName}' snapshotted into cycle!`);
+      await loadCycleData(activeCycleId);
+    } catch (e: any) {
+      alert(e.message || 'Failed to snapshot group.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleSnapshotSingleOrgGrade = async (grade: any) => {
+    if (!activeCycleId) return;
+    setActionLoading(true);
+    try {
+      const code = grade.esgCode || grade.gradeNumericCode || grade.gradeCode;
+      const res = await api.snapshotCycleSelectiveOrg(activeCycleId, {
+        esgCodes: [code],
+        actorUserId: 'PMW_ADMIN'
+      });
+      setMessage(res.message || `Grade '${grade.gradeName}' (${grade.gradeCode}) snapshotted into cycle!`);
+      await loadCycleData(activeCycleId);
+    } catch (e: any) {
+      alert(e.message || 'Failed to snapshot grade.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   const handleCycleChange = (id: string) => {
     setActiveCycleId(id);
@@ -539,7 +654,31 @@ export const CycleSnapshotManagerPage: React.FC<CycleSnapshotManagerPageProps> =
       )}
 
       {/* Navigation Tabs */}
-      <div className="flex items-center space-x-2 border-b border-slate-200 pb-2">
+      <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 pb-2">
+        <button
+          onClick={() => setActiveTab('org-snapshot')}
+          className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-black transition-all ${
+            activeTab === 'org-snapshot'
+              ? 'bg-emerald-800 text-white shadow-md'
+              : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+          }`}
+        >
+          <Layers className="h-4 w-4" />
+          <span>Org Hierarchy Snapshot & Diff</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('staff-snapshot')}
+          className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-black transition-all ${
+            activeTab === 'staff-snapshot'
+              ? 'bg-emerald-800 text-white shadow-md'
+              : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+          }`}
+        >
+          <Camera className="h-4 w-4" />
+          <span>Staff Enrollment Snapshot</span>
+        </button>
+
         <button
           onClick={() => setActiveTab('roster')}
           className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-black transition-all ${
@@ -561,7 +700,7 @@ export const CycleSnapshotManagerPage: React.FC<CycleSnapshotManagerPageProps> =
           }`}
         >
           <Building2 className="h-4 w-4" />
-          <span>Cycle Groups Snapshot ({snapshotGroups.length})</span>
+          <span>Cycle Groups ({snapshotGroups.length})</span>
         </button>
 
         <button
@@ -573,19 +712,7 @@ export const CycleSnapshotManagerPage: React.FC<CycleSnapshotManagerPageProps> =
           }`}
         >
           <GraduationCap className="h-4 w-4" />
-          <span>Cycle Grades Snapshot ({snapshotGrades.length})</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('sync')}
-          className={`flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-black transition-all ${
-            activeTab === 'sync'
-              ? 'bg-teal-800 text-white shadow-md'
-              : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-          }`}
-        >
-          <Camera className="h-4 w-4" />
-          <span>Master Snapshot Wizard</span>
+          <span>Cycle Grades ({snapshotGrades.length})</span>
         </button>
       </div>
 
@@ -1138,14 +1265,428 @@ export const CycleSnapshotManagerPage: React.FC<CycleSnapshotManagerPageProps> =
         </div>
       )}
 
-      {/* TAB 4: MASTER SNAPSHOT & SYNC WIZARD */}
-      {activeTab === 'sync' && (
+      {/* ═══════════════ TAB: ORG HIERARCHY SNAPSHOT & DIFF CENTER ═══════════════ */}
+      {activeTab === 'org-snapshot' && (
+        <div className="space-y-6">
+          {/* Hero Snapshot Calibration Banner */}
+          <Card className="border-emerald-200/80 bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 text-white shadow-xl overflow-hidden relative">
+            <div className="absolute right-0 top-0 translate-x-10 -translate-y-10 w-72 h-72 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+            <CardHeader className="pb-4 relative z-10">
+              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center space-x-2">
+                    <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-400/30 text-xs font-mono font-bold">
+                      {currentCycle?.circularReference || 'ACTIVE CYCLE'}
+                    </Badge>
+                    <Badge className="bg-white/10 text-white border-white/20 text-xs">
+                      {currentCycle?.title || 'Selected Cycle'}
+                    </Badge>
+                  </div>
+                  <h3 className="text-lg font-black text-white tracking-tight flex items-center space-x-2">
+                    <Layers className="h-5 w-5 text-emerald-400" />
+                    <span>Cycle Organizational Hierarchy Snapshot Center</span>
+                  </h3>
+                  <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
+                    Freeze and isolate Master Reporting Groups (RPSA 0001–0008) and Master ESG Grades (01–09) into this appraisal cycle. Once frozen, cycle evaluations run independently from future organizational changes.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3">
+                  <Button
+                    variant="nbp"
+                    size="default"
+                    disabled={actionLoading}
+                    onClick={handleSnapshotAllOrg}
+                    className="h-10 px-5 text-xs font-black bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-lg transition-all"
+                  >
+                    <Layers className="h-4 w-4 mr-2" />
+                    1-Click Freeze Entire Master Hierarchy
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+
+            <CardContent className="pt-0 relative z-10">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 border-t border-white/10 pt-4">
+                <div className="bg-white/5 border border-white/10 rounded-xl p-3.5 flex items-center justify-between">
+                  <div>
+                    <div className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">Frozen Cycle Groups</div>
+                    <div className="text-xl font-black text-white mt-0.5">
+                      {snapshotGroups.length} <span className="text-xs font-medium text-slate-400">/ {masterGroups.length} Master</span>
+                    </div>
+                  </div>
+                  <Badge variant={snapshotGroups.length >= masterGroups.length && masterGroups.length > 0 ? 'nbp' : 'warning'} className="text-[10px]">
+                    {snapshotGroups.length >= masterGroups.length && masterGroups.length > 0 ? 'Fully Synced' : 'Sync Needed'}
+                  </Badge>
+                </div>
+
+                <div className="bg-white/5 border border-white/10 rounded-xl p-3.5 flex items-center justify-between">
+                  <div>
+                    <div className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">Frozen Cycle Grades</div>
+                    <div className="text-xl font-black text-white mt-0.5">
+                      {snapshotGrades.length} <span className="text-xs font-medium text-slate-400">/ {masterGrades.length} Master</span>
+                    </div>
+                  </div>
+                  <Badge variant={snapshotGrades.length >= masterGrades.length && masterGrades.length > 0 ? 'nbp' : 'warning'} className="text-[10px]">
+                    {snapshotGrades.length >= masterGrades.length && masterGrades.length > 0 ? 'Fully Synced' : 'Sync Needed'}
+                  </Badge>
+                </div>
+
+                <div className="bg-white/5 border border-white/10 rounded-xl p-3.5 flex items-center justify-between">
+                  <div>
+                    <div className="text-[11px] text-slate-400 font-bold uppercase tracking-wider">Hierarchy Status</div>
+                    <div className="text-xs font-bold text-emerald-300 mt-1">
+                      {snapshotGroups.length > 0 && snapshotGrades.length > 0
+                        ? 'Active in Cycle Sandbox'
+                        : 'Uninitialized (Run Snapshot)'}
+                    </div>
+                  </div>
+                  <div className="h-8 w-8 rounded-lg bg-emerald-500/20 text-emerald-300 flex items-center justify-center">
+                    <CheckCircle2 className="h-4 w-4" />
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Sub-view View Mode Toggle */}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200">
+              <button
+                onClick={() => setOrgSubView('all')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  orgSubView === 'all' ? 'bg-white text-emerald-950 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                All Hierarchy ({masterGroups.length + masterGrades.length})
+              </button>
+              <button
+                onClick={() => setOrgSubView('groups')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  orgSubView === 'groups' ? 'bg-white text-emerald-950 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Master Groups ({masterGroups.length})
+              </button>
+              <button
+                onClick={() => setOrgSubView('grades')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  orgSubView === 'grades' ? 'bg-white text-emerald-950 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Master ESG Grades ({masterGrades.length})
+              </button>
+            </div>
+
+            <div className="text-xs text-slate-500 font-bold">
+              Cycle: <span className="text-slate-900 font-mono">{currentCycle?.title}</span>
+            </div>
+          </div>
+
+          {/* SECTION A: MASTER REPORTING GROUPS SNAPSHOT MATRIX */}
+          {(orgSubView === 'all' || orgSubView === 'groups') && (
+            <Card className="border-slate-200 shadow-sm">
+              <CardHeader className="pb-3 border-b border-slate-100 bg-slate-50/50">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div>
+                    <CardTitle className="text-sm font-black text-slate-900 flex items-center space-x-2">
+                      <Building2 className="h-4 w-4 text-emerald-700" />
+                      <span>Master Reporting Groups Snapshot Matrix (RPSA 0001–0008)</span>
+                    </CardTitle>
+                    <CardDescription className="text-xs">
+                      Compare Master Database groups with this cycle's frozen groups and snapshot selectively.
+                    </CardDescription>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setSelectedOrgGroupCodes(masterGroups.map(g => g.rpsaCode || g.groupCode))}
+                      className="text-[11px] font-bold h-8"
+                    >
+                      Select All ({masterGroups.length})
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setSelectedOrgGroupCodes([])}
+                      className="text-[11px] font-bold h-8"
+                    >
+                      Deselect
+                    </Button>
+                    <Button
+                      variant="nbp"
+                      size="sm"
+                      disabled={actionLoading || selectedOrgGroupCodes.length === 0}
+                      onClick={handleSnapshotSelectedOrgGroups}
+                      className="text-[11px] font-bold bg-emerald-800 hover:bg-emerald-900 text-white h-8"
+                    >
+                      <Camera className="h-3.5 w-3.5 mr-1" />
+                      Snapshot Selected Groups ({selectedOrgGroupCodes.length})
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs text-left">
+                    <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider">
+                      <tr>
+                        <th className="p-3 w-10 text-center">
+                          <input
+                            type="checkbox"
+                            checked={masterGroups.length > 0 && selectedOrgGroupCodes.length === masterGroups.length}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedOrgGroupCodes(masterGroups.map(g => g.rpsaCode || g.groupCode));
+                              } else {
+                                setSelectedOrgGroupCodes([]);
+                              }
+                            }}
+                            className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 h-4 w-4 cursor-pointer"
+                          />
+                        </th>
+                        <th className="p-3">RPSA (4-Digit)</th>
+                        <th className="p-3">Master Group Code</th>
+                        <th className="p-3">Master Group Name</th>
+                        <th className="p-3">Master Head of Group</th>
+                        <th className="p-3 text-center">Cycle Snapshot Status</th>
+                        <th className="p-3 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {masterGroups.map((g) => {
+                        const code = g.rpsaCode ? g.rpsaCode.padStart(4, '0') : (g.groupCode || '0000');
+                        const isSelected = selectedOrgGroupCodes.includes(code) || selectedOrgGroupCodes.includes(g.groupCode);
+                        const isFrozen = snapshotGroups.some((sg) => sg.rpsaCode === code || sg.groupCode === g.groupCode);
+                        return (
+                          <tr key={g.id} className={`hover:bg-slate-50 transition-colors ${isSelected ? 'bg-emerald-50/40' : ''}`}>
+                            <td className="p-3 text-center">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => {
+                                  if (isSelected) {
+                                    setSelectedOrgGroupCodes(selectedOrgGroupCodes.filter(c => c !== code && c !== g.groupCode));
+                                  } else {
+                                    setSelectedOrgGroupCodes([...selectedOrgGroupCodes, code]);
+                                  }
+                                }}
+                                className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 h-4 w-4 cursor-pointer"
+                              />
+                            </td>
+                            <td className="p-3">
+                              <span className="font-mono text-xs font-black px-2.5 py-0.5 rounded-md bg-emerald-50 text-emerald-900 border border-emerald-200">
+                                {code}
+                              </span>
+                            </td>
+                            <td className="p-3">
+                              <Badge variant="secondary" className="font-mono font-bold text-[10px]">{g.groupCode}</Badge>
+                            </td>
+                            <td className="p-3 font-bold text-slate-900 text-sm">
+                              {g.groupName}
+                            </td>
+                            <td className="p-3">
+                              {g.headOfGroupSapId ? (
+                                <span className="font-mono text-xs font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded">
+                                  {g.headOfGroupSapId}
+                                </span>
+                              ) : (
+                                <span className="text-slate-400 italic text-[11px]">Unassigned in Master</span>
+                              )}
+                            </td>
+                            <td className="p-3 text-center">
+                              {isFrozen ? (
+                                <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 text-[10px] font-bold">
+                                  ✓ Frozen in Cycle
+                                </Badge>
+                              ) : (
+                                <Badge className="bg-amber-100 text-amber-900 border-amber-200 text-[10px] font-bold">
+                                  ⚠ Not in Cycle
+                                </Badge>
+                              )}
+                            </td>
+                            <td className="p-3 text-right">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={actionLoading}
+                                onClick={() => handleSnapshotSingleOrgGroup(g)}
+                                className="h-7 text-[11px] font-bold border-slate-300 text-emerald-900 hover:bg-emerald-50"
+                              >
+                                <Camera className="h-3 w-3 mr-1 text-emerald-700" />
+                                {isFrozen ? 'Re-Sync' : 'Snapshot'}
+                              </Button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* SECTION B: MASTER ESG GRADE HIERARCHY SNAPSHOT MATRIX */}
+          {(orgSubView === 'all' || orgSubView === 'grades') && (
+            <Card className="border-slate-200 shadow-sm">
+              <CardHeader className="pb-3 border-b border-slate-100 bg-slate-50/50">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                  <div>
+                    <CardTitle className="text-sm font-black text-slate-900 flex items-center space-x-2">
+                      <GraduationCap className="h-4 w-4 text-emerald-700" />
+                      <span>Master ESG Grade Hierarchy Snapshot Matrix (ESG 01–09)</span>
+                    </CardTitle>
+                    <CardDescription className="text-xs">
+                      OG III to AVP are mapped to KPI Forms (70/30), while VP to President/CEO are mapped to Balanced Scorecards.
+                    </CardDescription>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setSelectedOrgEsgCodes(masterGrades.map(g => g.esgCode || g.gradeNumericCode || g.gradeCode))}
+                      className="text-[11px] font-bold h-8"
+                    >
+                      Select All ({masterGrades.length})
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setSelectedOrgEsgCodes([])}
+                      className="text-[11px] font-bold h-8"
+                    >
+                      Deselect
+                    </Button>
+                    <Button
+                      variant="nbp"
+                      size="sm"
+                      disabled={actionLoading || selectedOrgEsgCodes.length === 0}
+                      onClick={handleSnapshotSelectedOrgGrades}
+                      className="text-[11px] font-bold bg-emerald-800 hover:bg-emerald-900 text-white h-8"
+                    >
+                      <Camera className="h-3.5 w-3.5 mr-1" />
+                      Snapshot Selected Grades ({selectedOrgEsgCodes.length})
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+
+              <CardContent className="p-0">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs text-left">
+                    <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider">
+                      <tr>
+                        <th className="p-3 w-10 text-center">
+                          <input
+                            type="checkbox"
+                            checked={masterGrades.length > 0 && selectedOrgEsgCodes.length === masterGrades.length}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedOrgEsgCodes(masterGrades.map(g => g.esgCode || g.gradeNumericCode || g.gradeCode));
+                              } else {
+                                setSelectedOrgEsgCodes([]);
+                              }
+                            }}
+                            className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 h-4 w-4 cursor-pointer"
+                          />
+                        </th>
+                        <th className="p-3">Rank</th>
+                        <th className="p-3">ESG (2-Digit)</th>
+                        <th className="p-3">Grade Code</th>
+                        <th className="p-3">Grade Display Name</th>
+                        <th className="p-3">Assigned Form Type Rule</th>
+                        <th className="p-3 text-center">Cycle Snapshot Status</th>
+                        <th className="p-3 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {masterGrades.map((g) => {
+                        const esg = g.esgCode ? g.esgCode.padStart(2, '0') : (g.rankOrder ? g.rankOrder.toString().padStart(2, '0') : '00');
+                        const isSelected = selectedOrgEsgCodes.includes(esg) || selectedOrgEsgCodes.includes(g.gradeCode);
+                        const isFrozen = snapshotGrades.some((sg) => sg.esgCode === esg || sg.gradeCode === g.gradeCode);
+                        return (
+                          <tr key={g.id} className={`hover:bg-slate-50 transition-colors ${isSelected ? 'bg-emerald-50/40' : ''}`}>
+                            <td className="p-3 text-center">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => {
+                                  if (isSelected) {
+                                    setSelectedOrgEsgCodes(selectedOrgEsgCodes.filter(c => c !== esg && c !== g.gradeCode));
+                                  } else {
+                                    setSelectedOrgEsgCodes([...selectedOrgEsgCodes, esg]);
+                                  }
+                                }}
+                                className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 h-4 w-4 cursor-pointer"
+                              />
+                            </td>
+                            <td className="p-3 font-mono font-bold text-slate-900">
+                              #{g.rankOrder}
+                            </td>
+                            <td className="p-3">
+                              <span className="font-mono text-xs font-black px-2.5 py-0.5 rounded-md bg-emerald-50 text-emerald-900 border border-emerald-200">
+                                {esg}
+                              </span>
+                            </td>
+                            <td className="p-3">
+                              <Badge variant="secondary" className="font-mono font-bold text-[10px]">{g.gradeCode}</Badge>
+                            </td>
+                            <td className="p-3 font-bold text-slate-900 text-sm">
+                              {g.gradeName}
+                            </td>
+                            <td className="p-3">
+                              <Badge variant={g.defaultFormType === 'BALANCED_SCORECARD' ? 'warning' : 'nbp'}>
+                                {g.defaultFormType === 'BALANCED_SCORECARD' ? 'Balanced Scorecard (4-P)' : 'KPI Form (70/30)'}
+                              </Badge>
+                            </td>
+                            <td className="p-3 text-center">
+                              {isFrozen ? (
+                                <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 text-[10px] font-bold">
+                                  ✓ Frozen in Cycle
+                                </Badge>
+                              ) : (
+                                <Badge className="bg-amber-100 text-amber-900 border-amber-200 text-[10px] font-bold">
+                                  ⚠ Not in Cycle
+                                </Badge>
+                              )}
+                            </td>
+                            <td className="p-3 text-right">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                disabled={actionLoading}
+                                onClick={() => handleSnapshotSingleOrgGrade(g)}
+                                className="h-7 text-[11px] font-bold border-slate-300 text-emerald-900 hover:bg-emerald-50"
+                              >
+                                <Camera className="h-3 w-3 mr-1 text-emerald-700" />
+                                {isFrozen ? 'Re-Sync' : 'Snapshot'}
+                              </Button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {/* ═══════════════ TAB: STAFF ENROLLMENT SNAPSHOT WIZARD ═══════════════ */}
+      {activeTab === 'staff-snapshot' && (
         <Card className="border-slate-200 shadow-md">
           <CardHeader>
             <div className="flex items-center space-x-2">
               <Camera className="h-5 w-5 text-emerald-800" />
               <CardTitle className="text-base font-bold">
-                Master Data Snapshot & Synchronization Wizard
+                Staff Enrollment Snapshot Wizard
               </CardTitle>
             </div>
             <CardDescription className="text-xs">
@@ -1161,7 +1702,7 @@ export const CycleSnapshotManagerPage: React.FC<CycleSnapshotManagerPageProps> =
                   onClick={() => setSelectedSyncGroupCodes(masterGroups.map(g => g.rpsaCode || g.groupCode))}
                   className="text-xs font-bold"
                 >
-                  Select All Groups
+                  Select All Groups ({masterGroups.length})
                 </Button>
                 <Button
                   variant="outline"
@@ -1179,12 +1720,12 @@ export const CycleSnapshotManagerPage: React.FC<CycleSnapshotManagerPageProps> =
               <Button
                 variant="outline"
                 size="sm"
-                onClick={handleSyncHierarchy}
+                onClick={handleSnapshotAllOrg}
                 disabled={actionLoading}
                 className="text-xs font-bold border-emerald-500 text-emerald-900 bg-emerald-50 hover:bg-emerald-100"
               >
                 <Layers className="h-3.5 w-3.5 mr-1 text-emerald-700" />
-                Sync Groups & Grades Hierarchy
+                Sync Groups & Grades Hierarchy First
               </Button>
             </div>
 
@@ -1222,7 +1763,7 @@ export const CycleSnapshotManagerPage: React.FC<CycleSnapshotManagerPageProps> =
 
             <div className="p-4 bg-slate-900 text-white rounded-xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-md">
               <div>
-                <h4 className="text-xs font-bold text-emerald-300">Ready to execute Snapshot?</h4>
+                <h4 className="text-xs font-bold text-emerald-300">Ready to execute Staff Snapshot?</h4>
                 <p className="text-[11px] text-slate-300">
                   Enrolls all active employees belonging to the selected {selectedSyncGroupCodes.length} groups into {currentCycle?.title}.
                 </p>

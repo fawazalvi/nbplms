@@ -90,6 +90,8 @@ export const api = {
   // Cycle Snapshots (Groups, Grades & Employees)
   snapshotCycleOrg: (cycleId: string, actorUserId: string = 'PMW_ADMIN') =>
     fetchApi<any>(`/Cycles/${cycleId}/snapshot/organization?actorUserId=${encodeURIComponent(actorUserId)}`, { method: 'POST' }),
+  snapshotCycleSelectiveOrg: (cycleId: string, data: { rpsaCodes?: string[]; esgCodes?: string[]; snapshotAllGroups?: boolean; snapshotAllGrades?: boolean; actorUserId?: string }) =>
+    fetchApi<any>(`/Cycles/${cycleId}/snapshot/selective-org`, { method: 'POST', body: JSON.stringify(data) }),
   snapshotCycleEmployees: (cycleId: string, data: { rpsaCode?: string; actorUserId?: string }) =>
     fetchApi<any>(`/Cycles/${cycleId}/snapshot/employees`, { method: 'POST', body: JSON.stringify(data) }),
   getCycleSnapshotSummary: (cycleId: string) => fetchApi<any>(`/Cycles/${cycleId}/snapshot/summary`),
