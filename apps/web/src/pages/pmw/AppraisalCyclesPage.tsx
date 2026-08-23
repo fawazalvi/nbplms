@@ -495,9 +495,9 @@ export const AppraisalCyclesPage: React.FC<AppraisalCyclesPageProps> = ({ userRo
       {/* Cycles Table */}
       <Card className="border-slate-200 shadow-xs">
         <CardHeader className="pb-3">
-          <CardTitle className="text-base font-bold text-slate-900">Appraisal Cycles & Batch Upload Centers</CardTitle>
+          <CardTitle className="text-base font-bold text-slate-900">Appraisal Cycles & Performance Control Centers</CardTitle>
           <CardDescription className="text-xs">
-            Step 1: Create Cycle $\rightarrow$ Step 2: Upload Staff Sheet for that cycle $\rightarrow$ Step 3: Manage Cycle Rosters & Snapshots
+            Step 1: Create Cycle $\rightarrow$ Step 2: Snapshot & Enroll Staff from Master Data $\rightarrow$ Step 3: Manage Cycle Rosters & Snapshots
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -789,18 +789,20 @@ export const AppraisalCyclesPage: React.FC<AppraisalCyclesPageProps> = ({ userRo
               {/* Roster Actions & Filters */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
                 <div className="flex flex-wrap items-center gap-2">
-                  <Button
-                    variant="nbp"
-                    size="sm"
-                    onClick={() => {
-                      setShowRosterModal(false);
-                      handleOpenCycleUpload(selectedCycle);
-                    }}
-                    className="font-bold bg-emerald-800 text-white"
-                  >
-                    <Upload className="h-3.5 w-3.5 mr-1" />
-                    Upload Staff Sheet
-                  </Button>
+                  {userRole === 'PmwSuperAdmin' && (
+                    <Button
+                      variant="nbp"
+                      size="sm"
+                      onClick={() => {
+                        setShowRosterModal(false);
+                        handleOpenCycleUpload(selectedCycle);
+                      }}
+                      className="font-bold bg-emerald-800 text-white"
+                    >
+                      <Upload className="h-3.5 w-3.5 mr-1" />
+                      Upload Staff Sheet
+                    </Button>
+                  )}
                   <Button variant="outline" size="sm" onClick={handleOpenEnrollModal} className="font-bold border-slate-300">
                     <UserPlus className="h-3.5 w-3.5 mr-1 text-emerald-700" />
                     Enroll Single / Group
@@ -851,7 +853,7 @@ export const AppraisalCyclesPage: React.FC<AppraisalCyclesPageProps> = ({ userRo
                   <div className="p-8 text-center text-slate-500 font-medium">Loading cycle roster...</div>
                 ) : rosterEmployees.length === 0 ? (
                   <div className="p-8 text-center text-slate-500 border-dashed">
-                    No employees currently enrolled in this cycle. Click <strong>"Upload Staff Sheet"</strong> or <strong>"Enroll Single / Group"</strong> to populate this cycle!
+                    No employees currently enrolled in this cycle. Click <strong>"Enroll Single / Group"</strong> or open the <strong>"Snapshot Workspace"</strong> to populate this cycle!
                   </div>
                 ) : (
                   <table className="w-full text-xs text-left">
