@@ -46,36 +46,87 @@ public class AppraisersController : ControllerBase
         var allEmployees = await _db.Employees.ToListAsync();
         var empLookup = allEmployees.ToDictionary(e => e.SapId, StringComparer.OrdinalIgnoreCase);
 
-        var allGroups = await _db.ReportingGroups.ToListAsync();
+        var allCycleGroups = await _db.CycleReportingGroups.ToListAsync();
+        var allMasterGroups = await _db.ReportingGroups.ToListAsync();
         var groupLookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var g in allGroups)
+
+        foreach (var g in allCycleGroups)
         {
             if (!string.IsNullOrWhiteSpace(g.RpsaCode)) groupLookup[g.RpsaCode] = g.GroupName;
             if (!string.IsNullOrWhiteSpace(g.GroupCode)) groupLookup[g.GroupCode] = g.GroupName;
             groupLookup[g.GroupName] = g.GroupName;
         }
+        foreach (var g in allMasterGroups)
+        {
+            if (!string.IsNullOrWhiteSpace(g.RpsaCode) && !groupLookup.ContainsKey(g.RpsaCode)) groupLookup[g.RpsaCode] = g.GroupName;
+            if (!string.IsNullOrWhiteSpace(g.GroupCode) && !groupLookup.ContainsKey(g.GroupCode)) groupLookup[g.GroupCode] = g.GroupName;
+            if (!groupLookup.ContainsKey(g.GroupName)) groupLookup[g.GroupName] = g.GroupName;
+        }
 
-        var allGrades = await _db.GradeMappings.ToListAsync();
+        var allCycleGrades = await _db.CycleGradeMappings.ToListAsync();
+        var allMasterGrades = await _db.GradeMappings.ToListAsync();
         var gradeLookup = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var gm in allGrades)
+
+        foreach (var gm in allCycleGrades)
         {
             if (!string.IsNullOrWhiteSpace(gm.EsgCode)) gradeLookup[gm.EsgCode] = gm.GradeName;
             if (!string.IsNullOrWhiteSpace(gm.GradeCode)) gradeLookup[gm.GradeCode] = gm.GradeName;
             gradeLookup[gm.GradeName] = gm.GradeName;
         }
+        foreach (var gm in allMasterGrades)
+        {
+            if (!string.IsNullOrWhiteSpace(gm.EsgCode) && !gradeLookup.ContainsKey(gm.EsgCode)) gradeLookup[gm.EsgCode] = gm.GradeName;
+            if (!string.IsNullOrWhiteSpace(gm.GradeCode) && !gradeLookup.ContainsKey(gm.GradeCode)) gradeLookup[gm.GradeCode] = gm.GradeName;
+            if (!gradeLookup.ContainsKey(gm.GradeName)) gradeLookup[gm.GradeName] = gm.GradeName;
+        }
 
         string ResolveGrade(string? g)
         {
-            if (string.IsNullOrWhiteSpace(g)) return "AVP";
-            if (gradeLookup.TryGetValue(g, out var name)) return $"{name} ({g})";
-            return g;
+            if (string.IsNullOrWhiteSpace(g)) return "AVP (ESG 06)";
+            string clean = g.Trim();
+            if (gradeLookup.TryGetValue(clean, out var name))
+            {
+                if (clean.Length <= 2 && int.TryParse(clean, out _))
+                    return $"{name} (ESG {clean})";
+                return name;
+            }
+            return clean switch
+            {
+                "01" => "President/CEO (ESG 01)",
+                "02" => "SEVP (ESG 02)",
+                "03" => "EVP (ESG 03)",
+                "04" => "SVP (ESG 04)",
+                "05" => "VP (ESG 05)",
+                "06" => "AVP (ESG 06)",
+                "07" => "OG I (ESG 07)",
+                "08" => "OG II (ESG 08)",
+                "09" => "OG III (ESG 09)",
+                _ => g
+            };
         }
 
         string ResolveGroup(string? grp)
         {
-            if (string.IsNullOrWhiteSpace(grp)) return "Commercial Banking Group (0001)";
-            if (groupLookup.TryGetValue(grp, out var name)) return $"{name} ({grp})";
-            return grp;
+            if (string.IsNullOrWhiteSpace(grp)) return "Commercial Banking Group (RPSA 0001)";
+            string clean = grp.Trim();
+            if (groupLookup.TryGetValue(clean, out var name))
+            {
+                if (clean.Length <= 4 && int.TryParse(clean, out _))
+                    return $"{name} (RPSA {clean})";
+                return name;
+            }
+            return clean switch
+            {
+                "0001" or "1" => "Commercial Banking Group (RPSA 0001)",
+                "0002" or "2" => "Consumer Banking Group (RPSA 0002)",
+                "0003" or "3" => "Risk Management Group (RPSA 0003)",
+                "0004" or "4" => "Treasury & Global Markets (RPSA 0004)",
+                "0005" or "5" => "Information Technology Group (RPSA 0005)",
+                "0006" or "6" => "Operations Group (RPSA 0006)",
+                "0007" or "7" => "HR Management Group (RPSA 0007)",
+                "0008" or "8" => "Compliance Group (RPSA 0008)",
+                _ => grp
+            };
         }
 
         var reviews = rawReviews.Select(ec =>
