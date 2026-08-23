@@ -28,6 +28,7 @@ public class AppraisalsController : ControllerBase
             .Include(ec => ec.Cycle)
             .Include(ec => ec.FirstAppraiser)
             .Include(ec => ec.SecondAppraiser)
+            .OrderByDescending(ec => ec.UpdatedAt ?? ec.CreatedAt)
             .FirstOrDefaultAsync(ec => ec.Employee!.SapId == sapId);
 
         if (empCycle == null)

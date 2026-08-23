@@ -156,9 +156,11 @@ export const AppraiserSetupPage: React.FC<AppraiserSetupPageProps> = ({
     }
   };
 
-  const validationStatus = empCycle?.appraiserValidationStatus || 'PendingConfirmation';
+  const validationStatus = empCycle?.appraiserValidationStatus || 'Draft';
   const isLocked = validationStatus === 'Validated';
   const isPending = validationStatus === 'PendingConfirmation';
+  const isUnlocked = validationStatus === 'UnlockedForRevision';
+  const isRejected = validationStatus === 'Rejected';
   const isPmwAdmin = userRole === 'PmwAdmin' || userRole === 'PmwSuperAdmin';
 
   return (
@@ -214,10 +216,19 @@ export const AppraiserSetupPage: React.FC<AppraiserSetupPageProps> = ({
                 <AlertCircle className="h-3.5 w-3.5 text-rose-400" />
                 <span>Rejected — Needs Revision</span>
               </Badge>
-            ) : (
+            ) : validationStatus === 'UnlockedForRevision' ? (
+              <Badge className="bg-sky-500/20 text-sky-300 border-sky-400/40 flex items-center space-x-1 font-bold">
+                <Unlock className="h-3.5 w-3.5 text-sky-400" />
+                <span>Unlocked by Admin — Re-Request Permitted</span>
+              </Badge>
+            ) : validationStatus === 'PendingConfirmation' ? (
               <Badge className="bg-amber-500/20 text-amber-300 border-amber-400/40 flex items-center space-x-1 font-bold">
                 <AlertCircle className="h-3.5 w-3.5 text-amber-400" />
                 <span>Pending Appraiser Confirmation</span>
+              </Badge>
+            ) : (
+              <Badge className="bg-slate-500/20 text-slate-300 border-slate-400/40 flex items-center space-x-1 font-bold">
+                <span>Draft / Open</span>
               </Badge>
             )}
           </div>
@@ -243,6 +254,28 @@ export const AppraiserSetupPage: React.FC<AppraiserSetupPageProps> = ({
             <AlertCircle className="h-4 w-4 text-rose-700 flex-shrink-0" />
           )}
           <span>{message.text}</span>
+        </div>
+      )}
+
+      {/* Unlocked Banner when Unlocked by Admin */}
+      {isUnlocked && (
+        <div className="p-4 rounded-2xl bg-sky-50 border border-sky-300 text-sky-950 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xs">
+          <div className="flex items-center space-x-3.5 text-xs">
+            <div className="h-10 w-10 rounded-xl bg-sky-700 text-white flex items-center justify-center flex-shrink-0 shadow-sm">
+              <Unlock className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="flex items-center space-x-2">
+                <h4 className="font-bold text-sky-950 text-sm">Reporting Line Unlocked by PMW Admin</h4>
+                <Badge className="bg-sky-200/80 text-sky-900 border-sky-400 text-[10px] font-bold">
+                  Ready to Re-Submit
+                </Badge>
+              </div>
+              <p className="text-sky-800 text-xs mt-0.5 leading-relaxed">
+                Your appraisal reporting line has been unlocked by PMW Admin. You are now permitted to modify your First Appraiser, Second Appraiser, and optional Co-Appraiser selections below and submit for supervisor validation.
+              </p>
+            </div>
+          </div>
         </div>
       )}
 
