@@ -778,25 +778,29 @@ export const EmployeeDataPage: React.FC<EmployeeDataPageProps> = ({ userRole = '
                         )}
                       </td>
                       <td className="p-3 text-right">
-                        <div className="flex items-center justify-end space-x-1">
-                          <button
-                            onClick={() => handleOpenEditModal(emp)}
-                            className="p-1.5 rounded-lg text-slate-500 hover:text-emerald-800 hover:bg-emerald-50 transition-colors"
-                            title="Edit Employee"
-                          >
-                            <Edit2 className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => {
-                              setEmployeeToDelete(emp);
-                              setShowDeleteModal(true);
-                            }}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-700 hover:bg-rose-50 transition-colors"
-                            title="Remove Employee"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
+                        {userRole === 'PmwSuperAdmin' ? (
+                          <div className="flex items-center justify-end space-x-1">
+                            <button
+                              onClick={() => handleOpenEditModal(emp)}
+                              className="p-1.5 rounded-lg text-slate-500 hover:text-emerald-800 hover:bg-emerald-50 transition-colors"
+                              title="Edit Employee"
+                            >
+                              <Edit2 className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => {
+                                setEmployeeToDelete(emp);
+                                setShowDeleteModal(true);
+                              }}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-700 hover:bg-rose-50 transition-colors"
+                              title="Remove Employee"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-[11px] text-slate-400 font-medium">Read-only</span>
+                        )}
                       </td>
                     </tr>
                   ))}

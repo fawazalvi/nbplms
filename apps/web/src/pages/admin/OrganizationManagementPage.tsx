@@ -597,33 +597,45 @@ export const OrganizationManagementPage: React.FC<OrganizationManagementPageProp
                             </div>
                           </td>
                           <td className="p-3 text-center">
-                            <button
-                              onClick={() => handleToggleGroupStatus(g)}
-                              title={g.isActive !== false ? 'Click to deactivate' : 'Click to activate'}
-                              className="inline-flex items-center space-x-1 cursor-pointer group"
-                            >
-                              {g.isActive !== false ? (
-                                <>
-                                  <ToggleRight className="h-5 w-5 text-emerald-600 group-hover:text-emerald-700" />
-                                  <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 text-[10px] font-bold">Active</Badge>
-                                </>
+                            {userRole === 'PmwSuperAdmin' ? (
+                              <button
+                                onClick={() => handleToggleGroupStatus(g)}
+                                title={g.isActive !== false ? 'Click to deactivate' : 'Click to activate'}
+                                className="inline-flex items-center space-x-1 cursor-pointer group"
+                              >
+                                {g.isActive !== false ? (
+                                  <>
+                                    <ToggleRight className="h-5 w-5 text-emerald-600 group-hover:text-emerald-700" />
+                                    <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 text-[10px] font-bold">Active</Badge>
+                                  </>
+                                ) : (
+                                  <>
+                                    <ToggleLeft className="h-5 w-5 text-slate-400 group-hover:text-slate-600" />
+                                    <Badge className="bg-slate-100 text-slate-500 border-slate-200 text-[10px] font-bold">Inactive</Badge>
+                                  </>
+                                )}
+                              </button>
+                            ) : (
+                              g.isActive !== false ? (
+                                <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 text-[10px] font-bold">Active</Badge>
                               ) : (
-                                <>
-                                  <ToggleLeft className="h-5 w-5 text-slate-400 group-hover:text-slate-600" />
-                                  <Badge className="bg-slate-100 text-slate-500 border-slate-200 text-[10px] font-bold">Inactive</Badge>
-                                </>
-                              )}
-                            </button>
+                                <Badge className="bg-slate-100 text-slate-500 border-slate-200 text-[10px] font-bold">Inactive</Badge>
+                              )
+                            )}
                           </td>
                           <td className="p-3 text-right">
-                            <div className="flex items-center justify-end space-x-1">
-                              <Button variant="ghost" size="icon" onClick={() => openEditGroupModal(g)} title="Edit Group">
-                                <Pencil className="h-4 w-4 text-slate-500 hover:text-emerald-700" />
-                              </Button>
-                              <Button variant="ghost" size="icon" onClick={() => handleDeleteGroup(g.id, g.groupName)} title="Delete Group">
-                                <Trash2 className="h-4 w-4 text-slate-400 hover:text-red-600" />
-                              </Button>
-                            </div>
+                            {userRole === 'PmwSuperAdmin' ? (
+                              <div className="flex items-center justify-end space-x-1">
+                                <Button variant="ghost" size="icon" onClick={() => openEditGroupModal(g)} title="Edit Group">
+                                  <Pencil className="h-4 w-4 text-slate-500 hover:text-emerald-700" />
+                                </Button>
+                                <Button variant="ghost" size="icon" onClick={() => handleDeleteGroup(g.id, g.groupName)} title="Delete Group">
+                                  <Trash2 className="h-4 w-4 text-slate-400 hover:text-red-600" />
+                                </Button>
+                              </div>
+                            ) : (
+                              <span className="text-[11px] text-slate-400 font-medium">Read-only</span>
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -684,14 +696,18 @@ export const OrganizationManagementPage: React.FC<OrganizationManagementPageProp
                           <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 text-[10px] font-bold">Active</Badge>
                         </td>
                         <td className="p-3 text-right">
-                          <div className="flex items-center justify-end space-x-1">
-                            <Button variant="ghost" size="icon" onClick={() => openEditGradeModal(g)} title="Edit Grade">
-                              <Pencil className="h-4 w-4 text-slate-500 hover:text-emerald-700" />
-                            </Button>
-                            <Button variant="ghost" size="icon" onClick={() => handleDeleteGrade(g.id, g.gradeName)} title="Delete Grade">
-                              <Trash2 className="h-4 w-4 text-slate-400 hover:text-red-600" />
-                            </Button>
-                          </div>
+                          {userRole === 'PmwSuperAdmin' ? (
+                            <div className="flex items-center justify-end space-x-1">
+                              <Button variant="ghost" size="icon" onClick={() => openEditGradeModal(g)} title="Edit Grade">
+                                <Pencil className="h-4 w-4 text-slate-500 hover:text-emerald-700" />
+                              </Button>
+                              <Button variant="ghost" size="icon" onClick={() => handleDeleteGrade(g.id, g.gradeName)} title="Delete Grade">
+                                <Trash2 className="h-4 w-4 text-slate-400 hover:text-red-600" />
+                              </Button>
+                            </div>
+                          ) : (
+                            <span className="text-[11px] text-slate-400 font-medium">Read-only</span>
+                          )}
                         </td>
                       </tr>
                     ))}

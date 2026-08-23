@@ -89,12 +89,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentRole, activeTab, onTabC
             ]
           },
           {
-            title: 'Appraisal Cycles & Staff',
+            title: 'Cycle & Snapshot Management',
             items: [
               { id: 'cycles', label: 'Appraisal Cycles', icon: Calendar },
-              { id: 'cycle-snapshots', label: 'Cycle Snapshot Workspace', icon: Layers },
-              { id: 'employees', label: 'Staff Directory', icon: Users },
-              { id: 'organization', label: 'Groups & Grade Hierarchy', icon: Building2 },
+              { id: 'cycle-snapshots', label: 'Cycle Snapshot & Rosters', icon: Layers },
+            ]
+          },
+          {
+            title: 'Master Data Reference',
+            items: [
+              { id: 'employees', label: 'Master Staff (Read-Only)', icon: Users },
+              { id: 'organization', label: 'Master Groups & Grades', icon: Building2 },
             ]
           },
           {
