@@ -28,12 +28,27 @@ public class AppraisalsController : ControllerBase
             .Include(ec => ec.Cycle)
             .Include(ec => ec.FirstAppraiser)
             .Include(ec => ec.SecondAppraiser)
+            .Include(ec => ec.CoAppraiser)
             .OrderByDescending(ec => ec.UpdatedAt ?? ec.CreatedAt)
             .FirstOrDefaultAsync(ec => ec.Employee!.SapId == sapId);
 
         if (empCycle == null)
         {
             return NotFound(new { message = "No active appraisal cycle found for this employee." });
+        }
+
+        // If First/Second/Co appraiser navigation properties are null but SAP IDs exist, resolve them
+        if (empCycle.FirstAppraiser == null && !string.IsNullOrWhiteSpace(empCycle.PendingFirstAppraiserSapId))
+        {
+            empCycle.FirstAppraiser = await _db.Employees.FirstOrDefaultAsync(e => e.SapId == empCycle.PendingFirstAppraiserSapId);
+        }
+        if (empCycle.SecondAppraiser == null && !string.IsNullOrWhiteSpace(empCycle.PendingSecondAppraiserSapId))
+        {
+            empCycle.SecondAppraiser = await _db.Employees.FirstOrDefaultAsync(e => e.SapId == empCycle.PendingSecondAppraiserSapId);
+        }
+        if (empCycle.CoAppraiser == null && !string.IsNullOrWhiteSpace(empCycle.PendingCoAppraiserSapId))
+        {
+            empCycle.CoAppraiser = await _db.Employees.FirstOrDefaultAsync(e => e.SapId == empCycle.PendingCoAppraiserSapId);
         }
 
         var objectives = await _db.Objectives.Where(o => o.EmployeeCycleId == empCycle.Id).ToListAsync();

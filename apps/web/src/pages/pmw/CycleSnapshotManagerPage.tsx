@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { SapIdAutocomplete } from '@/components/appraisal/SapIdAutocomplete';
+import { formatGradeLabel, formatGroupLabel } from '@/lib/formatters';
 
 interface CycleSnapshotManagerPageProps {
   userRole?: string;
@@ -1024,11 +1025,11 @@ export const CycleSnapshotManagerPage: React.FC<CycleSnapshotManagerPageProps> =
                           <div className="text-[11px] text-slate-500">{ec.snapshotDesignation || emp.designation || 'Officer'}</div>
                         </td>
                         <td className="p-3">
-                          <span className="font-mono font-bold text-slate-800">{gradeCode}</span>
+                          <span className="font-bold text-slate-800 text-xs">{formatGradeLabel(gradeCode)}</span>
                         </td>
                         <td className="p-3">
-                          <Badge variant="outline" className="font-mono text-[10px] font-bold">
-                            {groupCode}
+                          <Badge variant="outline" className="text-[10px] font-bold">
+                            {formatGroupLabel(groupCode)}
                           </Badge>
                         </td>
                         <td className="p-3">

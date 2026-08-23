@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Search, User, X, Loader2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { api } from '@/lib/api';
+import { formatGradeLabel, formatGroupLabel } from '@/lib/formatters';
 
 interface EmployeeSuggestion {
   sapId: string;
@@ -139,46 +140,45 @@ export const SapIdAutocomplete: React.FC<SapIdAutocompleteProps> = ({
 
       {/* Input with search icon */}
       <div className="relative">
-        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
         <input
           type="text"
           value={query}
           onChange={handleInputChange}
           onFocus={() => {
-            if (suggestions.length > 0) setShowDropdown(true);
-            else if (query.length >= 1) fetchSuggestions(query);
+            if (query && suggestions.length > 0) setShowDropdown(true);
           }}
-          placeholder={placeholder}
           disabled={disabled}
-          className={`w-full pl-8 pr-8 p-2 border rounded-lg font-mono text-xs transition-colors
-            ${disabled ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-white border-slate-300 hover:border-emerald-400 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600'}
-            ${selectedEmployee ? 'border-emerald-500 bg-emerald-50/50' : ''}
-          `}
+          placeholder={placeholder}
+          className="w-full px-3 py-2 pl-9 pr-8 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-emerald-600 focus:border-emerald-600 outline-none transition disabled:bg-slate-100 disabled:text-slate-500 font-medium"
         />
+        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
         {loading && (
-          <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-emerald-600 animate-spin" />
+          <Loader2 className="absolute right-2.5 top-2.5 h-4 w-4 text-emerald-600 animate-spin" />
         )}
-        {!loading && query && (
+        {!loading && query && !disabled && (
           <button
+            type="button"
             onClick={handleClear}
-            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-red-500"
+            className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600"
           >
-            <X className="h-3.5 w-3.5" />
+            <X className="h-4 w-4" />
           </button>
         )}
       </div>
 
-      {/* Selected Employee Preview Card */}
+      {/* Selected Employee Preview */}
       {selectedEmployee && (
-        <div className="mt-2 p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center space-x-3">
-          <div className="h-8 w-8 rounded-lg bg-emerald-600 flex items-center justify-center shrink-0">
-            <User className="h-4 w-4 text-white" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="font-bold text-slate-900 text-xs truncate">{selectedEmployee.fullName}</p>
-            <div className="flex items-center space-x-2 mt-0.5">
-              <Badge className="bg-slate-200 text-slate-700 text-[9px] font-mono px-1.5 py-0">{selectedEmployee.sapId}</Badge>
-              <span className="text-[10px] text-slate-500">{selectedEmployee.grade} • {selectedEmployee.designation}</span>
+        <div className="mt-1.5 p-2 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-between">
+          <div className="flex items-center space-x-2 min-w-0">
+            <div className="h-6 w-6 rounded-full bg-emerald-100 text-emerald-800 flex items-center justify-center text-[10px] font-bold shrink-0">
+              {selectedEmployee.fullName.charAt(0)}
+            </div>
+            <div className="min-w-0">
+              <span className="font-bold text-slate-800 text-xs truncate block">{selectedEmployee.fullName}</span>
+              <div className="flex items-center space-x-1.5 flex-wrap">
+                <Badge className="bg-slate-200 text-slate-700 text-[9px] font-mono px-1.5 py-0">{selectedEmployee.sapId}</Badge>
+                <span className="text-[10px] text-slate-500">{formatGradeLabel(selectedEmployee.grade)} • {selectedEmployee.designation}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -202,7 +202,7 @@ export const SapIdAutocomplete: React.FC<SapIdAutocompleteProps> = ({
                   <Badge className="bg-blue-100 text-blue-700 text-[9px] font-mono px-1.5 py-0">{emp.sapId}</Badge>
                 </div>
                 <p className="text-[10px] text-slate-500 mt-0.5 truncate">
-                  {emp.grade} • {emp.designation} • {emp.reportingGroup}
+                  {formatGradeLabel(emp.grade)} • {emp.designation} • {formatGroupLabel(emp.reportingGroup)}
                 </p>
               </div>
             </button>

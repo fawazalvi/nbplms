@@ -44,6 +44,7 @@ import { EvidenceUploaderModal } from '@/components/appraisal/EvidenceUploaderMo
 import { EvidenceViewerModal } from '@/components/appraisal/EvidenceViewerModal';
 import { AppraisalFormAuditHistoryDrawer } from '@/components/appraisal/AppraisalFormAuditHistoryDrawer';
 import { SapIdAutocomplete } from '@/components/appraisal/SapIdAutocomplete';
+import { formatGradeLabel, formatGroupLabel } from '@/lib/formatters';
 
 interface ObjectiveFormPageProps {
   formType?: 'KPI' | 'BSC' | 'RISK_BSC';
@@ -384,10 +385,10 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
                 </span>
               </div>
               <h1 className="text-2xl font-black text-slate-900 tracking-tight mt-1">
-                Fawaz Ahmed (SAP ID: 84920)
+                {empCycleData?.employee?.fullName || 'Fawaz Ahmed'} (SAP ID: {empCycleData?.employee?.sapId || '84920'})
               </h1>
               <p className="text-xs text-slate-500 font-medium">
-                Assistant Vice President | Commercial Banking Group | Karachi Central
+                {formatGradeLabel(empCycleData?.snapshotGrade || empCycleData?.employee?.grade || '06')} • {empCycleData?.snapshotDesignation || empCycleData?.employee?.designation || 'Assistant Vice President'} • {formatGroupLabel(empCycleData?.snapshotReportingGroup || empCycleData?.employee?.reportingGroup || '0001')} • {empCycleData?.snapshotLocation || empCycleData?.employee?.location || 'Karachi Central'}
               </p>
             </div>
 
@@ -513,10 +514,10 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
                 {firstAppraiserInfo?.fullName || (inputFirstSap ? `SAP ID: ${inputFirstSap}` : 'Not designated')}
               </div>
               <div className="text-slate-300 text-[11px]">
-                {firstAppraiserInfo?.grade || '—'} • {firstAppraiserInfo?.designation || '—'}
+                {formatGradeLabel(firstAppraiserInfo?.grade)} • {firstAppraiserInfo?.designation || '—'}
               </div>
               <div className="text-slate-400 text-[10px] pt-0.5 truncate">
-                🏢 {firstAppraiserInfo?.reportingGroup || '—'}
+                🏢 {formatGroupLabel(firstAppraiserInfo?.reportingGroup)}
               </div>
             </div>
 
@@ -530,10 +531,10 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
                 {secondAppraiserInfo?.fullName || (inputSecondSap ? `SAP ID: ${inputSecondSap}` : 'Not designated')}
               </div>
               <div className="text-slate-300 text-[11px]">
-                {secondAppraiserInfo?.grade || '—'} • {secondAppraiserInfo?.designation || '—'}
+                {formatGradeLabel(secondAppraiserInfo?.grade)} • {secondAppraiserInfo?.designation || '—'}
               </div>
               <div className="text-slate-400 text-[10px] pt-0.5 truncate">
-                🏢 {secondAppraiserInfo?.reportingGroup || '—'}
+                🏢 {formatGroupLabel(secondAppraiserInfo?.reportingGroup)}
               </div>
             </div>
 
@@ -547,10 +548,10 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
                 {coAppraiserInfo?.fullName || (inputCoAppSap ? `SAP ID: ${inputCoAppSap}` : 'None designated')}
               </div>
               <div className="text-slate-300 text-[11px]">
-                {coAppraiserInfo?.grade || '—'} • {coAppraiserInfo?.designation || '—'}
+                {formatGradeLabel(coAppraiserInfo?.grade)} • {coAppraiserInfo?.designation || '—'}
               </div>
               <div className="text-slate-400 text-[10px] pt-0.5 truncate">
-                🏢 {coAppraiserInfo?.reportingGroup || '—'}
+                🏢 {formatGroupLabel(coAppraiserInfo?.reportingGroup)}
               </div>
             </div>
           </div>
@@ -995,8 +996,8 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
                   {firstAppraiserInfo && (
                     <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-lg text-[11px] space-y-0.5 text-slate-700">
                       <div className="font-bold text-emerald-950">{firstAppraiserInfo.fullName}</div>
-                      <div>{firstAppraiserInfo.grade} • {firstAppraiserInfo.designation}</div>
-                      <div className="text-[10px] text-slate-500">🏢 {firstAppraiserInfo.reportingGroup}</div>
+                      <div>{formatGradeLabel(firstAppraiserInfo.grade)} • {firstAppraiserInfo.designation}</div>
+                      <div className="text-[10px] text-slate-500">🏢 {formatGroupLabel(firstAppraiserInfo.reportingGroup)}</div>
                     </div>
                   )}
                 </div>
@@ -1015,8 +1016,8 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
                   {secondAppraiserInfo && (
                     <div className="p-2.5 bg-teal-50 border border-teal-200 rounded-lg text-[11px] space-y-0.5 text-slate-700">
                       <div className="font-bold text-teal-950">{secondAppraiserInfo.fullName}</div>
-                      <div>{secondAppraiserInfo.grade} • {secondAppraiserInfo.designation}</div>
-                      <div className="text-[10px] text-slate-500">🏢 {secondAppraiserInfo.reportingGroup}</div>
+                      <div>{formatGradeLabel(secondAppraiserInfo.grade)} • {secondAppraiserInfo.designation}</div>
+                      <div className="text-[10px] text-slate-500">🏢 {formatGroupLabel(secondAppraiserInfo.reportingGroup)}</div>
                     </div>
                   )}
                 </div>
@@ -1034,8 +1035,8 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
                   {coAppraiserInfo && (
                     <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-[11px] space-y-0.5 text-slate-700">
                       <div className="font-bold text-slate-900">{coAppraiserInfo.fullName}</div>
-                      <div>{coAppraiserInfo.grade} • {coAppraiserInfo.designation}</div>
-                      <div className="text-[10px] text-slate-500">🏢 {coAppraiserInfo.reportingGroup}</div>
+                      <div>{formatGradeLabel(coAppraiserInfo.grade)} • {coAppraiserInfo.designation}</div>
+                      <div className="text-[10px] text-slate-500">🏢 {formatGroupLabel(coAppraiserInfo.reportingGroup)}</div>
                     </div>
                   )}
                 </div>

@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { api } from '@/lib/api';
 import { Users, FileCheck2, RefreshCw, ChevronRight, UserCheck, CheckCircle2, XCircle, AlertCircle, X, ShieldCheck } from 'lucide-react';
+import { formatGradeLabel, formatGroupLabel } from '@/lib/formatters';
 
 export const TeamReviewInboxPage: React.FC = () => {
   const [currentAppraiserSapId, setCurrentAppraiserSapId] = useState('10004');
@@ -195,8 +196,8 @@ export const TeamReviewInboxPage: React.FC = () => {
                       <tr key={r.id} className="hover:bg-slate-50">
                         <td className="p-3 font-mono font-bold text-slate-900">{r.sapId}</td>
                         <td className="p-3 font-bold text-slate-900">{r.employeeName}</td>
-                        <td className="p-3"><Badge variant="secondary">{r.grade}</Badge></td>
-                        <td className="p-3 text-slate-700">{r.group}</td>
+                        <td className="p-3"><Badge variant="secondary" className="font-bold">{formatGradeLabel(r.grade)}</Badge></td>
+                        <td className="p-3 text-slate-700 font-medium">{formatGroupLabel(r.group)}</td>
                         <td className="p-3"><Badge variant="nbp" className="text-[10px]">{r.formType}</Badge></td>
                         <td className="p-3">
                           <Badge
@@ -250,10 +251,10 @@ export const TeamReviewInboxPage: React.FC = () => {
                           <div className="flex items-center space-x-2">
                             <h4 className="font-bold text-slate-900 text-sm">{r.employeeName}</h4>
                             <Badge variant="secondary" className="font-mono text-[10px]">{r.sapId}</Badge>
-                            <Badge variant="nbp" className="text-[10px]">{r.grade}</Badge>
+                            <Badge variant="nbp" className="text-[10px]">{formatGradeLabel(r.grade)}</Badge>
                           </div>
                           <p className="text-xs text-slate-600 mt-0.5">
-                            {r.designation} • <strong className="text-slate-800">{r.group}</strong>
+                            {r.designation} • <strong className="text-slate-800">{formatGroupLabel(r.group)}</strong>
                           </p>
                         </div>
                       </div>
@@ -286,11 +287,11 @@ export const TeamReviewInboxPage: React.FC = () => {
                           {r.firstAppraiserName || 'Designated Evaluator'}
                         </div>
                         <div className="text-slate-600 text-[11px] flex flex-wrap gap-x-2">
-                          {r.firstAppraiserGrade && <span>Grade: <strong>{r.firstAppraiserGrade}</strong></span>}
+                          {r.firstAppraiserGrade && <span>Grade: <strong>{formatGradeLabel(r.firstAppraiserGrade)}</strong></span>}
                           {r.firstAppraiserDesignation && <span>• {r.firstAppraiserDesignation}</span>}
                         </div>
                         <div className="text-slate-500 text-[10px] pt-0.5 flex flex-wrap gap-x-2">
-                          {r.firstAppraiserGroup && <span>Group: <strong>{r.firstAppraiserGroup}</strong></span>}
+                          {r.firstAppraiserGroup && <span>Group: <strong>{formatGroupLabel(r.firstAppraiserGroup)}</strong></span>}
                           {r.firstAppraiserLocation && <span>• Posting: <strong>{r.firstAppraiserLocation}</strong></span>}
                         </div>
                       </div>
@@ -309,11 +310,11 @@ export const TeamReviewInboxPage: React.FC = () => {
                           {r.secondAppraiserName || 'Designated Supervisor'}
                         </div>
                         <div className="text-slate-600 text-[11px] flex flex-wrap gap-x-2">
-                          {r.secondAppraiserGrade && <span>Grade: <strong>{r.secondAppraiserGrade}</strong></span>}
+                          {r.secondAppraiserGrade && <span>Grade: <strong>{formatGradeLabel(r.secondAppraiserGrade)}</strong></span>}
                           {r.secondAppraiserDesignation && <span>• {r.secondAppraiserDesignation}</span>}
                         </div>
                         <div className="text-slate-500 text-[10px] pt-0.5 flex flex-wrap gap-x-2">
-                          {r.secondAppraiserGroup && <span>Group: <strong>{r.secondAppraiserGroup}</strong></span>}
+                          {r.secondAppraiserGroup && <span>Group: <strong>{formatGroupLabel(r.secondAppraiserGroup)}</strong></span>}
                           {r.secondAppraiserLocation && <span>• Posting: <strong>{r.secondAppraiserLocation}</strong></span>}
                         </div>
                       </div>
