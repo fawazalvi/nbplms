@@ -50,44 +50,15 @@ export function App() {
   }
 
   const renderContent = () => {
-    // PmwSuperAdmin full management capabilities (Cycles, Users, Employees, Security, Email, Audit)
+    // PmwSuperAdmin: Master Data Management (Employees, Groups, Grades, CSV Uploads) & System Governance
     if (userRole === 'PmwSuperAdmin') {
       switch (activeTab) {
-        case 'cycles':
-          return <AppraisalCyclesPage userRole={userRole} onSelectCycle={handleSelectCycle} onNavigate={setActiveTab} />;
-        case 'cycle-control':
-          return (
-            <PmwDashboard
-              userRole={userRole}
-              selectedCycleId={selectedCycleId}
-              onSelectCycle={setSelectedCycleId}
-              onNavigate={setActiveTab}
-            />
-          );
-        case 'cycle-snapshots':
-        case 'cycle-roster':
-          return (
-            <CycleSnapshotManagerPage
-              userRole={userRole}
-              selectedCycleId={selectedCycleId}
-              onSelectCycle={setSelectedCycleId}
-              onNavigate={setActiveTab}
-            />
-          );
-        case 'users':
-          return <UserManagementPage />;
-        case 'organization':
-          return <OrganizationManagementPage userRole={userRole} />;
         case 'employees':
           return <EmployeeDataPage userRole={userRole} />;
-        case 'forms':
-          return <ObjectiveFormPage formType="BSC" />;
-        case 'bellcurve':
-          return <BellCurvePage />;
-        case 'reminders':
-          return <RemindersPage />;
-        case 'disagreements':
-          return <DisagreementRegisterPage />;
+        case 'organization':
+          return <OrganizationManagementPage userRole={userRole} />;
+        case 'users':
+          return <UserManagementPage />;
         case 'email-config':
           return <EmailConfigurationPage />;
         case 'security':

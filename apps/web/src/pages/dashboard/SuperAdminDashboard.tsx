@@ -129,24 +129,24 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onSele
 
       {/* Quick Access Modules */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-        <Card className="border-slate-200/80 shadow-sm hover:border-emerald-700/50 transition-all cursor-pointer" onClick={() => onNavigate?.('cycles')}>
+        <Card className="border-slate-200/80 shadow-sm hover:border-emerald-700/50 transition-all cursor-pointer" onClick={() => onNavigate?.('organization')}>
           <CardHeader className="p-4">
             <div className="flex items-center space-x-3">
               <div className="h-9 w-9 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
                 <Building2 className="h-4 w-4" />
               </div>
               <div>
-                <CardTitle className="text-sm font-bold text-slate-900 leading-tight">Appraisal Cycles</CardTitle>
-                <CardDescription className="text-[11px]">Cycles, circulars & rosters</CardDescription>
+                <CardTitle className="text-sm font-bold text-slate-900 leading-tight">Groups & Grades</CardTitle>
+                <CardDescription className="text-[11px]">RPSA groups & ESG grades</CardDescription>
               </div>
             </div>
           </CardHeader>
           <CardContent className="p-4 pt-0">
             <p className="text-[11px] text-slate-600 line-clamp-2">
-              Create and manage annual appraisal cycles, upload employee batches, and freeze historical snapshots.
+              Configure master NBP reporting groups (0001-0008) and ESG grade hierarchy (01-09) with CSV bulk uploads.
             </p>
             <Button variant="outline" size="sm" className="mt-3 w-full text-[11px] font-bold border-emerald-700/30 text-emerald-900 hover:bg-emerald-50 h-8">
-              Open Cycles →
+              Manage Groups & Grades →
             </Button>
           </CardContent>
         </Card>
