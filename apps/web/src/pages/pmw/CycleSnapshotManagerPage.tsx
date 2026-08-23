@@ -152,21 +152,38 @@ export const CycleSnapshotManagerPage: React.FC<CycleSnapshotManagerPageProps> =
         api.getReportingGroups().catch(() => []),
         api.getGradeMappings().catch(() => [])
       ]);
+      // Defensive UI deduplication by RPSA and ESG codes
+      const uniqueMGroups = (mGroups || []).filter((g: any, index: number, self: any[]) =>
+        index === self.findIndex((t: any) => (t.rpsaCode && t.rpsaCode === g.rpsaCode) || (t.groupCode && t.groupCode === g.groupCode))
+      );
+
+      const uniqueMGrades = (mGrades || []).filter((g: any, index: number, self: any[]) =>
+        index === self.findIndex((t: any) => (t.esgCode && t.esgCode === g.esgCode) || (t.gradeCode && t.gradeCode === g.gradeCode))
+      );
+
+      const uniqueSnapGroups = (groups || []).filter((g: any, index: number, self: any[]) =>
+        index === self.findIndex((t: any) => (t.rpsaCode && t.rpsaCode === g.rpsaCode) || (t.groupCode && t.groupCode === g.groupCode))
+      );
+
+      const uniqueSnapGrades = (grades || []).filter((g: any, index: number, self: any[]) =>
+        index === self.findIndex((t: any) => (t.esgCode && t.esgCode === g.esgCode) || (t.gradeCode && t.gradeCode === g.gradeCode))
+      );
+
       setSnapshotSummary(summary);
-      setSnapshotGroups(groups || []);
-      setSnapshotGrades(grades || []);
+      setSnapshotGroups(uniqueSnapGroups);
+      setSnapshotGrades(uniqueSnapGrades);
       setCycleEmployees(employees || []);
-      setMasterGroups(mGroups || []);
-      setMasterGrades(mGrades || []);
+      setMasterGroups(uniqueMGroups);
+      setMasterGrades(uniqueMGrades);
       setSelectedEmployeeIds([]);
       
       // Default Org selections to all available master records
-      if (mGroups && mGroups.length > 0) {
-        setSelectedOrgGroupCodes(mGroups.map((g: any) => g.rpsaCode || g.groupCode));
-        setSelectedSyncGroupCodes(mGroups.map((g: any) => g.rpsaCode || g.groupCode));
+      if (uniqueMGroups.length > 0) {
+        setSelectedOrgGroupCodes(uniqueMGroups.map((g: any) => g.rpsaCode || g.groupCode));
+        setSelectedSyncGroupCodes(uniqueMGroups.map((g: any) => g.rpsaCode || g.groupCode));
       }
-      if (mGrades && mGrades.length > 0) {
-        setSelectedOrgEsgCodes(mGrades.map((g: any) => g.esgCode || g.gradeNumericCode || g.gradeCode));
+      if (uniqueMGrades.length > 0) {
+        setSelectedOrgEsgCodes(uniqueMGrades.map((g: any) => g.esgCode || g.gradeNumericCode || g.gradeCode));
       }
     } catch (e) {
       console.error('Failed to load cycle snapshot data', e);

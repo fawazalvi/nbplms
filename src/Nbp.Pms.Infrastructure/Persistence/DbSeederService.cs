@@ -92,14 +92,19 @@ public class DbSeederService
                 IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'ReportingGroups' AND COLUMN_NAME = 'RpsaCode')
                 BEGIN
                     ALTER TABLE ReportingGroups ADD RpsaCode NVARCHAR(10) NULL;
-                END
-
-                -- Deduplicate ReportingGroups keeping the record with RpsaCode or latest
-                WITH CTE AS (
+                -- Deduplicate ReportingGroups keeping latest
+                WITH CTE_Groups AS (
                     SELECT Id, GroupCode, RpsaCode, ROW_NUMBER() OVER(PARTITION BY GroupCode ORDER BY CASE WHEN RpsaCode IS NOT NULL AND RpsaCode <> '' THEN 1 ELSE 2 END, CreatedAt DESC) as rn
                     FROM ReportingGroups
                 )
-                DELETE FROM ReportingGroups WHERE Id IN (SELECT Id FROM CTE WHERE rn > 1);
+                DELETE FROM ReportingGroups WHERE Id IN (SELECT Id FROM CTE_Groups WHERE rn > 1);
+
+                -- Deduplicate GradeMappings keeping latest
+                WITH CTE_Grades AS (
+                    SELECT Id, GradeCode, EsgCode, ROW_NUMBER() OVER(PARTITION BY GradeCode ORDER BY CreatedAt DESC) as rn
+                    FROM GradeMappings
+                )
+                DELETE FROM GradeMappings WHERE Id IN (SELECT Id FROM CTE_Grades WHERE rn > 1);
 
                 UPDATE ReportingGroups SET RpsaCode = '0001' WHERE GroupCode = 'CBG' AND (RpsaCode IS NULL OR RpsaCode = '');
                 UPDATE ReportingGroups SET RpsaCode = '0002' WHERE GroupCode = 'RBG' AND (RpsaCode IS NULL OR RpsaCode = '');
@@ -284,33 +289,39 @@ public class DbSeederService
         _db.KeyVersions.Add(keyVer);
 
         // 2. Reporting Groups with 4-Digit Leading-Zero RPSA Codes
-        var groups = new List<ReportingGroup>
+        if (!await _db.ReportingGroups.AnyAsync())
         {
-            new ReportingGroup { GroupCode = "CBG", GroupName = "Commercial Banking Group", RpsaCode = "0001" },
-            new ReportingGroup { GroupCode = "RBG", GroupName = "Consumer Banking Group", RpsaCode = "0002" },
-            new ReportingGroup { GroupCode = "RMG", GroupName = "Risk Management Group", RpsaCode = "0003" },
-            new ReportingGroup { GroupCode = "TGM", GroupName = "Treasury & Global Markets", RpsaCode = "0004" },
-            new ReportingGroup { GroupCode = "ITG", GroupName = "Information Technology Group", RpsaCode = "0005" },
-            new ReportingGroup { GroupCode = "OPS", GroupName = "Operations Group", RpsaCode = "0006" },
-            new ReportingGroup { GroupCode = "HRG", GroupName = "HR Management Group", RpsaCode = "0007" },
-            new ReportingGroup { GroupCode = "CMP", GroupName = "Compliance Group", RpsaCode = "0008" },
-        };
-        _db.ReportingGroups.AddRange(groups);
+            var groups = new List<ReportingGroup>
+            {
+                new ReportingGroup { GroupCode = "CBG", GroupName = "Commercial Banking Group", RpsaCode = "0001" },
+                new ReportingGroup { GroupCode = "RBG", GroupName = "Consumer Banking Group", RpsaCode = "0002" },
+                new ReportingGroup { GroupCode = "RMG", GroupName = "Risk Management Group", RpsaCode = "0003" },
+                new ReportingGroup { GroupCode = "TGM", GroupName = "Treasury & Global Markets", RpsaCode = "0004" },
+                new ReportingGroup { GroupCode = "ITG", GroupName = "Information Technology Group", RpsaCode = "0005" },
+                new ReportingGroup { GroupCode = "OPS", GroupName = "Operations Group", RpsaCode = "0006" },
+                new ReportingGroup { GroupCode = "HRG", GroupName = "HR Management Group", RpsaCode = "0007" },
+                new ReportingGroup { GroupCode = "CMP", GroupName = "Compliance Group", RpsaCode = "0008" },
+            };
+            _db.ReportingGroups.AddRange(groups);
+        }
 
         // 3. Grade Mappings
-        var grades = new List<GradeMapping>
+        if (!await _db.GradeMappings.AnyAsync())
         {
-            new GradeMapping { GradeCode = "OG_III", GradeName = "OG III", EsgCode = "09", RankOrder = 1, DefaultFormType = "KPI_FORM" },
-            new GradeMapping { GradeCode = "OG_II", GradeName = "OG II", EsgCode = "08", RankOrder = 2, DefaultFormType = "KPI_FORM" },
-            new GradeMapping { GradeCode = "OG_I", GradeName = "OG I", EsgCode = "07", RankOrder = 3, DefaultFormType = "KPI_FORM" },
-            new GradeMapping { GradeCode = "AVP", GradeName = "AVP", EsgCode = "06", RankOrder = 4, DefaultFormType = "KPI_FORM" },
-            new GradeMapping { GradeCode = "VP", GradeName = "VP", EsgCode = "05", RankOrder = 5, DefaultFormType = "BALANCED_SCORECARD" },
-            new GradeMapping { GradeCode = "SVP", GradeName = "SVP", EsgCode = "04", RankOrder = 6, DefaultFormType = "BALANCED_SCORECARD" },
-            new GradeMapping { GradeCode = "EVP", GradeName = "EVP", EsgCode = "03", RankOrder = 7, DefaultFormType = "BALANCED_SCORECARD" },
-            new GradeMapping { GradeCode = "SEVP", GradeName = "SEVP", EsgCode = "02", RankOrder = 8, DefaultFormType = "BALANCED_SCORECARD" },
-            new GradeMapping { GradeCode = "PRESIDENT", GradeName = "President/CEO", EsgCode = "01", RankOrder = 9, DefaultFormType = "BALANCED_SCORECARD" },
-        };
-        _db.GradeMappings.AddRange(grades);
+            var grades = new List<GradeMapping>
+            {
+                new GradeMapping { GradeCode = "OG_III", GradeName = "OG III", EsgCode = "09", RankOrder = 1, DefaultFormType = "KPI_FORM" },
+                new GradeMapping { GradeCode = "OG_II", GradeName = "OG II", EsgCode = "08", RankOrder = 2, DefaultFormType = "KPI_FORM" },
+                new GradeMapping { GradeCode = "OG_I", GradeName = "OG I", EsgCode = "07", RankOrder = 3, DefaultFormType = "KPI_FORM" },
+                new GradeMapping { GradeCode = "AVP", GradeName = "AVP", EsgCode = "06", RankOrder = 4, DefaultFormType = "KPI_FORM" },
+                new GradeMapping { GradeCode = "VP", GradeName = "VP", EsgCode = "05", RankOrder = 5, DefaultFormType = "BALANCED_SCORECARD" },
+                new GradeMapping { GradeCode = "SVP", GradeName = "SVP", EsgCode = "04", RankOrder = 6, DefaultFormType = "BALANCED_SCORECARD" },
+                new GradeMapping { GradeCode = "EVP", GradeName = "EVP", EsgCode = "03", RankOrder = 7, DefaultFormType = "BALANCED_SCORECARD" },
+                new GradeMapping { GradeCode = "SEVP", GradeName = "SEVP", EsgCode = "02", RankOrder = 8, DefaultFormType = "BALANCED_SCORECARD" },
+                new GradeMapping { GradeCode = "PRESIDENT", GradeName = "President/CEO", EsgCode = "01", RankOrder = 9, DefaultFormType = "BALANCED_SCORECARD" },
+            };
+            _db.GradeMappings.AddRange(grades);
+        }
 
         // 4. Employees (Grades stored as 2-digit ESG codes "01"-"09", Groups stored as 4-digit RPSA codes "0001"-"0008")
         var pres = new Employee

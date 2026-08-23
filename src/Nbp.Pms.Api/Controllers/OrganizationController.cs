@@ -32,25 +32,14 @@ public class OrganizationController : ControllerBase
     [HttpGet("groups")]
     public async Task<IActionResult> GetReportingGroups()
     {
-        var groups = await _db.ReportingGroups.OrderBy(g => g.GroupName).ToListAsync();
+        var allGroups = await _db.ReportingGroups.OrderBy(g => g.RpsaCode).ThenBy(g => g.GroupName).ToListAsync();
 
-        if (groups.Count == 0)
-        {
-            var defaultGroups = new List<ReportingGroup>
-            {
-                new ReportingGroup { GroupCode = "CBG", GroupName = "Commercial Banking Group", RpsaCode = "0001" },
-                new ReportingGroup { GroupCode = "RBG", GroupName = "Consumer Banking Group", RpsaCode = "0002" },
-                new ReportingGroup { GroupCode = "RMG", GroupName = "Risk Management Group", RpsaCode = "0003" },
-                new ReportingGroup { GroupCode = "TGM", GroupName = "Treasury & Global Markets", RpsaCode = "0004" },
-                new ReportingGroup { GroupCode = "ITG", GroupName = "Information Technology Group", RpsaCode = "0005" },
-                new ReportingGroup { GroupCode = "OPS", GroupName = "Operations Group", RpsaCode = "0006" },
-                new ReportingGroup { GroupCode = "HRG", GroupName = "HR Management Group", RpsaCode = "0007" },
-                new ReportingGroup { GroupCode = "CMP", GroupName = "Compliance Group", RpsaCode = "0008" },
-            };
-            _db.ReportingGroups.AddRange(defaultGroups);
-            await _db.SaveChangesAsync();
-            groups = defaultGroups;
-        }
+        // In-memory deduplication by RpsaCode or GroupCode to guarantee unique master groups
+        var groups = allGroups
+            .GroupBy(g => !string.IsNullOrWhiteSpace(g.RpsaCode) ? g.RpsaCode.PadLeft(4, '0') : g.GroupCode)
+            .Select(grp => grp.OrderByDescending(g => g.CreatedAt).First())
+            .OrderBy(g => g.RpsaCode ?? g.GroupCode)
+            .ToList();
 
         return Ok(groups);
     }
@@ -230,26 +219,14 @@ public class OrganizationController : ControllerBase
     [HttpGet("grades")]
     public async Task<IActionResult> GetGradeMappings()
     {
-        var grades = await _db.GradeMappings.OrderBy(g => g.RankOrder).ToListAsync();
+        var allGrades = await _db.GradeMappings.OrderBy(g => g.RankOrder).ToListAsync();
 
-        if (grades.Count == 0)
-        {
-            var defaultGrades = new List<GradeMapping>
-            {
-                new GradeMapping { GradeCode = "OG_III", GradeName = "OG III", EsgCode = "09", RankOrder = 1, DefaultFormType = "KPI_FORM" },
-                new GradeMapping { GradeCode = "OG_II", GradeName = "OG II", EsgCode = "08", RankOrder = 2, DefaultFormType = "KPI_FORM" },
-                new GradeMapping { GradeCode = "OG_I", GradeName = "OG I", EsgCode = "07", RankOrder = 3, DefaultFormType = "KPI_FORM" },
-                new GradeMapping { GradeCode = "AVP", GradeName = "AVP", EsgCode = "06", RankOrder = 4, DefaultFormType = "KPI_FORM" },
-                new GradeMapping { GradeCode = "VP", GradeName = "VP", EsgCode = "05", RankOrder = 5, DefaultFormType = "BALANCED_SCORECARD" },
-                new GradeMapping { GradeCode = "SVP", GradeName = "SVP", EsgCode = "04", RankOrder = 6, DefaultFormType = "BALANCED_SCORECARD" },
-                new GradeMapping { GradeCode = "EVP", GradeName = "EVP", EsgCode = "03", RankOrder = 7, DefaultFormType = "BALANCED_SCORECARD" },
-                new GradeMapping { GradeCode = "SEVP", GradeName = "SEVP", EsgCode = "02", RankOrder = 8, DefaultFormType = "BALANCED_SCORECARD" },
-                new GradeMapping { GradeCode = "PRESIDENT", GradeName = "President/CEO", EsgCode = "01", RankOrder = 9, DefaultFormType = "BALANCED_SCORECARD" },
-            };
-            _db.GradeMappings.AddRange(defaultGrades);
-            await _db.SaveChangesAsync();
-            grades = defaultGrades;
-        }
+        // In-memory deduplication by GradeCode or EsgCode to guarantee unique master grades
+        var grades = allGrades
+            .GroupBy(g => !string.IsNullOrWhiteSpace(g.EsgCode) ? g.EsgCode.PadLeft(2, '0') : g.GradeCode)
+            .Select(grp => grp.OrderByDescending(g => g.CreatedAt).First())
+            .OrderBy(g => g.RankOrder)
+            .ToList();
 
         return Ok(grades);
     }
