@@ -425,6 +425,26 @@ export const CycleSnapshotManagerPage: React.FC<CycleSnapshotManagerPageProps> =
     }
   };
 
+  // Sync Single Group Staff Snapshot Operation
+  const handleSnapshotIndividualStaffGroup = async (group: any, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (!activeCycleId) return;
+    const code = group.rpsaCode || group.groupCode;
+    setActionLoading(true);
+    try {
+      const res = await api.snapshotCycleMultiGroupEmployees(activeCycleId, {
+        rpsaCodes: [code]
+      });
+      setMessage(res.message || `Staff Snapshot for '${group.groupName}' completed successfully.`);
+      await loadCycleData(activeCycleId);
+      setActiveTab('roster');
+    } catch (err: any) {
+      alert(err.message || `Failed to snapshot staff for ${group.groupName}.`);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   // Sync Hierarchy (Groups & Grades) from Master
   const handleSyncHierarchy = async () => {
     if (!activeCycleId) return;
@@ -1761,18 +1781,31 @@ export const CycleSnapshotManagerPage: React.FC<CycleSnapshotManagerPageProps> =
                         setSelectedSyncGroupCodes([...selectedSyncGroupCodes, code]);
                       }
                     }}
-                    className={`p-3.5 rounded-xl border cursor-pointer transition-all ${
+                    className={`p-3.5 rounded-xl border cursor-pointer transition-all flex flex-col justify-between ${
                       isSelected
                         ? 'border-emerald-700 bg-emerald-50/60 shadow-xs'
                         : 'border-slate-200 bg-white hover:bg-slate-50'
                     }`}
                   >
-                    <div className="flex items-center justify-between">
-                      <span className="font-mono font-bold text-xs text-emerald-900">{code}</span>
-                      {isSelected ? <CheckSquare className="h-4 w-4 text-emerald-800" /> : <Square className="h-4 w-4 text-slate-300" />}
+                    <div>
+                      <div className="flex items-center justify-between">
+                        <span className="font-mono font-bold text-xs text-emerald-900">{code}</span>
+                        {isSelected ? <CheckSquare className="h-4 w-4 text-emerald-800" /> : <Square className="h-4 w-4 text-slate-300" />}
+                      </div>
+                      <div className="font-bold text-xs text-slate-900 mt-1 truncate">{g.groupName}</div>
+                      <div className="text-[10px] text-slate-500 mt-0.5">{g.groupCode}</div>
                     </div>
-                    <div className="font-bold text-xs text-slate-900 mt-1 truncate">{g.groupName}</div>
-                    <div className="text-[10px] text-slate-500 mt-0.5">{g.groupCode}</div>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={actionLoading}
+                      onClick={(e) => handleSnapshotIndividualStaffGroup(g, e)}
+                      className="w-full mt-3 h-7 text-[10px] font-bold text-emerald-900 border-emerald-300 bg-white hover:bg-emerald-50 shadow-2xs"
+                    >
+                      <Camera className="h-3 w-3 mr-1 text-emerald-700" />
+                      Snapshot Individual Group now
+                    </Button>
                   </div>
                 );
               })}

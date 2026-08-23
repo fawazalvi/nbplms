@@ -1353,6 +1353,28 @@ public class CyclesController : ControllerBase
     /// <summary>
     /// Snapshots active employees belonging to multiple selected reporting groups (by RPSA codes).
     /// </summary>
+    private static FormType ParseFormType(string? formTypeStr, string? grade, bool isMrt)
+    {
+        if (string.IsNullOrWhiteSpace(formTypeStr))
+            return EmployeeImportService.DetermineFormType(grade ?? "OG I", isMrt);
+
+        var clean = formTypeStr.Trim().Replace("_", "").Replace("-", "").Replace(" ", "");
+        if (clean.Equals("KpiForm", StringComparison.OrdinalIgnoreCase) || clean.Equals("Kpi", StringComparison.OrdinalIgnoreCase))
+            return FormType.KpiForm;
+        if (clean.Equals("BalancedScorecard", StringComparison.OrdinalIgnoreCase) || clean.Equals("BscForm", StringComparison.OrdinalIgnoreCase) || clean.Equals("Bsc", StringComparison.OrdinalIgnoreCase))
+            return isMrt ? FormType.RiskAdjustedBsc : FormType.BalancedScorecard;
+        if (clean.Equals("RiskAdjustedBsc", StringComparison.OrdinalIgnoreCase) || clean.Equals("RiskBsc", StringComparison.OrdinalIgnoreCase))
+            return FormType.RiskAdjustedBsc;
+
+        if (Enum.TryParse<FormType>(clean, true, out var result))
+            return result;
+
+        return EmployeeImportService.DetermineFormType(grade ?? "OG I", isMrt);
+    }
+
+    /// <summary>
+    /// Snapshots active employees belonging to multiple selected reporting groups (by RPSA codes, group codes, or group names).
+    /// </summary>
     [HttpPost("{id}/snapshot/employees-multi-group")]
     public async Task<IActionResult> SnapshotMultiGroupEmployees(Guid id, [FromBody] SnapshotMultiGroupEmployeesDto dto)
     {
@@ -1362,15 +1384,68 @@ public class CyclesController : ControllerBase
         var snapshottedAt = DateTime.UtcNow;
         var rpsaCodes = dto.RpsaCodes?.Where(c => !string.IsNullOrWhiteSpace(c)).Select(c => c.Trim()).ToList() ?? new List<string>();
 
-        var masterEmployeesQuery = _db.Employees.Where(e => e.IsActive);
-        if (rpsaCodes.Any() && !rpsaCodes.Contains("ALL"))
+        // Build exhaustive match set for reporting groups (0001, 1, CBG, Commercial Banking Group, etc.)
+        var masterGroups = await _db.ReportingGroups.Where(rg => rg.IsActive != false).ToListAsync();
+        var targetIdentifiers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var code in rpsaCodes)
         {
-            masterEmployeesQuery = masterEmployeesQuery.Where(e => rpsaCodes.Contains(e.ReportingGroup));
+            if (string.IsNullOrWhiteSpace(code)) continue;
+            targetIdentifiers.Add(code.Trim());
+            targetIdentifiers.Add(code.Trim().PadLeft(4, '0'));
+            targetIdentifiers.Add(code.Trim().TrimStart('0'));
         }
 
-        var masterEmployees = await masterEmployeesQuery.ToListAsync();
+        foreach (var mg in masterGroups)
+        {
+            bool isMatch = targetIdentifiers.Contains(mg.RpsaCode) ||
+                           targetIdentifiers.Contains(mg.GroupCode) ||
+                           targetIdentifiers.Contains(mg.GroupName) ||
+                           targetIdentifiers.Contains(mg.RpsaCode.TrimStart('0')) ||
+                           targetIdentifiers.Contains(mg.RpsaCode.PadLeft(4, '0'));
+            if (isMatch)
+            {
+                if (!string.IsNullOrWhiteSpace(mg.RpsaCode))
+                {
+                    targetIdentifiers.Add(mg.RpsaCode);
+                    targetIdentifiers.Add(mg.RpsaCode.TrimStart('0'));
+                    targetIdentifiers.Add(mg.RpsaCode.PadLeft(4, '0'));
+                }
+                if (!string.IsNullOrWhiteSpace(mg.GroupCode)) targetIdentifiers.Add(mg.GroupCode);
+                if (!string.IsNullOrWhiteSpace(mg.GroupName)) targetIdentifiers.Add(mg.GroupName);
+            }
+        }
+
+        var allActiveEmployees = await _db.Employees.Where(e => e.IsActive).ToListAsync();
+        var masterEmployees = targetIdentifiers.Contains("ALL") || !rpsaCodes.Any()
+            ? allActiveEmployees
+            : allActiveEmployees.Where(e => !string.IsNullOrWhiteSpace(e.ReportingGroup) &&
+                                           (targetIdentifiers.Contains(e.ReportingGroup) ||
+                                            targetIdentifiers.Contains(e.ReportingGroup.PadLeft(4, '0')) ||
+                                            targetIdentifiers.Contains(e.ReportingGroup.TrimStart('0')))).ToList();
+
         var existingEnrollments = await _db.EmployeeCycles.Where(ec => ec.CycleId == id).ToListAsync();
         var cycleGrades = await _db.CycleGradeMappings.Where(g => g.CycleId == id).ToListAsync();
+
+        // Also ensure matched groups are frozen into CycleReportingGroups
+        var existingCycleGroups = await _db.CycleReportingGroups.Where(g => g.CycleId == id).ToListAsync();
+        foreach (var mg in masterGroups.Where(g => targetIdentifiers.Contains(g.RpsaCode) || targetIdentifiers.Contains(g.GroupCode) || targetIdentifiers.Contains(g.GroupName)))
+        {
+            string rpsa = !string.IsNullOrWhiteSpace(mg.RpsaCode) ? mg.RpsaCode.PadLeft(4, '0') : "0000";
+            if (!existingCycleGroups.Any(g => g.RpsaCode == rpsa || g.GroupCode == mg.GroupCode))
+            {
+                _db.CycleReportingGroups.Add(new CycleReportingGroup
+                {
+                    CycleId = id,
+                    RpsaCode = rpsa,
+                    GroupCode = mg.GroupCode,
+                    GroupName = mg.GroupName,
+                    HeadOfGroupSapId = mg.HeadOfGroupSapId,
+                    SnapshottedAt = snapshottedAt,
+                    SnapshottedBy = dto.ActorUserId ?? "PMW_ADMIN"
+                });
+            }
+        }
 
         int addedCount = 0;
         int updatedCount = 0;
@@ -1378,9 +1453,7 @@ public class CyclesController : ControllerBase
         foreach (var emp in masterEmployees)
         {
             var matchedCycleGrade = cycleGrades.FirstOrDefault(g => g.EsgCode == emp.Grade || g.GradeCode == emp.Grade);
-            var formType = matchedCycleGrade != null
-                ? Enum.Parse<FormType>(matchedCycleGrade.DefaultFormType, true)
-                : EmployeeImportService.DetermineFormType(emp.Grade, emp.IsMrtOrMrc);
+            var formType = ParseFormType(matchedCycleGrade?.DefaultFormType, emp.Grade, emp.IsMrtOrMrc);
 
             var existing = existingEnrollments.FirstOrDefault(ec => ec.EmployeeId == emp.Id);
             if (existing != null)
