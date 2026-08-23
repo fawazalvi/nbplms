@@ -386,13 +386,26 @@ public class EmployeesController : ControllerBase
         });
     }
 
+    /// <summary>
+    /// Bulk imports employee records from CSV/XLSX. Restricted strictly to PMW Super Admin.
+    /// PMW Admin enrolls from existing records in the system.
+    /// </summary>
     [HttpPost("import")]
     public async Task<IActionResult> ImportEmployees(
         [FromBody] List<EmployeeImportRowDto> rows,
         [FromQuery] Guid? cycleId,
-        [FromQuery] string? actorUserId)
+        [FromQuery] string? actorUserId,
+        [FromQuery] string? role)
     {
-        var result = await _importService.ProcessImportAsync(rows, cycleId, actorUserId ?? "PMW_ADMIN");
+        if (role != "PmwSuperAdmin" && actorUserId != "PMW_SUPER_ADMIN")
+        {
+            return StatusCode(403, new
+            {
+                message = "Access Denied. Employee batch/file uploads are restricted exclusively to PMW Super Admin. PMW Admin can only enroll employees from existing records in the system."
+            });
+        }
+
+        var result = await _importService.ProcessImportAsync(rows, cycleId, actorUserId ?? "PMW_SUPER_ADMIN");
         if (result.ErrorCount > 0 && result.SuccessfulImports == 0)
         {
             return BadRequest(result);

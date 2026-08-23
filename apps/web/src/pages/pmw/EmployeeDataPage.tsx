@@ -26,7 +26,11 @@ import {
 } from 'lucide-react';
 import { SapIdAutocomplete } from '@/components/appraisal/SapIdAutocomplete';
 
-export const EmployeeDataPage: React.FC = () => {
+interface EmployeeDataPageProps {
+  userRole?: string;
+}
+
+export const EmployeeDataPage: React.FC<EmployeeDataPageProps> = ({ userRole = 'Employee' }) => {
   const [employees, setEmployees] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -551,18 +555,21 @@ export const EmployeeDataPage: React.FC = () => {
             Bulk Appraisers
           </Button>
 
-          <Button
-            variant="gold"
-            size="sm"
-            onClick={() => {
-              setImportMessage(null);
-              setShowImportModal(true);
-            }}
-            className="font-semibold"
-          >
-            <Upload className="h-4 w-4 mr-1.5" />
-            Import CSV
-          </Button>
+          {userRole === 'PmwSuperAdmin' && (
+            <Button
+              variant="gold"
+              size="sm"
+              onClick={() => {
+                setImportMessage(null);
+                setShowImportModal(true);
+              }}
+              className="font-semibold"
+              title="Bulk upload employee sheet (PMW Super Admin only)"
+            >
+              <Upload className="h-4 w-4 mr-1.5" />
+              Import CSV
+            </Button>
+          )}
 
           <Button variant="secondary" size="sm" onClick={loadEmployees} title="Refresh Directory">
             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />

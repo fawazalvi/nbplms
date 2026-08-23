@@ -31,12 +31,14 @@ import {
 import { api } from '@/lib/api';
 
 interface PmwDashboardProps {
+  userRole?: string;
   selectedCycleId?: string | null;
   onSelectCycle?: (cycleId: string) => void;
   onNavigate?: (tab: string) => void;
 }
 
 export const PmwDashboard: React.FC<PmwDashboardProps> = ({
+  userRole = 'Employee',
   selectedCycleId,
   onSelectCycle,
   onNavigate

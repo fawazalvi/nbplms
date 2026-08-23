@@ -53,10 +53,11 @@ export function App() {
     if (userRole === 'PmwSuperAdmin') {
       switch (activeTab) {
         case 'cycles':
-          return <AppraisalCyclesPage onSelectCycle={handleSelectCycle} onNavigate={setActiveTab} />;
+          return <AppraisalCyclesPage userRole={userRole} onSelectCycle={handleSelectCycle} onNavigate={setActiveTab} />;
         case 'cycle-control':
           return (
             <PmwDashboard
+              userRole={userRole}
               selectedCycleId={selectedCycleId}
               onSelectCycle={setSelectedCycleId}
               onNavigate={setActiveTab}
@@ -67,7 +68,7 @@ export function App() {
         case 'organization':
           return <OrganizationManagementPage />;
         case 'employees':
-          return <EmployeeDataPage />;
+          return <EmployeeDataPage userRole={userRole} />;
         case 'forms':
           return <ObjectiveFormPage formType="BSC" />;
         case 'bellcurve':
@@ -90,13 +91,13 @@ export function App() {
 
     switch (activeTab) {
       case 'cycles':
-        return <AppraisalCyclesPage onSelectCycle={handleSelectCycle} onNavigate={setActiveTab} />;
+        return <AppraisalCyclesPage userRole={userRole} onSelectCycle={handleSelectCycle} onNavigate={setActiveTab} />;
       case 'organization':
         return <OrganizationManagementPage />;
       case 'users':
         return <UserManagementPage />;
       case 'employees':
-        return <EmployeeDataPage />;
+        return <EmployeeDataPage userRole={userRole} />;
       case 'my-appraisal':
       case 'forms':
         return <ObjectiveFormPage formType={userRole === 'PmwAdmin' ? 'BSC' : 'KPI'} />;
@@ -122,6 +123,7 @@ export function App() {
         if (userRole === 'PmwAdmin') {
           return (
             <PmwDashboard
+              userRole={userRole}
               selectedCycleId={selectedCycleId}
               onSelectCycle={setSelectedCycleId}
               onNavigate={setActiveTab}

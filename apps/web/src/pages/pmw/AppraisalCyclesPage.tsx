@@ -32,11 +32,12 @@ import {
 import { SapIdAutocomplete } from '@/components/appraisal/SapIdAutocomplete';
 
 interface AppraisalCyclesPageProps {
+  userRole?: string;
   onSelectCycle?: (cycleId: string) => void;
   onNavigate?: (tab: string) => void;
 }
 
-export const AppraisalCyclesPage: React.FC<AppraisalCyclesPageProps> = ({ onSelectCycle, onNavigate }) => {
+export const AppraisalCyclesPage: React.FC<AppraisalCyclesPageProps> = ({ userRole = 'Employee', onSelectCycle, onNavigate }) => {
   const [cycles, setCycles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -549,16 +550,18 @@ export const AppraisalCyclesPage: React.FC<AppraisalCyclesPageProps> = ({ onSele
                           <BarChart3 className="h-3.5 w-3.5 mr-1 text-emerald-700" />
                           <span>Control Center</span>
                         </Button>
-                        <Button
-                          variant="nbp"
-                          size="sm"
-                          onClick={() => handleOpenCycleUpload(c)}
-                          className="h-8 text-xs font-bold shadow-xs bg-emerald-800 hover:bg-emerald-900 text-white"
-                          title="Upload Employee CSV/Excel sheet for this cycle"
-                        >
-                          <Upload className="h-3.5 w-3.5 mr-1" />
-                          <span>Upload Staff Sheet</span>
-                        </Button>
+                        {userRole === 'PmwSuperAdmin' && (
+                          <Button
+                            variant="nbp"
+                            size="sm"
+                            onClick={() => handleOpenCycleUpload(c)}
+                            className="h-8 text-xs font-bold shadow-xs bg-emerald-800 hover:bg-emerald-900 text-white"
+                            title="Upload Employee CSV/Excel sheet for this cycle (PMW Super Admin only)"
+                          >
+                            <Upload className="h-3.5 w-3.5 mr-1" />
+                            <span>Upload Staff Sheet</span>
+                          </Button>
+                        )}
                         <Button
                           variant="outline"
                           size="sm"
