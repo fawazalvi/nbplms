@@ -6,7 +6,11 @@ import { Input } from '@/components/ui/input';
 import { api } from '@/lib/api';
 import { Building2, Plus, Trash2, CheckCircle2, RefreshCw, Layers, Upload, Download, FileSpreadsheet, X, FileText, AlertTriangle, Pencil, Users, ToggleLeft, ToggleRight, Search, Hash } from 'lucide-react';
 
-export const OrganizationManagementPage: React.FC = () => {
+interface OrganizationManagementPageProps {
+  userRole?: string;
+}
+
+export const OrganizationManagementPage: React.FC<OrganizationManagementPageProps> = ({ userRole = 'Employee' }) => {
   const [activeSubTab, setActiveSubTab] = useState<'groups' | 'grades'>('groups');
   const [groups, setGroups] = useState<any[]>([]);
   const [grades, setGrades] = useState<any[]>([]);
@@ -412,47 +416,55 @@ export const OrganizationManagementPage: React.FC = () => {
 
           {activeSubTab === 'groups' ? (
             <>
-              <Button
-                variant="outline"
-                size="sm"
-                className="bg-white/10 text-white hover:bg-white/20 border-white/20"
-                onClick={() => {
-                  setImportType('groups');
-                  setParsedRows([]);
-                  setCsvText('');
-                  setErrorMessage(null);
-                  setShowImportModal(true);
-                }}
-              >
-                <Upload className="h-4 w-4 mr-1" />
-                Upload Groups CSV
-              </Button>
-              <Button variant="gold" size="sm" onClick={openCreateGroupModal}>
-                <Plus className="h-4 w-4 mr-1" />
-                Add Group
-              </Button>
+              {userRole === 'PmwSuperAdmin' && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="bg-white/10 text-white hover:bg-white/20 border-white/20"
+                  onClick={() => {
+                    setImportType('groups');
+                    setParsedRows([]);
+                    setCsvText('');
+                    setErrorMessage(null);
+                    setShowImportModal(true);
+                  }}
+                >
+                  <Upload className="h-4 w-4 mr-1" />
+                  Upload Groups CSV
+                </Button>
+              )}
+              {userRole === 'PmwSuperAdmin' && (
+                <Button variant="gold" size="sm" onClick={openCreateGroupModal}>
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add Group
+                </Button>
+              )}
             </>
           ) : (
             <>
-              <Button
-                variant="outline"
-                size="sm"
-                className="bg-white/10 text-white hover:bg-white/20 border-white/20"
-                onClick={() => {
-                  setImportType('grades');
-                  setParsedRows([]);
-                  setCsvText('');
-                  setErrorMessage(null);
-                  setShowImportModal(true);
-                }}
-              >
-                <Upload className="h-4 w-4 mr-1" />
-                Upload Grades CSV
-              </Button>
-              <Button variant="gold" size="sm" onClick={() => setShowGradeModal(true)}>
-                <Plus className="h-4 w-4 mr-1" />
-                Add Grade Rank
-              </Button>
+              {userRole === 'PmwSuperAdmin' && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="bg-white/10 text-white hover:bg-white/20 border-white/20"
+                  onClick={() => {
+                    setImportType('grades');
+                    setParsedRows([]);
+                    setCsvText('');
+                    setErrorMessage(null);
+                    setShowImportModal(true);
+                  }}
+                >
+                  <Upload className="h-4 w-4 mr-1" />
+                  Upload Grades CSV
+                </Button>
+              )}
+              {userRole === 'PmwSuperAdmin' && (
+                <Button variant="gold" size="sm" onClick={() => setShowGradeModal(true)}>
+                  <Plus className="h-4 w-4 mr-1" />
+                  Add Grade Rank
+                </Button>
+              )}
             </>
           )}
         </div>

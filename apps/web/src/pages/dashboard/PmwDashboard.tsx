@@ -683,7 +683,7 @@ export const PmwDashboard: React.FC<PmwDashboardProps> = ({
               <div className="p-8 text-center text-xs text-slate-500 font-medium">Loading group statistics...</div>
             ) : !cycleStats?.groupBreakdown || cycleStats.groupBreakdown.length === 0 ? (
               <div className="p-8 text-center text-xs text-slate-500 border border-dashed border-slate-200 rounded-xl">
-                No staff currently enrolled in this cycle. Click <strong>"Manage Roster"</strong> or <strong>"Upload Staff Sheet"</strong> to enroll employees.
+                No staff currently enrolled in this cycle. Click <strong>"Full Snapshot Workspace"</strong> to enroll employees from master data.
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -731,7 +731,7 @@ export const PmwDashboard: React.FC<PmwDashboardProps> = ({
                 </div>
                 <div>
                   <CardTitle className="text-sm font-bold text-slate-900 leading-tight">Cycle Staff Roster</CardTitle>
-                  <CardDescription className="text-xs">Upload staff & freeze historical snapshots</CardDescription>
+                  <CardDescription className="text-xs">Enroll staff from master data & freeze historical snapshots</CardDescription>
                 </div>
               </div>
             </CardHeader>

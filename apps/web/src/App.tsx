@@ -77,7 +77,7 @@ export function App() {
         case 'users':
           return <UserManagementPage />;
         case 'organization':
-          return <OrganizationManagementPage />;
+          return <OrganizationManagementPage userRole={userRole} />;
         case 'employees':
           return <EmployeeDataPage userRole={userRole} />;
         case 'forms':
@@ -123,7 +123,7 @@ export function App() {
           />
         );
       case 'organization':
-        return <OrganizationManagementPage />;
+        return <OrganizationManagementPage userRole={userRole} />;
       case 'users':
         return <UserManagementPage />;
       case 'employees':

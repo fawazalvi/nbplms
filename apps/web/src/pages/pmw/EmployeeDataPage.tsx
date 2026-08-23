@@ -536,10 +536,12 @@ export const EmployeeDataPage: React.FC<EmployeeDataPageProps> = ({ userRole = '
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="nbp" size="sm" onClick={handleOpenAddModal} className="font-bold shadow-md">
-            <UserPlus className="h-4 w-4 mr-1.5" />
-            Add Employee
-          </Button>
+          {userRole === 'PmwSuperAdmin' && (
+            <Button variant="nbp" size="sm" onClick={handleOpenAddModal} className="font-bold shadow-md">
+              <UserPlus className="h-4 w-4 mr-1.5" />
+              Add Employee
+            </Button>
+          )}
 
           <Button
             variant="outline"
