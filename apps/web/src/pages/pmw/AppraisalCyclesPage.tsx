@@ -47,6 +47,7 @@ export const AppraisalCyclesPage: React.FC = () => {
   const [rosterGroupFilter, setRosterGroupFilter] = useState('All Groups');
   const [rosterGradeFilter, setRosterGradeFilter] = useState('All Grades');
   const [groups, setGroups] = useState<any[]>([]);
+  const [grades, setGrades] = useState<any[]>([]);
 
   // Cycle Employee Batch Upload Modal State
   const [showCycleUploadModal, setShowCycleUploadModal] = useState(false);
@@ -59,7 +60,7 @@ export const AppraisalCyclesPage: React.FC = () => {
   const [showEnrollModal, setShowEnrollModal] = useState(false);
   const [enrollMode, setEnrollMode] = useState<'single' | 'group' | 'all'>('single');
   const [enrollSapId, setEnrollSapId] = useState('');
-  const [enrollTargetGroup, setEnrollTargetGroup] = useState('');
+  const [enrollTargetGroup, setEnrollTargetGroup] = useState('Consumer Banking Group');
   const [overrideGrade, setOverrideGrade] = useState('');
   const [overrideGroup, setOverrideGroup] = useState('');
   const [overrideDesignation, setOverrideDesignation] = useState('');
@@ -70,13 +71,16 @@ export const AppraisalCyclesPage: React.FC = () => {
   // Edit Cycle Snapshot Modal State
   const [showEditSnapshotModal, setShowEditSnapshotModal] = useState(false);
   const [editingSnapshotItem, setEditingSnapshotItem] = useState<any | null>(null);
-  const [editSnapshotGrade, setEditSnapshotGrade] = useState('');
-  const [editSnapshotGroup, setEditSnapshotGroup] = useState('');
+  const [editSnapshotGrade, setEditSnapshotGrade] = useState('OG I');
+  const [editSnapshotGroup, setEditSnapshotGroup] = useState('Consumer Banking Group');
   const [editSnapshotDesignation, setEditSnapshotDesignation] = useState('');
   const [editSnapshotLocation, setEditSnapshotLocation] = useState('');
-  const [editSnapshotIsMrt, setEditSnapshotIsMrt] = useState(false);
+  const [editSnapshotDivision, setEditSnapshotDivision] = useState('');
+  const [editSnapshotWing, setEditSnapshotWing] = useState('');
+  const [editSnapshotBranch, setEditSnapshotBranch] = useState('');
   const [editSnapshotFirstSap, setEditSnapshotFirstSap] = useState('');
   const [editSnapshotSecondSap, setEditSnapshotSecondSap] = useState('');
+  const [editSnapshotIsMrt, setEditSnapshotIsMrt] = useState(false);
   const [savingSnapshot, setSavingSnapshot] = useState(false);
 
   const loadCycles = async () => {
@@ -95,7 +99,16 @@ export const AppraisalCyclesPage: React.FC = () => {
     try {
       const data = await api.getReportingGroups();
       setGroups(data || []);
-    } catch (e) {
+    } catch (e: any) {
+      console.error(e);
+    }
+  };
+
+  const loadGrades = async () => {
+    try {
+      const data = await api.getGradeMappings();
+      setGrades(data || []);
+    } catch (e: any) {
       console.error(e);
     }
   };
@@ -103,6 +116,7 @@ export const AppraisalCyclesPage: React.FC = () => {
   useEffect(() => {
     loadCycles();
     loadGroups();
+    loadGrades();
   }, []);
 
   const loadRoster = async (cycleId: string) => {
@@ -173,7 +187,7 @@ export const AppraisalCyclesPage: React.FC = () => {
     await loadCycles();
   };
 
-  // CSV Parsing for Cycle Staff Upload
+  // CSV Parsing for Cycle Staff Upload with strict ESG & RPSA code validation
   const parseCsvText = (text: string) => {
     setCycleUploadText(text);
     const lines = text.trim().split('\n').filter(l => l.trim().length > 0);
@@ -182,8 +196,22 @@ export const AppraisalCyclesPage: React.FC = () => {
       return;
     }
 
+    const formatEsgCode = (raw: string) => {
+      if (!raw) return '';
+      const digits = raw.replace(/\D/g, '');
+      if (digits) return digits.padStart(2, '0');
+      return raw.trim();
+    };
+
+    const formatRpsaCode = (raw: string) => {
+      if (!raw) return '';
+      const digits = raw.replace(/\D/g, '');
+      if (digits) return digits.padStart(4, '0');
+      return raw.trim();
+    };
+
     const firstLine = lines[0].toLowerCase();
-    const hasHeader = firstLine.includes('sap') || firstLine.includes('name') || firstLine.includes('grade');
+    const hasHeader = firstLine.includes('sap') || firstLine.includes('name') || firstLine.includes('esg') || firstLine.includes('grade');
     const dataLines = hasHeader ? lines.slice(1) : lines;
 
     const rows = dataLines.map((line, idx) => {
@@ -191,23 +219,45 @@ export const AppraisalCyclesPage: React.FC = () => {
         ? line.split('\t').map(c => c.trim().replace(/^["']|["']$/g, ''))
         : line.split(',').map(c => c.trim().replace(/^["']|["']$/g, ''));
 
+      const rawEsg = cols[2] || '';
+      const formattedEsg = formatEsgCode(rawEsg);
+      const matchedGrade = grades.find(g => 
+        (g.esgCode && g.esgCode === formattedEsg) || 
+        g.gradeCode?.toLowerCase() === rawEsg.toLowerCase() ||
+        g.gradeName?.toLowerCase() === rawEsg.toLowerCase()
+      );
+
+      const rawRpsa = cols[5] || '';
+      const formattedRpsa = formatRpsaCode(rawRpsa);
+      const matchedGroup = groups.find(rg => 
+        (rg.rpsaCode && rg.rpsaCode === formattedRpsa) || 
+        rg.groupCode?.toLowerCase() === rawRpsa.toLowerCase() ||
+        rg.groupName?.toLowerCase() === rawRpsa.toLowerCase()
+      );
+
       const isMrt = (cols[11] || '').toLowerCase() === 'true' || (cols[11] || '').toLowerCase() === 'yes' || (cols[11] || '') === '1';
+      const isEsgValid = !!matchedGrade;
+      const isRpsaValid = !!matchedGroup;
 
       return {
         id: `row-${idx + 1}`,
         sapId: cols[0] || '',
         fullName: cols[1] || '',
-        grade: cols[2] || 'OG I',
+        esgCode: matchedGrade?.esgCode || formattedEsg,
+        grade: matchedGrade ? matchedGrade.gradeName : rawEsg,
+        isEsgValid,
         designation: cols[3] || 'Operations Officer',
         location: cols[4] || 'Karachi Head Office',
-        reportingGroup: cols[5] || 'Consumer Banking Group',
+        rpsaCode: matchedGroup?.rpsaCode || formattedRpsa,
+        reportingGroup: matchedGroup ? matchedGroup.groupName : rawRpsa,
+        isRpsaValid,
         division: cols[6] || 'Retail Banking Division',
         wingDepartment: cols[7] || 'Branch Operations Wing',
         regionBranch: cols[8] || 'Karachi Main Branch',
         firstAppraiserSapId: cols[9] || '',
         secondAppraiserSapId: cols[10] || '',
         isMrtOrMrc: isMrt,
-        isValid: Boolean(cols[0] && cols[1] && cols[2])
+        isValid: Boolean(cols[0] && cols[1] && isEsgValid && isRpsaValid)
       };
     });
 
@@ -226,12 +276,13 @@ export const AppraisalCyclesPage: React.FC = () => {
   };
 
   const handleDownloadTemplate = () => {
-    const header = "SAP_ID,Full_Name,Grade,Designation,Location,Reporting_Group,Division,Wing_Department,Region_Branch,First_Appraiser_SAP,Second_Appraiser_SAP,Is_MRT_MRC\n";
-    const sample1 = "84920,Fawaz Ahmed,AVP,Assistant Vice President,Karachi Head Office,Commercial Banking Group,Corporate Banking,Relationship Management,Karachi Main,10004,10003,false\n";
-    const sample2 = "91204,Zahid Hussain,OG I,Operations Officer,Karachi,Commercial Banking Group,Operations Division,Commercial Branch,Karachi Central,84920,10004,false\n";
-    const sample3 = "76210,Usman Farooq,AVP,Chief Market Risk Analyst,Head Office Karachi,Risk Management Group,Risk Assessment Division,Risk Assessment,Head Office,10003,10002,true\n";
+    const header = "SapId,FullName,ESG,Designation,Location,RPSA,Division,WingDepartment,RegionBranch,FirstAppraiserSapId,SecondAppraiserSapId,IsMrtOrMrc\n";
+    const sample1 = "84920,Fawaz Ahmed,06,Assistant Vice President,Karachi Head Office,0001,Corporate Banking,Relationship Management,Karachi Main,10004,10003,false\n";
+    const sample2 = "91204,Zahid Hussain,07,Operations Officer,Karachi,0001,Operations Division,Commercial Branch,Karachi Central,84920,10004,false\n";
+    const sample3 = "76210,Usman Farooq,06,Chief Market Risk Analyst,Head Office Karachi,0003,Risk Assessment Division,Risk Assessment,Head Office,10003,10002,true\n";
+    const sample4 = "95101,Tariq Jameel,01,President & CEO,Head Office,0001,Executive,Executive Office,Head Office,10001,10001,false\n";
 
-    const blob = new Blob([header + sample1 + sample2 + sample3], { type: 'text/csv;charset=utf-8;' });
+    const blob = new Blob([header + sample1 + sample2 + sample3 + sample4], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -248,9 +299,11 @@ export const AppraisalCyclesPage: React.FC = () => {
       const payload = cycleParsedRows.map(r => ({
         sapId: r.sapId,
         fullName: r.fullName,
+        esgCode: r.esgCode,
         grade: r.grade,
         designation: r.designation,
         location: r.location,
+        rpsaCode: r.rpsaCode,
         reportingGroup: r.reportingGroup,
         division: r.division,
         wingDepartment: r.wingDepartment,
@@ -532,9 +585,9 @@ export const AppraisalCyclesPage: React.FC = () => {
             <div className="p-6 space-y-4 text-xs">
               <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3.5 bg-emerald-50/80 border border-emerald-200 rounded-xl">
                 <div>
-                  <span className="font-bold text-emerald-950 block text-xs">Standardized NBP Employee CSV/Excel Format</span>
+                  <span className="font-bold text-emerald-950 block text-xs">Standardized NBP Employee CSV/Excel Format (RPSA & ESG Enforced)</span>
                   <p className="text-[11px] text-emerald-800">
-                    Columns: SAP ID, Full Name, Grade, Designation, Location, Reporting Group, Division, Wing, Branch, 1st Appraiser SAP, 2nd Appraiser SAP, MRT Flag.
+                    Columns: SAP ID, Full Name, ESG Code (2-Digit), Designation, Location, RPSA Code (4-Digit), Division, Wing, Branch, 1st Appraiser SAP, 2nd Appraiser SAP, MRT Flag. Free text for Grade & Group is strictly disallowed.
                   </p>
                 </div>
                 <Button variant="outline" size="sm" onClick={handleDownloadTemplate} className="shrink-0 font-bold border-emerald-700/40 text-emerald-900 hover:bg-emerald-100">
@@ -562,11 +615,11 @@ export const AppraisalCyclesPage: React.FC = () => {
 
               {/* Textarea for manual paste */}
               <div>
-                <label className="font-bold text-slate-700 block mb-1">Or Paste CSV/Tab-Separated Text Data:</label>
+                <label className="font-bold text-slate-700 block mb-1">Or Paste CSV/Tab-Separated Text Data (SapId,FullName,ESG,Designation,Location,RPSA,...):</label>
                 <textarea
                   value={cycleUploadText}
                   onChange={(e) => parseCsvText(e.target.value)}
-                  placeholder="84920,Fawaz Ahmed,AVP,Assistant Vice President,Karachi Head Office,Commercial Banking Group,Corporate Banking,Relationship Management,Karachi Main,10004,10003,false"
+                  placeholder="84920,Fawaz Ahmed,06,Assistant Vice President,Karachi Head Office,0001,Corporate Banking,Relationship Management,Karachi Main,10004,10003,false"
                   rows={4}
                   className="w-full p-2.5 font-mono text-xs border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-700"
                 />
@@ -580,7 +633,7 @@ export const AppraisalCyclesPage: React.FC = () => {
                       Parsed Employee Rows ({cycleParsedRows.length} total • {cycleParsedRows.filter(r => r.isValid).length} valid)
                     </span>
                     {cycleParsedRows.some(r => !r.isValid) && (
-                      <Badge variant="danger" className="text-[10px]">Contains rows with missing SAP ID, Name, or Grade</Badge>
+                      <Badge variant="danger" className="text-[10px]">Contains rows with invalid ESG or RPSA code(s)</Badge>
                     )}
                   </div>
 
@@ -590,10 +643,11 @@ export const AppraisalCyclesPage: React.FC = () => {
                         <tr>
                           <th className="p-2">SAP ID</th>
                           <th className="p-2">Full Name</th>
-                          <th className="p-2">Grade</th>
-                          <th className="p-2">Reporting Group</th>
+                          <th className="p-2">ESG (Grade)</th>
+                          <th className="p-2">RPSA (Group)</th>
                           <th className="p-2">1st / 2nd Appraisers</th>
                           <th className="p-2">Assigned Form</th>
+                          <th className="p-2 text-center">Status</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
@@ -602,18 +656,43 @@ export const AppraisalCyclesPage: React.FC = () => {
                             <td className="p-2 font-mono font-bold">{r.sapId || <span className="text-rose-600">Missing</span>}</td>
                             <td className="p-2 font-medium">{r.fullName || <span className="text-rose-600">Missing</span>}</td>
                             <td className="p-2">
-                              <Badge variant="secondary">{r.grade}</Badge>
+                              {r.isEsgValid ? (
+                                <span className="font-mono font-bold text-emerald-900 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                                  {r.esgCode} ({r.grade})
+                                </span>
+                              ) : (
+                                <span className="text-red-600 font-bold bg-red-100 px-1.5 py-0.5 rounded">
+                                  Invalid ESG: {r.esgCode || 'Missing'}
+                                </span>
+                              )}
                               {r.isMrtOrMrc && <Badge variant="danger" className="ml-1 text-[9px]">MRT</Badge>}
                             </td>
-                            <td className="p-2 text-slate-700">{r.reportingGroup}</td>
+                            <td className="p-2">
+                              {r.isRpsaValid ? (
+                                <span className="font-mono font-bold text-blue-900 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
+                                  {r.rpsaCode} ({r.reportingGroup})
+                                </span>
+                              ) : (
+                                <span className="text-red-600 font-bold bg-red-100 px-1.5 py-0.5 rounded">
+                                  Invalid RPSA: {r.rpsaCode || 'Missing'}
+                                </span>
+                              )}
+                            </td>
                             <td className="p-2 font-mono text-[11px]">
                               {r.firstAppraiserSapId && <span>1st: {r.firstAppraiserSapId}</span>}
                               {r.secondAppraiserSapId && <span className="ml-1">2nd: {r.secondAppraiserSapId}</span>}
                             </td>
                             <td className="p-2">
                               <Badge variant="nbp" className="text-[10px]">
-                                {r.isMrtOrMrc ? '5-P Risk BSC' : ['VP', 'SVP', 'EVP', 'SEVP', 'PRESIDENT', 'CEO'].includes((r.grade || '').toUpperCase()) ? '4-P BSC' : 'KPI (70/30)'}
+                                {r.isMrtOrMrc ? '5-P Risk BSC' : ['01', '02', '03', '04', '05'].includes(r.esgCode) || ['VP', 'SVP', 'EVP', 'SEVP', 'PRESIDENT', 'CEO'].includes((r.grade || '').toUpperCase()) ? '4-P BSC' : 'KPI (70/30)'}
                               </Badge>
+                            </td>
+                            <td className="p-2 text-center">
+                              {r.isValid ? (
+                                <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 text-[10px]">Valid</Badge>
+                              ) : (
+                                <Badge className="bg-red-100 text-red-800 border-red-200 text-[10px]">Invalid</Badge>
+                              )}
                             </td>
                           </tr>
                         ))}

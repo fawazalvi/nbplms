@@ -33,6 +33,7 @@ export const EmployeeDataPage: React.FC = () => {
   const [selectedGroup, setSelectedGroup] = useState('All Groups');
   const [selectedGrade, setSelectedGrade] = useState('All Grades');
   const [groups, setGroups] = useState<any[]>([]);
+  const [grades, setGrades] = useState<any[]>([]);
   const [cycles, setCycles] = useState<any[]>([]);
   const [selectedCycleId, setSelectedCycleId] = useState<string>('all');
 
@@ -88,6 +89,15 @@ export const EmployeeDataPage: React.FC = () => {
       if (active && selectedCycleId === 'all') {
         setSelectedCycleId(active.id);
       }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const loadGrades = async () => {
+    try {
+      const gradeData = await api.getGradeMappings();
+      setGrades(gradeData || []);
     } catch (e) {
       console.error(e);
     }
@@ -152,6 +162,7 @@ export const EmployeeDataPage: React.FC = () => {
   useEffect(() => {
     loadCycles();
     loadGroups();
+    loadGrades();
   }, []);
 
   useEffect(() => {
@@ -212,19 +223,7 @@ export const EmployeeDataPage: React.FC = () => {
     try {
       if (isEditing && editingId) {
         await api.updateEmployee(editingId, {
-          fullName: formData.fullName,
-          grade: formData.grade,
-          designation: formData.designation,
-          location: formData.location,
-          reportingGroup: formData.reportingGroup,
-          division: formData.division,
-          wingDepartment: formData.wingDepartment,
-          regionBranch: formData.regionBranch,
-          email: formData.email,
-          isMrtOrMrc: formData.isMrtOrMrc,
-          isActive: formData.isActive,
-          firstAppraiserSapId: formData.firstAppraiserSapId || null,
-          secondAppraiserSapId: formData.secondAppraiserSapId || null,
+          ...formData,
           actorUserId: 'PMW_ADMIN'
         });
         setImportMessage(`Employee '${formData.fullName}' (SAP ID: ${formData.sapId}) updated successfully.`);
@@ -260,13 +259,14 @@ export const EmployeeDataPage: React.FC = () => {
     }
   };
 
-  // Sample CSV Template Generator for Staff Import
+  // Sample CSV Template Generator for Staff Import with strict ESG & RPSA codes
   const handleDownloadSampleCsv = () => {
-    const csvContent = "SapId,FullName,Grade,Designation,Location,ReportingGroup,Division,WingDepartment,RegionBranch,FirstAppraiserSapId,SecondAppraiserSapId,IsMrtOrMrc\n" +
-      "95101,Muhammad Rashid,OG III,Operations Officer,Lahore,Consumer Banking Group,Retail,Branch Operations,Lahore Main,84920,10004,false\n" +
-      "95102,Saima Imran,OG II,Relationship Manager,Karachi,Commercial Banking Group,Commercial,Commercial Branch,Karachi Central,84920,10004,false\n" +
-      "95103,Kamran Akmal,VP,Regional Head,Islamabad,Commercial Banking Group,Corporate,Regional Office,Islamabad,10002,10001,false\n" +
-      "95104,Ali Hassan,AVP,Senior Risk Controller,Karachi,Risk Management Group,Credit Risk,Risk Assessment,Head Office,10003,10002,true";
+    const csvContent = "SapId,FullName,ESG,Designation,Location,RPSA,Division,WingDepartment,RegionBranch,FirstAppraiserSapId,SecondAppraiserSapId,IsMrtOrMrc\n" +
+      "95101,Muhammad Rashid,09,Operations Officer,Lahore,0002,Retail,Branch Operations,Lahore Main,84920,10004,false\n" +
+      "95102,Saima Imran,08,Relationship Manager,Karachi,0001,Commercial,Commercial Branch,Karachi Central,84920,10004,false\n" +
+      "95103,Kamran Akmal,05,Regional Head,Islamabad,0001,Corporate,Regional Office,Islamabad,10002,10001,false\n" +
+      "95104,Ali Hassan,06,Senior Risk Controller,Karachi,0003,Credit Risk,Risk Assessment,Head Office,10003,10002,true\n" +
+      "95105,Tariq Jameel,01,President & CEO,Karachi Head Office,0001,Executive,Executive Office,Head Office,10001,10001,false";
 
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -309,13 +309,27 @@ export const EmployeeDataPage: React.FC = () => {
     reader.readAsText(file);
   };
 
-  // CSV Text Parser for Staff Import
+  // CSV Text Parser for Staff Import with strict ESG & RPSA code validation
   const parseCsv = (text: string) => {
     const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
     if (lines.length <= 1) {
       setParsedRows([]);
       return;
     }
+
+    const formatEsgCode = (raw: string) => {
+      if (!raw) return '';
+      const digits = raw.replace(/\D/g, '');
+      if (digits) return digits.padStart(2, '0');
+      return raw.trim();
+    };
+
+    const formatRpsaCode = (raw: string) => {
+      if (!raw) return '';
+      const digits = raw.replace(/\D/g, '');
+      if (digits) return digits.padStart(4, '0');
+      return raw.trim();
+    };
 
     const rows = [];
     for (let i = 1; i < lines.length; i++) {
@@ -324,38 +338,60 @@ export const EmployeeDataPage: React.FC = () => {
 
       const sapId = cols[0] || '';
       const fullName = cols[1] || '';
-      const grade = cols[2] || '';
+      const rawEsg = cols[2] || '';
+      const formattedEsg = formatEsgCode(rawEsg);
+      const matchedGrade = grades.find(g => 
+        (g.esgCode && g.esgCode === formattedEsg) || 
+        g.gradeCode?.toLowerCase() === rawEsg.toLowerCase() ||
+        g.gradeName?.toLowerCase() === rawEsg.toLowerCase()
+      );
+
       const designation = cols[3] || 'Officer';
       const location = cols[4] || 'Head Office';
-      const reportingGroup = cols[5] || 'General Banking';
+      const rawRpsa = cols[5] || '';
+      const formattedRpsa = formatRpsaCode(rawRpsa);
+      const matchedGroup = groups.find(rg => 
+        (rg.rpsaCode && rg.rpsaCode === formattedRpsa) || 
+        rg.groupCode?.toLowerCase() === rawRpsa.toLowerCase() ||
+        rg.groupName?.toLowerCase() === rawRpsa.toLowerCase()
+      );
+
       const division = cols[6] || 'Operations';
       const wingDepartment = cols[7] || 'General';
       const regionBranch = cols[8] || 'Karachi Main';
       const firstAppraiserSapId = cols[9] || '';
       const secondAppraiserSapId = cols[10] || '';
-      const isMrtOrMrc = cols[11]?.toLowerCase() === 'true';
+      const isMrtOrMrc = (cols[11] || '').toLowerCase() === 'true' || (cols[11] || '').toLowerCase() === 'yes' || cols[11] === '1';
+
+      const isEsgValid = !!matchedGrade;
+      const isRpsaValid = !!matchedGroup;
 
       let formType = "KPI Form (70/30)";
       if (isMrtOrMrc) {
         formType = "Risk-Adjusted BSC (5-Perspective)";
-      } else if (["VP", "SVP", "EVP", "SEVP", "PRESIDENT", "CEO", "PRESIDENT/CEO"].includes(grade.toUpperCase())) {
+      } else if (matchedGrade?.defaultFormType === 'BALANCED_SCORECARD' || ['01', '02', '03', '04', '05'].includes(matchedGrade?.esgCode || formattedEsg)) {
         formType = "Balanced Scorecard (4-Perspective)";
       }
 
       rows.push({
         sapId,
         fullName,
-        grade,
+        esgCode: matchedGrade?.esgCode || formattedEsg,
+        grade: matchedGrade ? matchedGrade.gradeName : rawEsg,
+        isEsgValid,
         designation,
         location,
-        reportingGroup,
+        rpsaCode: matchedGroup?.rpsaCode || formattedRpsa,
+        reportingGroup: matchedGroup ? matchedGroup.groupName : rawRpsa,
+        isRpsaValid,
         division,
         wingDepartment,
         regionBranch,
         firstAppraiserSapId,
         secondAppraiserSapId,
         isMrtOrMrc,
-        formType
+        formType,
+        isValid: isEsgValid && isRpsaValid && Boolean(sapId && fullName)
       });
     }
 
@@ -394,9 +430,11 @@ export const EmployeeDataPage: React.FC = () => {
       const payload = parsedRows.map(r => ({
         sapId: r.sapId,
         fullName: r.fullName,
+        esgCode: r.esgCode,
         grade: r.grade,
         designation: r.designation,
         location: r.location,
+        rpsaCode: r.rpsaCode,
         reportingGroup: r.reportingGroup,
         division: r.division,
         wingDepartment: r.wingDepartment,
@@ -1132,7 +1170,7 @@ export const EmployeeDataPage: React.FC = () => {
                 />
                 <Upload className="h-8 w-8 mx-auto text-emerald-700 mb-2" />
                 <p className="font-bold text-slate-800 text-sm">Choose or Drop CSV / XLSX Staff File</p>
-                <p className="text-slate-500 text-[11px] mt-1">Supports SAP ID, Name, Grade, Designation, Appraiser SAP IDs, & MRT/MRC flags</p>
+                <p className="text-slate-500 text-[11px] mt-1">Required: Grade via 2-digit ESG Code (e.g. 09, 06, 01) & Group via 4-digit RPSA Code (e.g. 0001, 0002). Free text is disallowed.</p>
                 <Button
                   variant="gold"
                   size="sm"
@@ -1145,7 +1183,7 @@ export const EmployeeDataPage: React.FC = () => {
 
               {/* Or Direct CSV Input */}
               <div>
-                <label className="font-bold text-slate-700 block mb-1">Or Paste CSV Data Directly:</label>
+                <label className="font-bold text-slate-700 block mb-1">Or Paste CSV Data Directly (SapId,FullName,ESG,Designation,Location,RPSA,...):</label>
                 <textarea
                   rows={4}
                   value={csvText}
@@ -1153,7 +1191,7 @@ export const EmployeeDataPage: React.FC = () => {
                     setCsvText(e.target.value);
                     parseCsv(e.target.value);
                   }}
-                  placeholder="SapId,FullName,Grade,Designation,Location,ReportingGroup,Division,WingDepartment,RegionBranch,FirstAppraiserSapId,SecondAppraiserSapId,IsMrtOrMrc"
+                  placeholder="SapId,FullName,ESG,Designation,Location,RPSA,Division,WingDepartment,RegionBranch,FirstAppraiserSapId,SecondAppraiserSapId,IsMrtOrMrc&#10;95101,Muhammad Rashid,09,Operations Officer,Lahore,0002,Retail,Branch Operations,Lahore Main,84920,10004,false"
                   className="w-full p-2 text-xs font-mono bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-700"
                 />
               </div>
@@ -1163,26 +1201,61 @@ export const EmployeeDataPage: React.FC = () => {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="font-bold text-slate-800 text-xs">Validation Preview ({parsedRows.length} Rows Parsed):</span>
-                    <Badge variant="nbp">{parsedRows.length} Valid Staff Records</Badge>
+                    <div className="flex items-center space-x-2">
+                      <Badge variant="nbp">{parsedRows.filter(r => r.isValid).length} Valid Records</Badge>
+                      {parsedRows.some(r => !r.isValid) && (
+                        <Badge variant="danger">{parsedRows.filter(r => !r.isValid).length} Invalid Code(s)</Badge>
+                      )}
+                    </div>
                   </div>
 
-                  <div className="max-h-40 overflow-y-auto border border-slate-200 rounded-lg">
+                  <div className="max-h-48 overflow-y-auto border border-slate-200 rounded-lg">
                     <table className="w-full text-[11px] text-left">
                       <thead className="bg-slate-100 font-bold uppercase text-slate-600 sticky top-0">
                         <tr>
                           <th className="p-2">SAP ID</th>
                           <th className="p-2">Name</th>
-                          <th className="p-2">Grade</th>
-                          <th className="p-2">Assigned Form Type</th>
+                          <th className="p-2">ESG (Grade)</th>
+                          <th className="p-2">RPSA (Group)</th>
+                          <th className="p-2">Form Engine</th>
+                          <th className="p-2 text-center">Status</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
                         {parsedRows.map((r, i) => (
-                          <tr key={i} className="hover:bg-slate-50">
+                          <tr key={i} className={`hover:bg-slate-50 ${!r.isValid ? 'bg-red-50/50' : ''}`}>
                             <td className="p-2 font-mono font-bold">{r.sapId}</td>
                             <td className="p-2 font-semibold">{r.fullName}</td>
-                            <td className="p-2">{r.grade}</td>
+                            <td className="p-2">
+                              {r.isEsgValid ? (
+                                <span className="font-mono font-bold text-emerald-900 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                                  {r.esgCode} ({r.grade})
+                                </span>
+                              ) : (
+                                <span className="text-red-600 font-bold bg-red-100 px-1.5 py-0.5 rounded">
+                                  Invalid ESG: {r.esgCode || 'Missing'}
+                                </span>
+                              )}
+                            </td>
+                            <td className="p-2">
+                              {r.isRpsaValid ? (
+                                <span className="font-mono font-bold text-blue-900 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
+                                  {r.rpsaCode} ({r.reportingGroup})
+                                </span>
+                              ) : (
+                                <span className="text-red-600 font-bold bg-red-100 px-1.5 py-0.5 rounded">
+                                  Invalid RPSA: {r.rpsaCode || 'Missing'}
+                                </span>
+                              )}
+                            </td>
                             <td className="p-2 text-emerald-700 font-bold">{r.formType}</td>
+                            <td className="p-2 text-center">
+                              {r.isValid ? (
+                                <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 text-[10px]">Valid</Badge>
+                              ) : (
+                                <Badge className="bg-red-100 text-red-800 border-red-200 text-[10px]">Invalid</Badge>
+                              )}
+                            </td>
                           </tr>
                         ))}
                       </tbody>

@@ -8,16 +8,18 @@ namespace Nbp.Pms.Infrastructure.Services;
 public record EmployeeImportRowDto(
     string SapId,
     string FullName,
-    string Grade,
-    string Designation,
-    string Location,
-    string ReportingGroup,
-    string Division,
-    string WingDepartment,
-    string RegionBranch,
+    string? EsgCode,
+    string? Designation,
+    string? Location,
+    string? RpsaCode,
+    string? Division,
+    string? WingDepartment,
+    string? RegionBranch,
     string? FirstAppraiserSapId,
     string? SecondAppraiserSapId,
-    bool IsMrtOrMrc
+    bool IsMrtOrMrc = false,
+    string? Grade = null,
+    string? ReportingGroup = null
 );
 
 public record ImportResultDto(
@@ -42,13 +44,42 @@ public class EmployeeImportService
         _db = db;
     }
 
+    private static string? FormatEsg(string? code)
+    {
+        if (string.IsNullOrWhiteSpace(code)) return null;
+        string digits = new string(code.Where(char.IsDigit).ToArray());
+        if (int.TryParse(digits, out int num))
+        {
+            return num.ToString("D2");
+        }
+        return code.Trim();
+    }
+
+    private static string? FormatRpsa(string? code)
+    {
+        if (string.IsNullOrWhiteSpace(code)) return null;
+        string digits = new string(code.Where(char.IsDigit).ToArray());
+        if (int.TryParse(digits, out int num))
+        {
+            return num.ToString("D4");
+        }
+        return code.Trim();
+    }
+
     public async Task<ImportResultDto> ProcessImportAsync(List<EmployeeImportRowDto> rows, Guid? targetCycleId = null, string actorUserId = "PMW_ADMIN")
     {
         var errors = new List<string>();
         var importedList = new List<Employee>();
         var employeeMap = new Dictionary<string, Employee>();
 
-        // 1. Process Employee records
+        // Load valid master data for strict code verification
+        var gradeMappings = await _db.GradeMappings.ToListAsync();
+        var reportingGroups = await _db.ReportingGroups.ToListAsync();
+
+        var validEsgList = string.Join(", ", gradeMappings.OrderBy(g => g.RankOrder).Select(g => $"{g.EsgCode} ({g.GradeName})"));
+        var validRpsaList = string.Join(", ", reportingGroups.OrderBy(g => g.RpsaCode).Select(g => $"{g.RpsaCode} ({g.GroupName})"));
+
+        // 1. Process and strictly validate Employee records
         for (int i = 0; i < rows.Count; i++)
         {
             var row = rows[i];
@@ -66,9 +97,41 @@ public class EmployeeImportService
                 continue;
             }
 
-            if (string.IsNullOrWhiteSpace(row.Grade))
+            // Strictly validate Grade via ESG code (Free text is strictly disallowed)
+            string? rawEsg = !string.IsNullOrWhiteSpace(row.EsgCode) ? row.EsgCode : row.Grade;
+            if (string.IsNullOrWhiteSpace(rawEsg))
             {
-                errors.Add($"Row {rowNum} (SAP {row.SapId}): Missing Grade.");
+                errors.Add($"Row {rowNum} (SAP {row.SapId}): Missing Grade ESG code. Free text is not allowed. Available ESG codes: {validEsgList}");
+                continue;
+            }
+
+            string? formattedEsg = FormatEsg(rawEsg);
+            var matchedGrade = gradeMappings.FirstOrDefault(g => 
+                (formattedEsg != null && g.EsgCode == formattedEsg) ||
+                string.Equals(g.GradeCode, rawEsg.Trim(), StringComparison.OrdinalIgnoreCase));
+
+            if (matchedGrade == null)
+            {
+                errors.Add($"Row {rowNum} (SAP {row.SapId}): Invalid Grade ESG code '{rawEsg}'. Free text is strictly not allowed. Must provide a valid 2-digit ESG code: {validEsgList}");
+                continue;
+            }
+
+            // Strictly validate Reporting Group via RPSA code (Free text is strictly disallowed)
+            string? rawRpsa = !string.IsNullOrWhiteSpace(row.RpsaCode) ? row.RpsaCode : row.ReportingGroup;
+            if (string.IsNullOrWhiteSpace(rawRpsa))
+            {
+                errors.Add($"Row {rowNum} (SAP {row.SapId}): Missing Reporting Group RPSA code. Free text is not allowed. Available RPSA codes: {validRpsaList}");
+                continue;
+            }
+
+            string? formattedRpsa = FormatRpsa(rawRpsa);
+            var matchedGroup = reportingGroups.FirstOrDefault(rg => 
+                (formattedRpsa != null && rg.RpsaCode == formattedRpsa) ||
+                string.Equals(rg.GroupCode, rawRpsa.Trim(), StringComparison.OrdinalIgnoreCase));
+
+            if (matchedGroup == null)
+            {
+                errors.Add($"Row {rowNum} (SAP {row.SapId}): Invalid Reporting Group RPSA code '{rawRpsa}'. Free text is strictly not allowed. Must provide a valid 4-digit RPSA code: {validRpsaList}");
                 continue;
             }
 
@@ -80,10 +143,10 @@ public class EmployeeImportService
             {
                 emp = existing;
                 emp.FullName = row.FullName.Trim();
-                emp.Grade = row.Grade.Trim();
+                emp.Grade = matchedGrade.GradeName;
                 emp.Designation = row.Designation?.Trim() ?? "Officer";
                 emp.Location = row.Location?.Trim() ?? "Head Office";
-                emp.ReportingGroup = row.ReportingGroup?.Trim() ?? "General Banking";
+                emp.ReportingGroup = matchedGroup.GroupName;
                 emp.Division = row.Division?.Trim() ?? "Operations";
                 emp.WingDepartment = row.WingDepartment?.Trim() ?? "General";
                 emp.RegionBranch = row.RegionBranch?.Trim() ?? "Karachi Main";
@@ -97,10 +160,10 @@ public class EmployeeImportService
                     Id = Guid.NewGuid(),
                     SapId = row.SapId.Trim(),
                     FullName = row.FullName.Trim(),
-                    Grade = row.Grade.Trim(),
+                    Grade = matchedGrade.GradeName,
                     Designation = row.Designation?.Trim() ?? "Officer",
                     Location = row.Location?.Trim() ?? "Head Office",
-                    ReportingGroup = row.ReportingGroup?.Trim() ?? "General Banking",
+                    ReportingGroup = matchedGroup.GroupName,
                     Division = row.Division?.Trim() ?? "Operations",
                     WingDepartment = row.WingDepartment?.Trim() ?? "General",
                     RegionBranch = row.RegionBranch?.Trim() ?? "Karachi Main",
@@ -112,6 +175,17 @@ public class EmployeeImportService
 
             employeeMap[emp.SapId] = emp;
             importedList.Add(emp);
+        }
+
+        if (importedList.Count == 0 && errors.Count > 0)
+        {
+            return new ImportResultDto(
+                TotalProcessed: rows.Count,
+                SuccessfulImports: 0,
+                ErrorCount: errors.Count,
+                ValidationErrors: errors,
+                ImportedEmployees: importedList
+            );
         }
 
         // 2. Link Appraiser SAP IDs
@@ -187,7 +261,12 @@ public class EmployeeImportService
             var empCycle = await _db.EmployeeCycles
                 .FirstOrDefaultAsync(ec => ec.CycleId == cycle.Id && ec.EmployeeId == emp.Id);
 
-            var formType = DetermineFormType(row.Grade, row.IsMrtOrMrc);
+            var matchedGrade = gradeMappings.FirstOrDefault(g => g.GradeName == emp.Grade);
+            var formType = row.IsMrtOrMrc
+                ? FormType.RiskAdjustedBsc
+                : (matchedGrade?.DefaultFormType == "BALANCED_SCORECARD" || VpAndAboveGrades.Contains(emp.Grade)
+                    ? FormType.BalancedScorecard
+                    : FormType.KpiForm);
 
             if (empCycle == null)
             {
@@ -197,9 +276,9 @@ public class EmployeeImportService
                     CycleId = cycle.Id,
                     AssignedFormType = formType,
                     CurrentStatus = WorkflowStatus.ObjectiveDraft,
-                    SnapshotGrade = row.Grade.Trim(),
+                    SnapshotGrade = emp.Grade,
                     SnapshotDesignation = row.Designation?.Trim() ?? emp.Designation,
-                    SnapshotReportingGroup = row.ReportingGroup?.Trim() ?? emp.ReportingGroup,
+                    SnapshotReportingGroup = emp.ReportingGroup,
                     SnapshotDivision = row.Division?.Trim() ?? emp.Division,
                     SnapshotWingDepartment = row.WingDepartment?.Trim() ?? emp.WingDepartment,
                     SnapshotRegionBranch = row.RegionBranch?.Trim() ?? emp.RegionBranch,
@@ -215,9 +294,9 @@ public class EmployeeImportService
             else
             {
                 // Update snapshot values for this specific cycle
-                empCycle.SnapshotGrade = row.Grade.Trim();
+                empCycle.SnapshotGrade = emp.Grade;
                 empCycle.SnapshotDesignation = row.Designation?.Trim() ?? emp.Designation;
-                empCycle.SnapshotReportingGroup = row.ReportingGroup?.Trim() ?? emp.ReportingGroup;
+                empCycle.SnapshotReportingGroup = emp.ReportingGroup;
                 empCycle.SnapshotDivision = row.Division?.Trim() ?? emp.Division;
                 empCycle.SnapshotWingDepartment = row.WingDepartment?.Trim() ?? emp.WingDepartment;
                 empCycle.SnapshotRegionBranch = row.RegionBranch?.Trim() ?? emp.RegionBranch;
@@ -236,7 +315,7 @@ public class EmployeeImportService
             EventType = "BULK_EMPLOYEE_IMPORT_EXECUTED",
             ActorUserId = actorUserId,
             ActorRole = "PmwAdmin",
-            ActionDescription = $"Bulk import uploaded {importedList.Count} employee records into Cycle '{cycle.Title}' with frozen historical snapshot attributes.",
+            ActionDescription = $"Bulk import uploaded {importedList.Count} employee records into Cycle '{cycle.Title}' with strict ESG ({validEsgList}) and RPSA ({validRpsaList}) validation.",
             Timestamp = DateTime.UtcNow
         };
         _db.AuditEvents.Add(audit);
