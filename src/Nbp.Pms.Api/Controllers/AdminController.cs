@@ -44,21 +44,33 @@ public class AdminController : ControllerBase
     }
 
     /// <summary>
-    /// Wipes all database tables cleanly.
+    /// Wipes all database tables cleanly. Restricted exclusively to PMW Super Admin.
     /// </summary>
     [HttpPost("clean")]
-    public async Task<IActionResult> CleanDatabase()
+    public async Task<IActionResult> CleanDatabase([FromQuery] string? role = null, [FromHeader(Name = "X-User-Role")] string? headerRole = null)
     {
+        var effectiveRole = headerRole ?? role;
+        if (!string.Equals(effectiveRole, "PmwSuperAdmin", StringComparison.OrdinalIgnoreCase))
+        {
+            return StatusCode(403, new { message = "Access Denied. Database tools are restricted exclusively to PMW Super Admin." });
+        }
+
         await _seeder.CleanDatabaseAsync();
         return Ok(new { message = "Database cleaned successfully. All tables reset.", timestamp = DateTime.UtcNow });
     }
 
     /// <summary>
-    /// Wipes and populates realistic NBP sample data into Microsoft SQL Server.
+    /// Wipes and populates realistic NBP sample data into Microsoft SQL Server. Restricted exclusively to PMW Super Admin.
     /// </summary>
     [HttpPost("seed")]
-    public async Task<IActionResult> SeedDatabase()
+    public async Task<IActionResult> SeedDatabase([FromQuery] string? role = null, [FromHeader(Name = "X-User-Role")] string? headerRole = null)
     {
+        var effectiveRole = headerRole ?? role;
+        if (!string.Equals(effectiveRole, "PmwSuperAdmin", StringComparison.OrdinalIgnoreCase))
+        {
+            return StatusCode(403, new { message = "Access Denied. Database tools are restricted exclusively to PMW Super Admin." });
+        }
+
         await _seeder.CleanDatabaseAsync();
         await _seeder.SeedDatabaseAsync();
 

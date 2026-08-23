@@ -92,19 +92,21 @@ export const Navbar: React.FC<NavbarProps> = ({ userRole, currentUser, onRoleCha
           </div>
 
           <div className="flex items-center space-x-3">
-            {/* Database Tools Admin Control Button */}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                fetchStatus();
-                setShowDbModal(true);
-              }}
-              className="text-xs font-bold border-emerald-700/40 text-emerald-900 hover:bg-emerald-50"
-            >
-              <Database className="h-4 w-4 mr-1 text-emerald-700" />
-              <span>Database Tools</span>
-            </Button>
+            {/* Database Tools Admin Control Button — Strictly restricted to PMW Super Admin */}
+            {userRole === 'PmwSuperAdmin' && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  fetchStatus();
+                  setShowDbModal(true);
+                }}
+                className="text-xs font-bold border-emerald-700/40 text-emerald-900 hover:bg-emerald-50"
+              >
+                <Database className="h-4 w-4 mr-1 text-emerald-700" />
+                <span>Database Tools</span>
+              </Button>
+            )}
 
             {/* Active Role Selector */}
             <div className="flex items-center space-x-2 bg-slate-100/80 p-1.5 rounded-lg border border-slate-200">
@@ -154,8 +156,8 @@ export const Navbar: React.FC<NavbarProps> = ({ userRole, currentUser, onRoleCha
         </div>
       </header>
 
-      {/* Database Tools Centered Viewport Overlay Modal */}
-      {showDbModal && (
+      {/* Database Tools Centered Viewport Overlay Modal — Strictly restricted to PMW Super Admin */}
+      {showDbModal && userRole === 'PmwSuperAdmin' && (
         <div className="fixed inset-0 z-[100] bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
           <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-200 my-auto">
             <div className="bg-gradient-to-r from-slate-950 via-emerald-950 to-teal-950 p-5 text-white flex items-center justify-between">

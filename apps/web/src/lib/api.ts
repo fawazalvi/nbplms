@@ -18,10 +18,10 @@ export async function fetchApi<T>(endpoint: string, options?: RequestInit): Prom
 }
 
 export const api = {
-  // Database Seeder & Clean Admin Tools
+  // Database Seeder & Clean Admin Tools (Exclusively for PMW Super Admin)
   getDbStatus: () => fetchApi<{ [key: string]: any }>('/Admin/status'),
-  seedDb: () => fetchApi<{ message: string; recordCounts: any }>('/Admin/seed', { method: 'POST' }),
-  cleanDb: () => fetchApi<{ message: string }>('/Admin/clean', { method: 'POST' }),
+  seedDb: (role = 'PmwSuperAdmin') => fetchApi<{ message: string; recordCounts: any }>(`/Admin/seed?role=${encodeURIComponent(role)}`, { method: 'POST' }),
+  cleanDb: (role = 'PmwSuperAdmin') => fetchApi<{ message: string }>(`/Admin/clean?role=${encodeURIComponent(role)}`, { method: 'POST' }),
 
   // Organization Management (Reporting Groups & Grades)
   getReportingGroups: () => fetchApi<any[]>('/Organization/groups'),

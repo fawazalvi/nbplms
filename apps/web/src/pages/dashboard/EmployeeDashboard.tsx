@@ -153,7 +153,7 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = ({ onNavigate
                 ))
               ) : (
                 <div className="p-6 text-center text-xs text-slate-500 border border-dashed border-slate-200 rounded-xl">
-                  No objectives found in database. Click <strong>"Database Tools" ➔ "Seed Sample NBP Data"</strong> in the top bar to populate database records!
+                  No objectives found for the active cycle. Contact PMW Admin or your Appraiser for assistance.
                 </div>
               )}
             </CardContent>
