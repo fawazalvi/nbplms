@@ -53,9 +53,7 @@ export const Navbar: React.FC<NavbarProps> = ({ userRole, currentUser, onRoleCha
               onChange={(e) => onRoleChange(e.target.value)}
               className="bg-transparent text-xs font-bold text-slate-800 focus:outline-none cursor-pointer pr-2"
             >
-              <option value="Employee">Employee</option>
-              <option value="FirstAppraiser">First Appraiser</option>
-              <option value="SecondAppraiser">Second Appraiser</option>
+              <option value="EndUser">End User (Staff & Appraiser)</option>
               <option value="GroupPerformanceManager">Group Perf. Manager (GPM)</option>
               <option value="PmwAdmin">PMW Admin</option>
               <option value="PmwSuperAdmin">PMW Super Admin</option>

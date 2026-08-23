@@ -25,15 +25,19 @@ public class AppraisersController : ControllerBase
     [HttpGet("team-reviews")]
     public async Task<IActionResult> GetTeamReviews([FromQuery] string appraiserSapId = "10004")
     {
-        var appraiser = await _db.Employees.FirstOrDefaultAsync(e => e.SapId == appraiserSapId);
-        if (appraiser == null) return NotFound(new { message = "Appraiser not found." });
+        var appraiser = await _db.Employees.FirstOrDefaultAsync(e => e.SapId == appraiserSapId || e.Email == appraiserSapId);
+        var appraiserId = appraiser?.Id ?? Guid.Empty;
 
         var reviews = await _db.EmployeeCycles
             .Include(ec => ec.Employee)
             .Include(ec => ec.Cycle)
             .Include(ec => ec.FirstAppraiser)
             .Include(ec => ec.SecondAppraiser)
-            .Where(ec => ec.FirstAppraiserId == appraiser.Id || ec.SecondAppraiserId == appraiser.Id || ec.PendingFirstAppraiserSapId == appraiserSapId || ec.PendingSecondAppraiserSapId == appraiserSapId)
+            .Where(ec => (appraiserId != Guid.Empty && (ec.FirstAppraiserId == appraiserId || ec.SecondAppraiserId == appraiserId)) || 
+                         ec.PendingFirstAppraiserSapId == appraiserSapId || 
+                         ec.PendingSecondAppraiserSapId == appraiserSapId ||
+                         (ec.FirstAppraiser != null && ec.FirstAppraiser.SapId == appraiserSapId) ||
+                         (ec.SecondAppraiser != null && ec.SecondAppraiser.SapId == appraiserSapId))
             .Select(ec => new
             {
                 ec.Id,

@@ -866,9 +866,7 @@ public class DbSeederService
                 {
                     "President/CEO" => "PmwSuperAdmin",
                     "SEVP" => "PmwAdmin",
-                    "SVP" => "SecondAppraiser",
-                    "VP" => "FirstAppraiser",
-                    _ => "Employee"
+                    _ => "EndUser"
                 };
 
                 _db.SystemUsers.Add(new SystemUser

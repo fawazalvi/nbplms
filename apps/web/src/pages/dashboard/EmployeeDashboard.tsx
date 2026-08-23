@@ -167,20 +167,51 @@ export const EmployeeDashboard: React.FC<EmployeeDashboardProps> = ({ onNavigate
                 <ShieldCheck className="h-5 w-5 text-emerald-400" />
                 <span>Field Encryption Active</span>
               </CardTitle>
-              <CardDescription className="text-slate-300">
+              <CardDescription className="text-slate-300 text-xs">
                 Scores and confidential feedback are encrypted using AES-256-GCM application-layer encryption in SQL Server.
               </CardDescription>
             </CardHeader>
           </Card>
 
+          <Card className="border-emerald-200 bg-emerald-50/40">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-bold text-emerald-950 flex items-center justify-between">
+                <span>Appraiser Line Status</span>
+                <Badge variant={empCycle?.appraiserValidationStatus === 'Validated' ? 'nbp' : 'warning'} className="text-[10px]">
+                  {empCycle?.appraiserValidationStatus || 'Pending'}
+                </Badge>
+              </CardTitle>
+              <CardDescription className="text-xs text-slate-600">
+                1st: <strong>{firstAppraiser?.fullName || 'Tariq Mahmood'}</strong> | 2nd: <strong>{secondAppraiser?.fullName || 'Rashid Khan'}</strong>
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-2 flex items-center justify-between">
+              <span className="text-[11px] text-slate-500">Need to update hierarchy?</span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onNavigate && onNavigate('appraiser-setup')}
+                className="text-xs font-bold text-emerald-900 border-emerald-300 bg-white hover:bg-emerald-50"
+              >
+                Appraiser Setup
+              </Button>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
-              <CardTitle className="text-sm font-bold text-slate-900">Need Guidance?</CardTitle>
+              <CardTitle className="text-sm font-bold text-slate-900">Conducting Appraisals?</CardTitle>
+              <CardDescription className="text-xs">If staff nominated you as 1st or 2nd Appraiser</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-2 text-xs text-slate-600">
-              <p>• SMART Objectives writing guide</p>
-              <p>• Rating scale definitions</p>
-              <p>• HR Circular Ref: NBP/HR/2026/041</p>
+            <CardContent className="pt-0">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onNavigate && onNavigate('team-reviews')}
+                className="w-full text-xs font-bold"
+              >
+                Open Team Reviews Inbox
+              </Button>
             </CardContent>
           </Card>
         </div>

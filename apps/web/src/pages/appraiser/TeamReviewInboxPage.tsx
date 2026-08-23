@@ -7,6 +7,7 @@ import { api } from '@/lib/api';
 import { Users, FileCheck2, RefreshCw, ChevronRight, UserCheck, CheckCircle2, XCircle, AlertCircle, X, ShieldCheck } from 'lucide-react';
 
 export const TeamReviewInboxPage: React.FC = () => {
+  const [currentAppraiserSapId, setCurrentAppraiserSapId] = useState('10004');
   const [reviews, setReviews] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'appraisals' | 'confirmations'>('appraisals');
@@ -24,10 +25,10 @@ export const TeamReviewInboxPage: React.FC = () => {
   const [rejectionReason, setRejectionReason] = useState('');
   const [rejecting, setRejecting] = useState(false);
 
-  const loadReviews = async () => {
+  const loadReviews = async (sapId = currentAppraiserSapId) => {
     setLoading(true);
     try {
-      const data = await api.getTeamReviews('10004'); // Tariq Mahmood (VP)
+      const data = await api.getTeamReviews(sapId || '10004');
       setReviews(data);
     } catch (e: any) {
       console.error(e);
@@ -37,8 +38,8 @@ export const TeamReviewInboxPage: React.FC = () => {
   };
 
   useEffect(() => {
-    loadReviews();
-  }, []);
+    loadReviews(currentAppraiserSapId);
+  }, [currentAppraiserSapId]);
 
   const pendingConfirmations = reviews.filter(r => r.appraiserValidationStatus === 'PendingConfirmation');
 
@@ -107,10 +108,25 @@ export const TeamReviewInboxPage: React.FC = () => {
             Review submitted employee self-assessments, confirm reporting lines, and evaluate objectives.
           </p>
         </div>
-        <Button variant="secondary" size="sm" onClick={loadReviews}>
-          <RefreshCw className="h-4 w-4 mr-1" />
-          Refresh Team List
-        </Button>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+          <div className="flex items-center space-x-2 bg-white/10 p-1.5 rounded-xl border border-white/20 text-xs">
+            <span className="text-slate-300 font-bold">Appraiser Context:</span>
+            <select
+              value={currentAppraiserSapId}
+              onChange={(e) => setCurrentAppraiserSapId(e.target.value)}
+              className="bg-slate-800 text-emerald-300 font-mono font-bold rounded-lg px-2.5 py-1 text-xs focus:outline-none border border-slate-700"
+            >
+              <option value="10004">10004 — Tariq Mahmood (VP)</option>
+              <option value="10003">10003 — Rashid Khan (SVP)</option>
+              <option value="10002">10002 — Khalid Farooq (SEVP)</option>
+              <option value="84920">84920 — Fawaz Ahmed (AVP)</option>
+            </select>
+          </div>
+          <Button variant="secondary" size="sm" onClick={() => loadReviews(currentAppraiserSapId)}>
+            <RefreshCw className="h-4 w-4 mr-1" />
+            Refresh Team List
+          </Button>
+        </div>
       </div>
 
       {message && (

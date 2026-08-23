@@ -18,7 +18,8 @@ import {
   Scale,
   Sparkles,
   Layers,
-  Database
+  Database,
+  GraduationCap
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -132,45 +133,32 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentRole, activeTab, onTabC
           }
         ];
 
+      case 'EndUser':
+      case 'Employee':
       case 'FirstAppraiser':
       case 'SecondAppraiser':
+      default:
         return [
           {
-            title: 'Appraiser Workspace',
+            title: 'My Performance & Goals',
             items: [
-              { id: 'dashboard', label: 'Review Dashboard', icon: LayoutDashboard },
+              { id: 'dashboard', label: 'My Performance Center', icon: LayoutDashboard },
+              { id: 'my-appraisal', label: 'My Appraisal & Objectives', icon: FileCheck },
+              { id: 'appraiser-setup', label: 'My Appraiser Line Setup', icon: UserCog },
+              { id: 'my-dev-review', label: 'My Development Feedback', icon: GraduationCap },
+            ]
+          },
+          {
+            title: 'Appraisals to Conduct (Team / Peers)',
+            items: [
               { id: 'team-reviews', label: 'Team Reviews Inbox', icon: Users },
-              { id: 'dev-reviews', label: 'Development Reviews', icon: BarChart3 },
+              { id: 'dev-reviews', label: 'Team Development Reviews', icon: BarChart3 },
             ]
           },
           {
-            title: 'My Self-Assessment',
+            title: 'Support & Policy',
             items: [
-              { id: 'my-appraisal', label: 'My Appraisal Form', icon: FileCheck },
-            ]
-          },
-          {
-            title: 'Guidance',
-            items: [
-              { id: 'help', label: 'Help & Policies', icon: HelpCircle },
-            ]
-          }
-        ];
-
-      default: // Employee
-        return [
-          {
-            title: 'My Appraisal Portal',
-            items: [
-              { id: 'dashboard', label: 'My Dashboard', icon: LayoutDashboard },
-              { id: 'my-appraisal', label: 'My Appraisal Form', icon: FileCheck },
-              { id: 'dev-review', label: 'Development Review', icon: BarChart3 },
-            ]
-          },
-          {
-            title: 'Resources',
-            items: [
-              { id: 'help', label: 'Help & Policy Circulars', icon: HelpCircle },
+              { id: 'help', label: 'Policy, Circulars & FAQs', icon: HelpCircle },
             ]
           }
         ];

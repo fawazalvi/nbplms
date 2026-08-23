@@ -35,7 +35,7 @@ export const RiskAdjustmentItem: React.FC<RiskAdjustmentItemProps> = ({
   readOnly = false,
 }) => {
   const [expanded, setExpanded] = useState(true);
-  const isAppraiser = ['FirstAppraiser', 'SecondAppraiser', 'PmwAdmin', 'PmwSuperAdmin'].includes(userRole);
+  const isAppraiser = ['EndUser', 'FirstAppraiser', 'SecondAppraiser', 'PmwAdmin', 'PmwSuperAdmin'].includes(userRole);
 
   return (
     <div className="p-4 rounded-2xl bg-white border border-rose-200/90 shadow-xs hover:shadow-sm transition-all space-y-3">

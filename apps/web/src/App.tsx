@@ -21,11 +21,12 @@ import { OrganizationManagementPage } from './pages/admin/OrganizationManagement
 import { EmailConfigurationPage } from './pages/admin/EmailConfigurationPage';
 import { CycleSnapshotManagerPage } from './pages/pmw/CycleSnapshotManagerPage';
 import { DatabaseToolsPage } from './pages/admin/DatabaseToolsPage';
+import { AppraiserSetupPage } from './pages/forms/AppraiserSetupPage';
 
 export function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
-  const [userRole, setUserRole] = useState<string>('Employee');
+  const [userRole, setUserRole] = useState<string>('EndUser');
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [selectedCycleId, setSelectedCycleId] = useState<string | null>(null);
 
@@ -112,8 +113,11 @@ export function App() {
       case 'my-appraisal':
       case 'forms':
         return <ObjectiveFormPage formType={userRole === 'PmwAdmin' ? 'BSC' : 'KPI'} />;
+      case 'appraiser-setup':
+        return <AppraiserSetupPage userRole={userRole} onNavigate={setActiveTab} />;
       case 'team-reviews':
         return <TeamReviewInboxPage />;
+      case 'my-dev-review':
       case 'dev-review':
       case 'dev-reviews':
         return <DevelopmentReviewPage userRole={userRole} />;
