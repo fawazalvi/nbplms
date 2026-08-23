@@ -125,6 +125,46 @@ public class DbSeederService
                     UPDATE GradeMappings SET EsgCode = ''07'' WHERE GradeCode = ''OG_I'';
                     UPDATE GradeMappings SET EsgCode = ''08'' WHERE GradeCode = ''OG_II'';
                     UPDATE GradeMappings SET EsgCode = ''09'' WHERE GradeCode = ''OG_III'';
+
+                    -- Convert Employees Grade to ESG code & ReportingGroup to RPSA code
+                    UPDATE Employees SET Grade = ''01'' WHERE Grade IN (''President/CEO'', ''PRESIDENT'', ''PRESIDENT_CEO'', ''President & CEO'');
+                    UPDATE Employees SET Grade = ''02'' WHERE Grade = ''SEVP'';
+                    UPDATE Employees SET Grade = ''03'' WHERE Grade = ''EVP'';
+                    UPDATE Employees SET Grade = ''04'' WHERE Grade = ''SVP'';
+                    UPDATE Employees SET Grade = ''05'' WHERE Grade = ''VP'';
+                    UPDATE Employees SET Grade = ''06'' WHERE Grade IN (''AVP'', ''Assistant Vice President'');
+                    UPDATE Employees SET Grade = ''07'' WHERE Grade IN (''OG I'', ''OG_I'', ''Officer Grade I'', ''Officer Grade 1'');
+                    UPDATE Employees SET Grade = ''08'' WHERE Grade IN (''OG II'', ''OG_II'', ''Officer Grade II'', ''Officer Grade 2'');
+                    UPDATE Employees SET Grade = ''09'' WHERE Grade IN (''OG III'', ''OG_III'', ''Officer Grade III'', ''Officer Grade 3'');
+
+                    UPDATE Employees SET ReportingGroup = ''0001'' WHERE ReportingGroup LIKE ''%Commercial%'' OR ReportingGroup = ''CBG'' OR ReportingGroup = ''Executive Office'';
+                    UPDATE Employees SET ReportingGroup = ''0002'' WHERE ReportingGroup LIKE ''%Consumer%'' OR ReportingGroup = ''RBG'' OR ReportingGroup LIKE ''%Retail%'';
+                    UPDATE Employees SET ReportingGroup = ''0003'' WHERE ReportingGroup LIKE ''%Risk%'' OR ReportingGroup = ''RMG'';
+                    UPDATE Employees SET ReportingGroup = ''0004'' WHERE ReportingGroup LIKE ''%Treasury%'' OR ReportingGroup = ''TGM'';
+                    UPDATE Employees SET ReportingGroup = ''0005'' WHERE ReportingGroup LIKE ''%Technology%'' OR ReportingGroup = ''ITG'';
+                    UPDATE Employees SET ReportingGroup = ''0006'' WHERE ReportingGroup LIKE ''%Operations%'' OR ReportingGroup = ''OPS'';
+                    UPDATE Employees SET ReportingGroup = ''0007'' WHERE ReportingGroup LIKE ''%HR%'' OR ReportingGroup = ''HRG'';
+                    UPDATE Employees SET ReportingGroup = ''0008'' WHERE ReportingGroup LIKE ''%Compliance%'' OR ReportingGroup = ''CMP'';
+
+                    -- Convert EmployeeCycles SnapshotGrade to ESG code & SnapshotReportingGroup to RPSA code
+                    UPDATE EmployeeCycles SET SnapshotGrade = ''01'' WHERE SnapshotGrade IN (''President/CEO'', ''PRESIDENT'', ''PRESIDENT_CEO'', ''President & CEO'');
+                    UPDATE EmployeeCycles SET SnapshotGrade = ''02'' WHERE SnapshotGrade = ''SEVP'';
+                    UPDATE EmployeeCycles SET SnapshotGrade = ''03'' WHERE SnapshotGrade = ''EVP'';
+                    UPDATE EmployeeCycles SET SnapshotGrade = ''04'' WHERE SnapshotGrade = ''SVP'';
+                    UPDATE EmployeeCycles SET SnapshotGrade = ''05'' WHERE SnapshotGrade = ''VP'';
+                    UPDATE EmployeeCycles SET SnapshotGrade = ''06'' WHERE SnapshotGrade IN (''AVP'', ''Assistant Vice President'');
+                    UPDATE EmployeeCycles SET SnapshotGrade = ''07'' WHERE SnapshotGrade IN (''OG I'', ''OG_I'', ''Officer Grade I'', ''Officer Grade 1'');
+                    UPDATE EmployeeCycles SET SnapshotGrade = ''08'' WHERE SnapshotGrade IN (''OG II'', ''OG_II'', ''Officer Grade II'', ''Officer Grade 2'');
+                    UPDATE EmployeeCycles SET SnapshotGrade = ''09'' WHERE SnapshotGrade IN (''OG III'', ''OG_III'', ''Officer Grade III'', ''Officer Grade 3'');
+
+                    UPDATE EmployeeCycles SET SnapshotReportingGroup = ''0001'' WHERE SnapshotReportingGroup LIKE ''%Commercial%'' OR SnapshotReportingGroup = ''CBG'' OR SnapshotReportingGroup = ''Executive Office'';
+                    UPDATE EmployeeCycles SET SnapshotReportingGroup = ''0002'' WHERE SnapshotReportingGroup LIKE ''%Consumer%'' OR SnapshotReportingGroup = ''RBG'' OR SnapshotReportingGroup LIKE ''%Retail%'';
+                    UPDATE EmployeeCycles SET SnapshotReportingGroup = ''0003'' WHERE SnapshotReportingGroup LIKE ''%Risk%'' OR SnapshotReportingGroup = ''RMG'';
+                    UPDATE EmployeeCycles SET SnapshotReportingGroup = ''0004'' WHERE SnapshotReportingGroup LIKE ''%Treasury%'' OR SnapshotReportingGroup = ''TGM'';
+                    UPDATE EmployeeCycles SET SnapshotReportingGroup = ''0005'' WHERE SnapshotReportingGroup LIKE ''%Technology%'' OR SnapshotReportingGroup = ''ITG'';
+                    UPDATE EmployeeCycles SET SnapshotReportingGroup = ''0006'' WHERE SnapshotReportingGroup LIKE ''%Operations%'' OR SnapshotReportingGroup = ''OPS'';
+                    UPDATE EmployeeCycles SET SnapshotReportingGroup = ''0007'' WHERE SnapshotReportingGroup LIKE ''%HR%'' OR SnapshotReportingGroup = ''HRG'';
+                    UPDATE EmployeeCycles SET SnapshotReportingGroup = ''0008'' WHERE SnapshotReportingGroup LIKE ''%Compliance%'' OR SnapshotReportingGroup = ''CMP'';
                 ');
 
                 IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'EmployeeCycles' AND COLUMN_NAME = 'SnapshotGrade')
@@ -272,15 +312,15 @@ public class DbSeederService
         };
         _db.GradeMappings.AddRange(grades);
 
-        // 4. Employees
+        // 4. Employees (Grades stored as 2-digit ESG codes "01"-"09", Groups stored as 4-digit RPSA codes "0001"-"0008")
         var pres = new Employee
         {
             SapId = "10001",
             FullName = "Rahmat Ali Hasnie",
-            Grade = "President/CEO",
+            Grade = "01", // President/CEO
             Designation = "President & CEO",
             Location = "Head Office Karachi",
-            ReportingGroup = "Executive Office",
+            ReportingGroup = "0001", // Commercial / Executive
             Division = "Executive",
             WingDepartment = "President Office",
             RegionBranch = "Head Office",
@@ -291,10 +331,10 @@ public class DbSeederService
         {
             SapId = "10002",
             FullName = "Asad Mumtaz",
-            Grade = "SEVP",
+            Grade = "02", // SEVP
             Designation = "Group Chief",
             Location = "Head Office Karachi",
-            ReportingGroup = "Commercial Banking Group",
+            ReportingGroup = "0001", // Commercial Banking Group
             Division = "Commercial Banking",
             WingDepartment = "Group Chief Office",
             RegionBranch = "Head Office",
@@ -306,10 +346,10 @@ public class DbSeederService
         {
             SapId = "10003",
             FullName = "Rashid Khan",
-            Grade = "SVP",
+            Grade = "04", // SVP
             Designation = "Divisional Head",
             Location = "Head Office Karachi",
-            ReportingGroup = "Commercial Banking Group",
+            ReportingGroup = "0001", // Commercial Banking Group
             Division = "Corporate & Commercial",
             WingDepartment = "Commercial Division",
             RegionBranch = "Head Office",
@@ -320,10 +360,10 @@ public class DbSeederService
         {
             SapId = "10004",
             FullName = "Tariq Mahmood",
-            Grade = "VP",
+            Grade = "05", // VP
             Designation = "Regional Head",
             Location = "Karachi Region",
-            ReportingGroup = "Commercial Banking Group",
+            ReportingGroup = "0001", // Commercial Banking Group
             Division = "Commercial Banking",
             WingDepartment = "Regional Office",
             RegionBranch = "Karachi Central",
@@ -334,10 +374,10 @@ public class DbSeederService
         {
             SapId = "84920",
             FullName = "Fawaz Ahmed",
-            Grade = "AVP",
+            Grade = "06", // AVP
             Designation = "Senior Relationship Manager",
             Location = "Karachi Region",
-            ReportingGroup = "Commercial Banking Group",
+            ReportingGroup = "0001", // Commercial Banking Group
             Division = "Commercial Banking",
             WingDepartment = "Commercial Branch",
             RegionBranch = "Karachi Central",
@@ -349,10 +389,10 @@ public class DbSeederService
         {
             SapId = "91204",
             FullName = "Zahid Hussain",
-            Grade = "OG I",
+            Grade = "07", // OG I
             Designation = "Relationship Manager",
             Location = "Karachi Region",
-            ReportingGroup = "Commercial Banking Group",
+            ReportingGroup = "0001", // Commercial Banking Group
             Division = "Commercial Banking",
             WingDepartment = "Commercial Branch",
             RegionBranch = "Karachi Central",
@@ -364,10 +404,10 @@ public class DbSeederService
         {
             SapId = "88392",
             FullName = "Mariam Ali",
-            Grade = "OG II",
+            Grade = "08", // OG II
             Designation = "Operations Officer",
             Location = "Lahore Region",
-            ReportingGroup = "Consumer Banking Group",
+            ReportingGroup = "0002", // Consumer Banking Group
             Division = "Retail Operations",
             WingDepartment = "Branch Operations",
             RegionBranch = "Lahore Main",
@@ -378,10 +418,10 @@ public class DbSeederService
         {
             SapId = "76210",
             FullName = "Usman Farooq",
-            Grade = "AVP",
+            Grade = "06", // AVP
             Designation = "Senior Risk Analyst",
             Location = "Head Office Karachi",
-            ReportingGroup = "Risk Management Group",
+            ReportingGroup = "0003", // Risk Management Group
             Division = "Credit Risk",
             WingDepartment = "Risk Assessment",
             RegionBranch = "Head Office",
@@ -416,16 +456,16 @@ public class DbSeederService
 
         _db.AppraisalCycles.AddRange(cycle2026, cycle2025);
 
-        // 6. EmployeeCycle for Fawaz Ahmed (AVP in 2026 Cycle)
+        // 6. EmployeeCycle for Fawaz Ahmed (AVP "06" in 2026 Cycle, Group "0001")
         var empCycleFawaz = new EmployeeCycle
         {
             Employee = avp,
             Cycle = cycle2026,
             AssignedFormType = FormType.KpiForm,
             CurrentStatus = WorkflowStatus.AnnualReviewSelfAssessment,
-            SnapshotGrade = "AVP",
+            SnapshotGrade = "06", // AVP
             SnapshotDesignation = "Assistant Vice President",
-            SnapshotReportingGroup = "Commercial Banking Group",
+            SnapshotReportingGroup = "0001", // Commercial Banking Group
             SnapshotDivision = "Corporate Banking",
             SnapshotWingDepartment = "Relationship Management",
             SnapshotRegionBranch = "Karachi Main",
@@ -436,16 +476,16 @@ public class DbSeederService
             AppraiserValidationStatus = "Validated"
         };
 
-        // 6b. Historical 2025 Cycle for Fawaz Ahmed (OG I in Consumer Banking Group!)
+        // 6b. Historical 2025 Cycle for Fawaz Ahmed (OG I "07" in Consumer Banking Group "0002"!)
         var empCycleFawaz2025 = new EmployeeCycle
         {
             Employee = avp,
             Cycle = cycle2025,
             AssignedFormType = FormType.KpiForm,
             CurrentStatus = WorkflowStatus.CycleClosed,
-            SnapshotGrade = "OG I",
+            SnapshotGrade = "07", // OG I
             SnapshotDesignation = "Senior Operations Officer",
-            SnapshotReportingGroup = "Consumer Banking Group",
+            SnapshotReportingGroup = "0002", // Consumer Banking Group
             SnapshotDivision = "Retail Operations",
             SnapshotWingDepartment = "Branch Services",
             SnapshotRegionBranch = "Lahore Main",
@@ -605,9 +645,9 @@ public class DbSeederService
             Cycle = cycle2026,
             AssignedFormType = FormType.KpiForm,
             CurrentStatus = WorkflowStatus.ObjectiveDraft,
-            SnapshotGrade = "OG I",
+            SnapshotGrade = "07", // OG I
             SnapshotDesignation = "Operations Officer",
-            SnapshotReportingGroup = "Commercial Banking Group",
+            SnapshotReportingGroup = "0001", // Commercial Banking Group
             SnapshotDivision = "Operations Division",
             SnapshotLocation = "Karachi",
             SnapshotIsMrtOrMrc = false,
@@ -620,9 +660,9 @@ public class DbSeederService
             Cycle = cycle2026,
             AssignedFormType = FormType.KpiForm,
             CurrentStatus = WorkflowStatus.ObjectiveDraft,
-            SnapshotGrade = "OG II",
+            SnapshotGrade = "08", // OG II
             SnapshotDesignation = "Customer Services Officer",
-            SnapshotReportingGroup = "Commercial Banking Group",
+            SnapshotReportingGroup = "0001", // Commercial Banking Group
             SnapshotDivision = "Retail Services",
             SnapshotLocation = "Karachi",
             SnapshotIsMrtOrMrc = false,
@@ -634,9 +674,9 @@ public class DbSeederService
             Cycle = cycle2026,
             AssignedFormType = FormType.BalancedScorecard,
             CurrentStatus = WorkflowStatus.AnnualReviewSelfAssessment,
-            SnapshotGrade = "VP",
+            SnapshotGrade = "05", // VP
             SnapshotDesignation = "Vice President / Regional Head",
-            SnapshotReportingGroup = "Commercial Banking Group",
+            SnapshotReportingGroup = "0001", // Commercial Banking Group
             SnapshotDivision = "Corporate Banking",
             SnapshotLocation = "Karachi",
             SnapshotIsMrtOrMrc = false,
@@ -649,9 +689,9 @@ public class DbSeederService
             Cycle = cycle2026,
             AssignedFormType = FormType.RiskAdjustedBsc,
             CurrentStatus = WorkflowStatus.AnnualReviewSelfAssessment,
-            SnapshotGrade = "AVP",
+            SnapshotGrade = "06", // AVP
             SnapshotDesignation = "Chief Market Risk Analyst",
-            SnapshotReportingGroup = "Risk Management Group",
+            SnapshotReportingGroup = "0003", // Risk Management Group
             SnapshotDivision = "Risk Assessment Division",
             SnapshotLocation = "Head Office Karachi",
             SnapshotIsMrtOrMrc = true,

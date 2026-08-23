@@ -480,9 +480,23 @@ export const EmployeeDataPage: React.FC = () => {
 
   // Stats calculation
   const totalCount = employees.length;
-  const kpiCount = employees.filter(e => e.formTypeAssigned?.includes('KPI') || (!e.isMrtOrMrc && ['OG III', 'OG II', 'OG I', 'AVP'].includes(e.grade))).length;
-  const bscCount = employees.filter(e => !e.isMrtOrMrc && ['VP', 'SVP', 'EVP', 'SEVP', 'President/CEO'].includes(e.grade)).length;
+  const kpiCount = employees.filter(e => e.formTypeAssigned?.includes('KPI') || (!e.isMrtOrMrc && ['06', '07', '08', '09', 'OG III', 'OG II', 'OG I', 'AVP'].includes(e.grade))).length;
+  const bscCount = employees.filter(e => !e.isMrtOrMrc && ['01', '02', '03', '04', '05', 'VP', 'SVP', 'EVP', 'SEVP', 'President/CEO', 'PRESIDENT'].includes(e.grade)).length;
   const mrtCount = employees.filter(e => e.isMrtOrMrc).length;
+
+  const getGradeDisplay = (val: string) => {
+    if (!val) return '-';
+    const g = grades.find(x => x.esgCode === val || x.gradeCode === val || x.gradeName === val);
+    if (g) return `${g.esgCode ? `${g.esgCode} (${g.gradeCode})` : g.gradeName}`;
+    return val;
+  };
+
+  const getGroupDisplay = (val: string) => {
+    if (!val) return '-';
+    const grp = groups.find(x => x.rpsaCode === val || x.groupCode === val || x.groupName === val);
+    if (grp) return `${grp.rpsaCode ? `${grp.rpsaCode} • ` : ''}${grp.groupName}`;
+    return val;
+  };
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-12">
@@ -718,13 +732,13 @@ export const EmployeeDataPage: React.FC = () => {
                       </td>
                       <td className="p-3">
                         <div className="flex items-center space-x-1.5">
-                          <Badge variant="secondary" className="font-bold">{emp.grade}</Badge>
+                          <Badge variant="secondary" className="font-bold">{getGradeDisplay(emp.grade)}</Badge>
                           {emp.isMrtOrMrc && <Badge variant="danger" className="text-[9px]">MRT/MRC</Badge>}
                         </div>
                         <div className="text-[11px] text-slate-600 mt-0.5">{emp.designation}</div>
                       </td>
                       <td className="p-3">
-                        <div className="font-medium text-slate-800">{emp.reportingGroup}</div>
+                        <div className="font-medium text-slate-800">{getGroupDisplay(emp.reportingGroup)}</div>
                         <div className="text-[11px] text-slate-400">{emp.location} • {emp.regionBranch}</div>
                       </td>
                       <td className="p-3">
@@ -838,22 +852,31 @@ export const EmployeeDataPage: React.FC = () => {
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="space-y-1.5">
-                    <label className="font-bold text-slate-700">Grade *</label>
+                    <label className="font-bold text-slate-700">Grade (ESG) *</label>
                     <select
                       required
                       value={formData.grade}
                       onChange={(e) => setFormData({ ...formData, grade: e.target.value })}
                       className="w-full h-9 px-3 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:ring-2 focus:ring-emerald-700 focus:outline-none"
                     >
-                      <option value="OG III">OG III (Officer Grade III)</option>
-                      <option value="OG II">OG II (Officer Grade II)</option>
-                      <option value="OG I">OG I (Officer Grade I)</option>
-                      <option value="AVP">AVP (Assistant Vice President)</option>
-                      <option value="VP">VP (Vice President)</option>
-                      <option value="SVP">SVP (Senior Vice President)</option>
-                      <option value="EVP">EVP (Executive Vice President)</option>
-                      <option value="SEVP">SEVP (Senior Executive Vice President)</option>
-                      <option value="President/CEO">President / CEO</option>
+                      {grades.map(g => (
+                        <option key={g.id} value={g.esgCode || g.gradeCode}>
+                          {g.esgCode ? `${g.esgCode} - ` : ''}{g.gradeName} ({g.gradeCode})
+                        </option>
+                      ))}
+                      {grades.length === 0 && (
+                        <>
+                          <option value="09">09 - OG III (Officer Grade III)</option>
+                          <option value="08">08 - OG II (Officer Grade II)</option>
+                          <option value="07">07 - OG I (Officer Grade I)</option>
+                          <option value="06">06 - AVP (Assistant Vice President)</option>
+                          <option value="05">05 - VP (Vice President)</option>
+                          <option value="04">04 - SVP (Senior Vice President)</option>
+                          <option value="03">03 - EVP (Executive Vice President)</option>
+                          <option value="02">02 - SEVP (Senior Executive Vice President)</option>
+                          <option value="01">01 - President / CEO</option>
+                        </>
+                      )}
                     </select>
                   </div>
 
@@ -872,7 +895,7 @@ export const EmployeeDataPage: React.FC = () => {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <label className="font-bold text-slate-700">Reporting Group *</label>
+                    <label className="font-bold text-slate-700">Reporting Group (RPSA) *</label>
                     <select
                       required
                       value={formData.reportingGroup}
@@ -880,14 +903,20 @@ export const EmployeeDataPage: React.FC = () => {
                       className="w-full h-9 px-3 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-emerald-700 focus:outline-none"
                     >
                       {groups.map(g => (
-                        <option key={g.id} value={g.groupName}>{g.groupName}</option>
+                        <option key={g.id} value={g.rpsaCode || g.groupCode}>
+                          {g.rpsaCode ? `${g.rpsaCode} - ` : ''}{g.groupName} ({g.groupCode})
+                        </option>
                       ))}
                       {groups.length === 0 && (
                         <>
-                          <option value="Consumer Banking Group">Consumer Banking Group</option>
-                          <option value="Commercial Banking Group">Commercial Banking Group</option>
-                          <option value="Risk Management Group">Risk Management Group</option>
-                          <option value="Operations & IT Group">Operations & IT Group</option>
+                          <option value="0001">0001 - Commercial Banking Group (CBG)</option>
+                          <option value="0002">0002 - Consumer Banking Group (RBG)</option>
+                          <option value="0003">0003 - Risk Management Group (RMG)</option>
+                          <option value="0004">0004 - Treasury & Global Markets (TGM)</option>
+                          <option value="0005">0005 - Information Technology Group (ITG)</option>
+                          <option value="0006">0006 - Operations Group (OPS)</option>
+                          <option value="0007">0007 - HR Management Group (HRG)</option>
+                          <option value="0008">0008 - Compliance Group (CMP)</option>
                         </>
                       )}
                     </select>

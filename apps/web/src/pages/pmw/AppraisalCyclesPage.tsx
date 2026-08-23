@@ -135,6 +135,20 @@ export const AppraisalCyclesPage: React.FC = () => {
     }
   };
 
+  const getGradeDisplay = (val: string) => {
+    if (!val) return '-';
+    const g = grades.find(x => x.esgCode === val || x.gradeCode === val || x.gradeName === val);
+    if (g) return `${g.esgCode ? `${g.esgCode} (${g.gradeCode})` : g.gradeName}`;
+    return val;
+  };
+
+  const getGroupDisplay = (val: string) => {
+    if (!val) return '-';
+    const grp = groups.find(x => x.rpsaCode === val || x.groupCode === val || x.groupName === val);
+    if (grp) return `${grp.rpsaCode ? `${grp.rpsaCode} • ` : ''}${grp.groupName}`;
+    return val;
+  };
+
   const handleOpenRoster = async (cycle: any) => {
     setSelectedCycle(cycle);
     setShowRosterModal(true);
@@ -831,13 +845,13 @@ export const AppraisalCyclesPage: React.FC = () => {
                           <td className="p-3 font-semibold text-slate-900">{emp.fullName}</td>
                           <td className="p-3">
                             <div className="flex items-center space-x-1">
-                              <Badge variant="secondary" className="font-bold">{emp.snapshotGrade}</Badge>
+                              <Badge variant="secondary" className="font-bold">{getGradeDisplay(emp.snapshotGrade)}</Badge>
                               {emp.snapshotIsMrtOrMrc && <Badge variant="danger" className="text-[9px]">MRT</Badge>}
                             </div>
                             <div className="text-[10px] text-slate-500 mt-0.5">{emp.snapshotDesignation}</div>
                           </td>
                           <td className="p-3 font-medium text-slate-800">
-                            <div>{emp.snapshotReportingGroup}</div>
+                            <div>{getGroupDisplay(emp.snapshotReportingGroup)}</div>
                             <div className="text-[10px] text-slate-400">{emp.snapshotLocation}</div>
                           </td>
                           <td className="p-3">
@@ -1086,39 +1100,55 @@ export const AppraisalCyclesPage: React.FC = () => {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <label className="font-bold text-slate-700">Snapshot Grade for Cycle *</label>
+                    <label className="font-bold text-slate-700">Snapshot Grade (ESG) *</label>
                     <select
                       value={editSnapshotGrade}
                       onChange={(e) => setEditSnapshotGrade(e.target.value)}
                       className="w-full h-9 px-3 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-800"
                     >
-                      <option value="OG III">OG III</option>
-                      <option value="OG II">OG II</option>
-                      <option value="OG I">OG I</option>
-                      <option value="AVP">AVP</option>
-                      <option value="VP">VP</option>
-                      <option value="SVP">SVP</option>
-                      <option value="EVP">EVP</option>
-                      <option value="SEVP">SEVP</option>
-                      <option value="President/CEO">President/CEO</option>
+                      {grades.map(g => (
+                        <option key={g.id} value={g.esgCode || g.gradeCode}>
+                          {g.esgCode ? `${g.esgCode} - ` : ''}{g.gradeName} ({g.gradeCode})
+                        </option>
+                      ))}
+                      {grades.length === 0 && (
+                        <>
+                          <option value="09">09 - OG III</option>
+                          <option value="08">08 - OG II</option>
+                          <option value="07">07 - OG I</option>
+                          <option value="06">06 - AVP</option>
+                          <option value="05">05 - VP</option>
+                          <option value="04">04 - SVP</option>
+                          <option value="03">03 - EVP</option>
+                          <option value="02">02 - SEVP</option>
+                          <option value="01">01 - President/CEO</option>
+                        </>
+                      )}
                     </select>
                   </div>
 
                   <div className="space-y-1.5">
-                    <label className="font-bold text-slate-700">Snapshot Reporting Group *</label>
+                    <label className="font-bold text-slate-700">Snapshot Reporting Group (RPSA) *</label>
                     <select
                       value={editSnapshotGroup}
                       onChange={(e) => setEditSnapshotGroup(e.target.value)}
                       className="w-full h-9 px-3 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800"
                     >
                       {groups.map(g => (
-                        <option key={g.id} value={g.groupName}>{g.groupName}</option>
+                        <option key={g.id} value={g.rpsaCode || g.groupCode}>
+                          {g.rpsaCode ? `${g.rpsaCode} - ` : ''}{g.groupName} ({g.groupCode})
+                        </option>
                       ))}
                       {groups.length === 0 && (
                         <>
-                          <option value="Commercial Banking Group">Commercial Banking Group</option>
-                          <option value="Consumer Banking Group">Consumer Banking Group</option>
-                          <option value="Risk Management Group">Risk Management Group</option>
+                          <option value="0001">0001 - Commercial Banking Group</option>
+                          <option value="0002">0002 - Consumer Banking Group</option>
+                          <option value="0003">0003 - Risk Management Group</option>
+                          <option value="0004">0004 - Treasury & Global Markets</option>
+                          <option value="0005">0005 - Information Technology Group</option>
+                          <option value="0006">0006 - Operations Group</option>
+                          <option value="0007">0007 - HR Management Group</option>
+                          <option value="0008">0008 - Compliance Group</option>
                         </>
                       )}
                     </select>

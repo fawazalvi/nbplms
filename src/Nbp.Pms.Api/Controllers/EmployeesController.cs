@@ -142,14 +142,20 @@ public class EmployeesController : ControllerBase
             if (second != null) secondAppraiserId = second.Id;
         }
 
+        var matchedGrade = await _db.GradeMappings.FirstOrDefaultAsync(g => g.EsgCode == dto.Grade.Trim() || g.GradeName == dto.Grade.Trim() || g.GradeCode == dto.Grade.Trim());
+        string normalizedGrade = matchedGrade?.EsgCode ?? dto.Grade.Trim();
+
+        var matchedGroup = await _db.ReportingGroups.FirstOrDefaultAsync(g => g.RpsaCode == dto.ReportingGroup.Trim() || g.GroupName == dto.ReportingGroup.Trim() || g.GroupCode == dto.ReportingGroup.Trim());
+        string normalizedGroup = matchedGroup?.RpsaCode ?? dto.ReportingGroup.Trim();
+
         var employee = new Employee
         {
             SapId = trimmedSapId,
             FullName = dto.FullName.Trim(),
-            Grade = dto.Grade.Trim(),
+            Grade = normalizedGrade,
             Designation = dto.Designation?.Trim() ?? "Officer",
             Location = dto.Location?.Trim() ?? "Head Office",
-            ReportingGroup = dto.ReportingGroup?.Trim() ?? "General Banking Group",
+            ReportingGroup = normalizedGroup,
             Division = dto.Division?.Trim() ?? "General",
             WingDepartment = dto.WingDepartment?.Trim() ?? "Operations",
             RegionBranch = dto.RegionBranch?.Trim() ?? "Karachi Main",
@@ -169,7 +175,7 @@ public class EmployeesController : ControllerBase
             var existingUser = await _db.SystemUsers.AnyAsync(u => u.Username == trimmedSapId);
             if (!existingUser)
             {
-                string[] seniorGrades = ["VP", "SVP", "EVP", "SEVP", "PRESIDENT", "CEO"];
+                string[] seniorGrades = ["01", "02", "03", "04", "05", "VP", "SVP", "EVP", "SEVP", "PRESIDENT", "CEO"];
                 string assignedRole = dto.PortalUserRole ?? (
                     seniorGrades.Contains(employee.Grade.ToUpper()) 
                         ? "SecondAppraiser" 
@@ -222,7 +228,7 @@ public class EmployeesController : ControllerBase
     }
 
     /// <summary>
-    /// Updates an existing employee's profile and organizational details.
+    /// Updates an existing employee record.
     /// </summary>
     [HttpPut("{id}")]
     public async Task<IActionResult> UpdateEmployee(Guid id, [FromBody] UpdateEmployeeDto dto)
@@ -232,11 +238,6 @@ public class EmployeesController : ControllerBase
         {
             return NotFound(new { message = "Employee record not found." });
         }
-
-        if (string.IsNullOrWhiteSpace(dto.FullName))
-            return BadRequest(new { message = "Full Name is mandatory." });
-        if (string.IsNullOrWhiteSpace(dto.Grade))
-            return BadRequest(new { message = "Grade is mandatory." });
 
         Guid? firstAppraiserId = null;
         if (!string.IsNullOrWhiteSpace(dto.FirstAppraiserSapId))
@@ -252,11 +253,17 @@ public class EmployeesController : ControllerBase
             if (second != null && second.Id != id) secondAppraiserId = second.Id;
         }
 
+        var matchedUpdateGrade = await _db.GradeMappings.FirstOrDefaultAsync(g => g.EsgCode == dto.Grade.Trim() || g.GradeName == dto.Grade.Trim() || g.GradeCode == dto.Grade.Trim());
+        string normalizedUpdateGrade = matchedUpdateGrade?.EsgCode ?? dto.Grade.Trim();
+
+        var matchedUpdateGroup = await _db.ReportingGroups.FirstOrDefaultAsync(g => g.RpsaCode == dto.ReportingGroup.Trim() || g.GroupName == dto.ReportingGroup.Trim() || g.GroupCode == dto.ReportingGroup.Trim());
+        string normalizedUpdateGroup = matchedUpdateGroup?.RpsaCode ?? dto.ReportingGroup.Trim();
+
         employee.FullName = dto.FullName.Trim();
-        employee.Grade = dto.Grade.Trim();
+        employee.Grade = normalizedUpdateGrade;
         employee.Designation = dto.Designation?.Trim() ?? employee.Designation;
         employee.Location = dto.Location?.Trim() ?? employee.Location;
-        employee.ReportingGroup = dto.ReportingGroup?.Trim() ?? employee.ReportingGroup;
+        employee.ReportingGroup = normalizedUpdateGroup;
         employee.Division = dto.Division?.Trim() ?? employee.Division;
         employee.WingDepartment = dto.WingDepartment?.Trim() ?? employee.WingDepartment;
         employee.RegionBranch = dto.RegionBranch?.Trim() ?? employee.RegionBranch;

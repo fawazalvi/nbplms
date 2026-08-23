@@ -36,6 +36,7 @@ public class EmployeeImportService
 
     private static readonly HashSet<string> VpAndAboveGrades = new(StringComparer.OrdinalIgnoreCase)
     {
+        "01", "02", "03", "04", "05",
         "VP", "SVP", "EVP", "SEVP", "PRESIDENT", "CEO", "PRESIDENT/CEO"
     };
 
@@ -143,10 +144,10 @@ public class EmployeeImportService
             {
                 emp = existing;
                 emp.FullName = row.FullName.Trim();
-                emp.Grade = matchedGrade.GradeName;
+                emp.Grade = matchedGrade.EsgCode ?? FormatEsg(row.EsgCode) ?? "09";
                 emp.Designation = row.Designation?.Trim() ?? "Officer";
                 emp.Location = row.Location?.Trim() ?? "Head Office";
-                emp.ReportingGroup = matchedGroup.GroupName;
+                emp.ReportingGroup = matchedGroup.RpsaCode ?? FormatRpsa(row.RpsaCode) ?? "0001";
                 emp.Division = row.Division?.Trim() ?? "Operations";
                 emp.WingDepartment = row.WingDepartment?.Trim() ?? "General";
                 emp.RegionBranch = row.RegionBranch?.Trim() ?? "Karachi Main";
@@ -160,10 +161,10 @@ public class EmployeeImportService
                     Id = Guid.NewGuid(),
                     SapId = row.SapId.Trim(),
                     FullName = row.FullName.Trim(),
-                    Grade = matchedGrade.GradeName,
+                    Grade = matchedGrade.EsgCode ?? FormatEsg(row.EsgCode) ?? "09",
                     Designation = row.Designation?.Trim() ?? "Officer",
                     Location = row.Location?.Trim() ?? "Head Office",
-                    ReportingGroup = matchedGroup.GroupName,
+                    ReportingGroup = matchedGroup.RpsaCode ?? FormatRpsa(row.RpsaCode) ?? "0001",
                     Division = row.Division?.Trim() ?? "Operations",
                     WingDepartment = row.WingDepartment?.Trim() ?? "General",
                     RegionBranch = row.RegionBranch?.Trim() ?? "Karachi Main",
@@ -218,7 +219,14 @@ public class EmployeeImportService
 
                 if (sa != null)
                 {
-                    emp.SecondAppraiserId = sa.Id;
+                    if (sa.SapId == emp.SapId)
+                    {
+                        errors.Add($"SAP ID {emp.SapId}: Cannot assign self as Second Appraiser.");
+                    }
+                    else
+                    {
+                        emp.SecondAppraiserId = sa.Id;
+                    }
                 }
             }
         }
@@ -226,17 +234,15 @@ public class EmployeeImportService
         // Save employees to Database
         await _db.SaveChangesAsync();
 
-        // 3. Resolve target appraisal cycle to enroll employees with historical frozen snapshot
+        // 3. Create or Link to Appraisal Cycle
         AppraisalCycle? cycle = null;
         if (targetCycleId.HasValue)
         {
             cycle = await _db.AppraisalCycles.FindAsync(targetCycleId.Value);
         }
-
-        if (cycle == null)
+        else
         {
-            cycle = await _db.AppraisalCycles.FirstOrDefaultAsync(c => c.Status == WorkflowStatus.CycleActive)
-                    ?? await _db.AppraisalCycles.OrderByDescending(c => c.CreatedAt).FirstOrDefaultAsync();
+            cycle = await _db.AppraisalCycles.FirstOrDefaultAsync(c => c.Status == WorkflowStatus.CycleActive);
         }
 
         if (cycle == null)
@@ -261,7 +267,7 @@ public class EmployeeImportService
             var empCycle = await _db.EmployeeCycles
                 .FirstOrDefaultAsync(ec => ec.CycleId == cycle.Id && ec.EmployeeId == emp.Id);
 
-            var matchedGrade = gradeMappings.FirstOrDefault(g => g.GradeName == emp.Grade);
+            var matchedGrade = gradeMappings.FirstOrDefault(g => g.EsgCode == emp.Grade || g.GradeName == emp.Grade || g.GradeCode == emp.Grade);
             var formType = row.IsMrtOrMrc
                 ? FormType.RiskAdjustedBsc
                 : (matchedGrade?.DefaultFormType == "BALANCED_SCORECARD" || VpAndAboveGrades.Contains(emp.Grade)

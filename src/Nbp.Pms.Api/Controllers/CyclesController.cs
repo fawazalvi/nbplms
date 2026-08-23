@@ -311,8 +311,20 @@ public class CyclesController : ControllerBase
         foreach (var emp in employeesToEnroll)
         {
             // Snapshot attributes: allow override for single enrollment, or default to current employee master data
-            string snapshotGrade = dto.OverrideGrade?.Trim() ?? emp.Grade;
-            string snapshotGroup = dto.OverrideReportingGroup?.Trim() ?? emp.ReportingGroup;
+            string snapshotGrade = emp.Grade;
+            if (!string.IsNullOrWhiteSpace(dto.OverrideGrade))
+            {
+                var matched = await _db.GradeMappings.FirstOrDefaultAsync(g => g.EsgCode == dto.OverrideGrade.Trim() || g.GradeName == dto.OverrideGrade.Trim() || g.GradeCode == dto.OverrideGrade.Trim());
+                snapshotGrade = matched?.EsgCode ?? dto.OverrideGrade.Trim();
+            }
+
+            string snapshotGroup = emp.ReportingGroup;
+            if (!string.IsNullOrWhiteSpace(dto.OverrideReportingGroup))
+            {
+                var matched = await _db.ReportingGroups.FirstOrDefaultAsync(g => g.RpsaCode == dto.OverrideReportingGroup.Trim() || g.GroupName == dto.OverrideReportingGroup.Trim() || g.GroupCode == dto.OverrideReportingGroup.Trim());
+                snapshotGroup = matched?.RpsaCode ?? dto.OverrideReportingGroup.Trim();
+            }
+
             string snapshotDesignation = dto.OverrideDesignation?.Trim() ?? emp.Designation;
             string snapshotDivision = emp.Division;
             string snapshotWing = emp.WingDepartment;
@@ -361,31 +373,31 @@ public class CyclesController : ControllerBase
             enrolledCount++;
         }
 
+        await _db.SaveChangesAsync();
+
         _db.AuditEvents.Add(new AuditEvent
         {
-            EventType = "CYCLE_EMPLOYEES_ENROLLED",
+            EventType = "CYCLE_STAFF_ENROLLED",
             ActorUserId = dto.ActorUserId ?? "PMW_ADMIN",
             ActorRole = "PmwAdmin",
             TargetEntityType = nameof(AppraisalCycle),
-            TargetEntityId = cycleId.ToString(),
-            ActionDescription = $"Enrolled {enrolledCount} staff members into Cycle '{cycle.Title}' with frozen historical snapshot attributes.",
+            TargetEntityId = cycle.Id.ToString(),
+            ActionDescription = $"Enrolled {enrolledCount} employees into cycle '{cycle.Title}' with frozen historical grade/group snapshots.",
             Timestamp = DateTime.UtcNow
         });
-
         await _db.SaveChangesAsync();
 
         return Ok(new
         {
-            message = $"Successfully enrolled {enrolledCount} employee(s) into '{cycle.Title}'.",
+            message = $"Successfully enrolled {enrolledCount} employees into cycle '{cycle.Title}'.",
             enrolledCount
         });
     }
 
     /// <summary>
-    /// Updates the historical snapshot values (Grade, Reporting Group, Appraisers) for an employee within a specific cycle.
-    /// This changes their cycle parameters without mutating their future master employee records.
+    /// Updates the frozen cycle historical snapshot attributes for an enrolled employee in a specific appraisal cycle.
     /// </summary>
-    [HttpPut("{cycleId}/employees/{employeeCycleId}")]
+    [HttpPut("{cycleId}/employees/{employeeCycleId}/snapshot")]
     public async Task<IActionResult> UpdateCycleEmployeeSnapshot(
         Guid cycleId,
         Guid employeeCycleId,
@@ -401,10 +413,16 @@ public class CyclesController : ControllerBase
         }
 
         if (!string.IsNullOrWhiteSpace(dto.SnapshotGrade))
-            empCycle.SnapshotGrade = dto.SnapshotGrade.Trim();
+        {
+            var matched = await _db.GradeMappings.FirstOrDefaultAsync(g => g.EsgCode == dto.SnapshotGrade.Trim() || g.GradeName == dto.SnapshotGrade.Trim() || g.GradeCode == dto.SnapshotGrade.Trim());
+            empCycle.SnapshotGrade = matched?.EsgCode ?? dto.SnapshotGrade.Trim();
+        }
 
         if (!string.IsNullOrWhiteSpace(dto.SnapshotReportingGroup))
-            empCycle.SnapshotReportingGroup = dto.SnapshotReportingGroup.Trim();
+        {
+            var matched = await _db.ReportingGroups.FirstOrDefaultAsync(g => g.RpsaCode == dto.SnapshotReportingGroup.Trim() || g.GroupName == dto.SnapshotReportingGroup.Trim() || g.GroupCode == dto.SnapshotReportingGroup.Trim());
+            empCycle.SnapshotReportingGroup = matched?.RpsaCode ?? dto.SnapshotReportingGroup.Trim();
+        }
 
         if (!string.IsNullOrWhiteSpace(dto.SnapshotDesignation))
             empCycle.SnapshotDesignation = dto.SnapshotDesignation.Trim();
