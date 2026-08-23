@@ -23,7 +23,9 @@ import {
   CheckCircle2,
   Plus,
   X,
-  Check
+  Check,
+  Lock,
+  Unlock
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { SapIdAutocomplete } from '@/components/appraisal/SapIdAutocomplete';
@@ -485,6 +487,37 @@ export const CycleSnapshotManagerPage: React.FC<CycleSnapshotManagerPageProps> =
     }
   };
 
+  // Unlock Single Employee Reporting Line (PMW Admin Action)
+  const handleUnlockSingle = async (employeeCycleId: string) => {
+    setActionLoading(true);
+    try {
+      const res = await api.unlockAppraiserLine(employeeCycleId, 'admin');
+      setMessage(res.message || 'Reporting line unlocked successfully. Employee is now permitted to submit a new appraiser line request.');
+      await loadCycleData(activeCycleId);
+    } catch (e: any) {
+      alert(e.message || 'Failed to unlock reporting line.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Bulk Unlock Reporting Lines for Selected Employees
+  const handleBulkUnlock = async () => {
+    if (selectedEmployeeIds.length === 0) return;
+    if (!confirm(`Unlock reporting lines for ${selectedEmployeeIds.length} selected employee(s)? This allows them to re-request appraisers.`)) return;
+    setActionLoading(true);
+    try {
+      await Promise.all(selectedEmployeeIds.map(id => api.unlockAppraiserLine(id, 'admin').catch(() => null)));
+      setMessage(`Successfully unlocked reporting lines for ${selectedEmployeeIds.length} employee(s).`);
+      setSelectedEmployeeIds([]);
+      await loadCycleData(activeCycleId);
+    } catch (e: any) {
+      alert(e.message || 'Failed to bulk unlock reporting lines.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   // Snapshot Group Actions
   const handleCreateGroup = async () => {
     if (!activeCycleId || !newGroupForm.groupName || !newGroupForm.groupCode) {
@@ -919,6 +952,18 @@ export const CycleSnapshotManagerPage: React.FC<CycleSnapshotManagerPageProps> =
               <Button
                 variant="outline"
                 size="sm"
+                onClick={handleBulkUnlock}
+                disabled={selectedEmployeeIds.length === 0}
+                className="h-8 text-xs font-bold bg-amber-500/20 text-amber-200 hover:bg-amber-500/30 border-amber-500/40"
+                title="Unlock reporting lines for selected employees to allow them to re-request"
+              >
+                <Unlock className="h-3.5 w-3.5 mr-1" />
+                Bulk Unlock Lines ({selectedEmployeeIds.length})
+              </Button>
+
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={handleExportCsv}
                 className="h-8 text-xs font-bold bg-white/10 text-white hover:bg-white/20 border-white/20"
                 title="Export selected or filtered roster to CSV"
@@ -947,6 +992,7 @@ export const CycleSnapshotManagerPage: React.FC<CycleSnapshotManagerPageProps> =
                     <th className="p-3">Assigned Form</th>
                     <th className="p-3">First Appraiser</th>
                     <th className="p-3">Second Appraiser</th>
+                    <th className="p-3">Line Status</th>
                     <th className="p-3 text-right">Actions</th>
                   </tr>
                 </thead>
@@ -958,6 +1004,7 @@ export const CycleSnapshotManagerPage: React.FC<CycleSnapshotManagerPageProps> =
                     const groupCode = ec.snapshotReportingGroup || emp.reportingGroup;
                     const isKpi = (ec.assignedFormType || '').toString().includes('KPI');
                     const isRisk = (ec.assignedFormType || '').toString().includes('RISK') || ec.snapshotIsMrtOrMrc;
+                    const valStatus = ec.appraiserValidationStatus;
 
                     return (
                       <tr
@@ -1006,7 +1053,40 @@ export const CycleSnapshotManagerPage: React.FC<CycleSnapshotManagerPageProps> =
                             <span className="text-slate-400">—</span>
                           )}
                         </td>
+                        <td className="p-3">
+                          {valStatus === 'Validated' ? (
+                            <Badge className="bg-emerald-100 text-emerald-900 border-emerald-300 text-[10px] font-bold flex items-center space-x-1 w-fit">
+                              <Lock className="h-3 w-3 text-emerald-700" />
+                              <span>Confirmed & Locked</span>
+                            </Badge>
+                          ) : valStatus === 'PendingConfirmation' ? (
+                            <Badge className="bg-amber-100 text-amber-900 border-amber-300 text-[10px] font-bold flex items-center space-x-1 w-fit">
+                              <AlertTriangle className="h-3 w-3 text-amber-700" />
+                              <span>Pending Review</span>
+                            </Badge>
+                          ) : valStatus === 'UnlockedForRevision' ? (
+                            <Badge className="bg-sky-100 text-sky-900 border-sky-300 text-[10px] font-bold flex items-center space-x-1 w-fit">
+                              <Unlock className="h-3 w-3 text-sky-700" />
+                              <span>Unlocked (Draft)</span>
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-slate-500 text-[10px]">
+                              Open
+                            </Badge>
+                          )}
+                        </td>
                         <td className="p-3 text-right space-x-1">
+                          {(valStatus === 'Validated' || valStatus === 'PendingConfirmation') && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleUnlockSingle(ec.id)}
+                              className="h-7 px-2 text-[10px] text-amber-800 hover:bg-amber-50 border-amber-300 font-bold"
+                              title="Unlock reporting line to allow employee to re-request appraisers"
+                            >
+                              <Unlock className="h-3 w-3 mr-1 text-amber-700" /> Unlock Line
+                            </Button>
+                          )}
                           <Button
                             variant="outline"
                             size="sm"

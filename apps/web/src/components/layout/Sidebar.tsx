@@ -57,6 +57,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentRole, activeTab, onTabC
             items: [
               { id: 'employees', label: 'Master Employee Directory', icon: Users },
               { id: 'organization', label: 'Master Groups & Grades', icon: Building2 },
+              { id: 'appraiser-setup', label: 'Appraiser Hierarchy Setup', icon: UserCog },
             ]
           },
           {
@@ -94,6 +95,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentRole, activeTab, onTabC
           {
             title: 'Evaluation & Workflows',
             items: [
+              { id: 'appraiser-setup', label: 'Appraiser Hierarchy Setup', icon: UserCog },
               { id: 'forms', label: 'Form Configurations', icon: FileSpreadsheet },
               { id: 'bellcurve', label: 'Bell Curve Calibration', icon: Scale },
               { id: 'reminders', label: 'Reminders & Notifications', icon: Send },
