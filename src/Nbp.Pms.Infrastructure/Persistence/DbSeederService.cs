@@ -802,6 +802,27 @@ public class DbSeederService
         await EnsureDefaultUsersAsync();
     }
 
+    public async Task EnsureSuperAdminOnlyAsync()
+    {
+        await MigrateDatabaseSchemaAsync();
+        if (!await _db.SystemUsers.AnyAsync(u => u.Username.ToLower() == "admin"))
+        {
+            _db.SystemUsers.Add(new SystemUser
+            {
+                Username = "admin",
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin@Nbp2026!"),
+                FullName = "System Administrator (PMW SuperAdmin)",
+                Email = "admin@nbp.com.pk",
+                Role = "PmwSuperAdmin",
+                IsActive = true,
+                IsLockedOut = false,
+                MustChangePassword = false,
+                CreatedAt = DateTime.UtcNow
+            });
+            await _db.SaveChangesAsync();
+        }
+    }
+
     private async Task EnsureDefaultUsersAsync()
     {
         if (!await _db.SystemUsers.AnyAsync(u => u.Username.ToLower() == "admin"))
@@ -810,7 +831,7 @@ public class DbSeederService
             {
                 Username = "admin",
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin@Nbp2026!"),
-                FullName = "System Administrator",
+                FullName = "System Administrator (PMW SuperAdmin)",
                 Email = "admin@nbp.com.pk",
                 Role = "PmwSuperAdmin",
                 IsActive = true,

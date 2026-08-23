@@ -57,7 +57,7 @@ builder.Services.AddScoped<DbSeederService>();
 
 var app = builder.Build();
 
-// Ensure Database is created and populated with sample data on startup
+// Ensure Database is created and default PMW Super Admin user exists on startup (Default 1-User Seed for Fresh Deployment)
 using (var scope = app.Services.CreateScope())
 {
     try
@@ -65,11 +65,11 @@ using (var scope = app.Services.CreateScope())
         var db = scope.ServiceProvider.GetRequiredService<PmsDbContext>();
         db.Database.EnsureCreated();
         var seeder = scope.ServiceProvider.GetRequiredService<DbSeederService>();
-        seeder.SeedDatabaseAsync().GetAwaiter().GetResult();
+        seeder.EnsureSuperAdminOnlyAsync().GetAwaiter().GetResult();
     }
     catch (Exception ex)
     {
-        Console.WriteLine($"DB Auto-Seed note: {ex.Message}");
+        Console.WriteLine($"DB Startup note: {ex.Message}");
     }
 }
 
