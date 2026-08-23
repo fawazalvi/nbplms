@@ -481,6 +481,17 @@ export const PmwDashboard: React.FC<PmwDashboardProps> = ({
               <Badge variant={snapshotSummary?.hasOrgSnapshot ? 'nbp' : 'danger'} className="text-xs font-bold py-1 px-3">
                 {snapshotSummary?.hasOrgSnapshot ? '✓ Org Hierarchy Frozen' : '⚠ No Org Snapshot Yet'}
               </Badge>
+              {onNavigate && (
+                <Button
+                  variant="nbp"
+                  size="sm"
+                  onClick={() => onNavigate('cycle-snapshots')}
+                  className="h-8 text-xs font-bold bg-emerald-800 hover:bg-emerald-900 text-white shadow-xs"
+                >
+                  <Users className="h-3.5 w-3.5 mr-1" />
+                  Full Snapshot Workspace
+                </Button>
+              )}
             </div>
           </div>
         </CardHeader>

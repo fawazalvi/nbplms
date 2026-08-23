@@ -19,6 +19,7 @@ import { HelpCircularsPage } from './pages/help/HelpCircularsPage';
 import { UserManagementPage } from './pages/admin/UserManagementPage';
 import { OrganizationManagementPage } from './pages/admin/OrganizationManagementPage';
 import { EmailConfigurationPage } from './pages/admin/EmailConfigurationPage';
+import { CycleSnapshotManagerPage } from './pages/pmw/CycleSnapshotManagerPage';
 
 export function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -63,6 +64,16 @@ export function App() {
               onNavigate={setActiveTab}
             />
           );
+        case 'cycle-snapshots':
+        case 'cycle-roster':
+          return (
+            <CycleSnapshotManagerPage
+              userRole={userRole}
+              selectedCycleId={selectedCycleId}
+              onSelectCycle={setSelectedCycleId}
+              onNavigate={setActiveTab}
+            />
+          );
         case 'users':
           return <UserManagementPage />;
         case 'organization':
@@ -92,6 +103,25 @@ export function App() {
     switch (activeTab) {
       case 'cycles':
         return <AppraisalCyclesPage userRole={userRole} onSelectCycle={handleSelectCycle} onNavigate={setActiveTab} />;
+      case 'cycle-control':
+        return (
+          <PmwDashboard
+            userRole={userRole}
+            selectedCycleId={selectedCycleId}
+            onSelectCycle={setSelectedCycleId}
+            onNavigate={setActiveTab}
+          />
+        );
+      case 'cycle-snapshots':
+      case 'cycle-roster':
+        return (
+          <CycleSnapshotManagerPage
+            userRole={userRole}
+            selectedCycleId={selectedCycleId}
+            onSelectCycle={setSelectedCycleId}
+            onNavigate={setActiveTab}
+          />
+        );
       case 'organization':
         return <OrganizationManagementPage />;
       case 'users':

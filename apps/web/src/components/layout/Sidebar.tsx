@@ -16,7 +16,8 @@ import {
   Calendar,
   Send,
   Scale,
-  Sparkles
+  Sparkles,
+  Layers
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -54,8 +55,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentRole, activeTab, onTabC
             title: 'Appraisal Cycles & Staff',
             items: [
               { id: 'cycles', label: 'Appraisal Cycles', icon: Calendar },
-              { id: 'employees', label: 'Employee & Cycle Rosters', icon: Users },
-              { id: 'organization', label: 'Groups & Grade Hierarchy', icon: Building2 },
+              { id: 'cycle-snapshots', label: 'Cycle Snapshot Workspace', icon: Layers },
+              { id: 'employees', label: 'Master Employee Directory', icon: Users },
+              { id: 'organization', label: 'Master Groups & Grades', icon: Building2 },
             ]
           },
           {
@@ -90,7 +92,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentRole, activeTab, onTabC
             title: 'Appraisal Cycles & Staff',
             items: [
               { id: 'cycles', label: 'Appraisal Cycles', icon: Calendar },
-              { id: 'employees', label: 'Employee Import & Data', icon: Users },
+              { id: 'cycle-snapshots', label: 'Cycle Snapshot Workspace', icon: Layers },
+              { id: 'employees', label: 'Staff Directory', icon: Users },
               { id: 'organization', label: 'Groups & Grade Hierarchy', icon: Building2 },
             ]
           },

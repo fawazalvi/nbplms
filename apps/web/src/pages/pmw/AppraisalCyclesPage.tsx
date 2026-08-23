@@ -565,12 +565,16 @@ export const AppraisalCyclesPage: React.FC<AppraisalCyclesPageProps> = ({ userRo
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => handleOpenRoster(c)}
+                          onClick={() => {
+                            if (onSelectCycle) onSelectCycle(c.id);
+                            if (onNavigate) onNavigate('cycle-snapshots');
+                            else handleOpenRoster(c);
+                          }}
                           className="h-8 text-xs font-bold border-slate-300 text-slate-800 hover:bg-slate-50 shadow-xs"
-                          title="View and manage enrolled employees for this cycle"
+                          title="Open full Snapshot & Roster Manager for this cycle"
                         >
                           <Users className="h-3.5 w-3.5 mr-1 text-emerald-700" />
-                          <span>{c.enrolledCount ?? 0} Enrolled</span>
+                          <span>{c.enrolledCount ?? 0} Enrolled (Snapshot Workspace)</span>
                         </Button>
                       </td>
                       <td className="p-3">

@@ -94,14 +94,26 @@ export const api = {
     fetchApi<any>(`/Cycles/${cycleId}/snapshot/employees`, { method: 'POST', body: JSON.stringify(data) }),
   getCycleSnapshotSummary: (cycleId: string) => fetchApi<any>(`/Cycles/${cycleId}/snapshot/summary`),
   getCycleSnapshotGroups: (cycleId: string) => fetchApi<any[]>(`/Cycles/${cycleId}/snapshot/groups`),
+  createCycleSnapshotGroup: (cycleId: string, data: any) =>
+    fetchApi<any>(`/Cycles/${cycleId}/snapshot/groups`, { method: 'POST', body: JSON.stringify(data) }),
   updateCycleSnapshotGroup: (cycleId: string, groupId: string, data: any) =>
     fetchApi<any>(`/Cycles/${cycleId}/snapshot/groups/${groupId}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteCycleSnapshotGroup: (cycleId: string, groupId: string, actorUserId: string = 'PMW_ADMIN') =>
+    fetchApi<any>(`/Cycles/${cycleId}/snapshot/groups/${groupId}?actorUserId=${encodeURIComponent(actorUserId)}`, { method: 'DELETE' }),
+
   getCycleSnapshotGrades: (cycleId: string) => fetchApi<any[]>(`/Cycles/${cycleId}/snapshot/grades`),
+  createCycleSnapshotGrade: (cycleId: string, data: any) =>
+    fetchApi<any>(`/Cycles/${cycleId}/snapshot/grades`, { method: 'POST', body: JSON.stringify(data) }),
   updateCycleSnapshotGrade: (cycleId: string, gradeId: string, data: any) =>
     fetchApi<any>(`/Cycles/${cycleId}/snapshot/grades/${gradeId}`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteCycleSnapshotGrade: (cycleId: string, gradeId: string, actorUserId: string = 'PMW_ADMIN') =>
+    fetchApi<any>(`/Cycles/${cycleId}/snapshot/grades/${gradeId}?actorUserId=${encodeURIComponent(actorUserId)}`, { method: 'DELETE' }),
 
-  // Cycle Employee Roster & Historical Snapshots
-  getCycleEmployees: (cycleId: string, params?: { group?: string; grade?: string; search?: string }) => {
+  snapshotCycleMultiGroupEmployees: (cycleId: string, data: { rpsaCodes: string[]; actorUserId?: string }) =>
+    fetchApi<any>(`/Cycles/${cycleId}/snapshot/employees-multi-group`, { method: 'POST', body: JSON.stringify(data) }),
+
+  // Cycle Employee Roster & Multi-Select Bulk Operations
+  getCycleEmployees: (cycleId: string, params?: { group?: string; grade?: string; search?: string; formType?: string }) => {
     const query = new URLSearchParams(params as any).toString();
     return fetchApi<any[]>(`/Cycles/${cycleId}/employees${query ? `?${query}` : ''}`);
   },
@@ -111,6 +123,12 @@ export const api = {
     fetchApi<any>(`/Cycles/${cycleId}/employees/${employeeCycleId}`, { method: 'PUT', body: JSON.stringify(data) }),
   removeCycleEmployee: (cycleId: string, employeeCycleId: string, actorUserId?: string) =>
     fetchApi<any>(`/Cycles/${cycleId}/employees/${employeeCycleId}${actorUserId ? `?actorUserId=${encodeURIComponent(actorUserId)}` : ''}`, { method: 'DELETE' }),
+  bulkUnassignCycleEmployees: (cycleId: string, data: { employeeCycleIds?: string[]; rpsaCode?: string; esgCode?: string; formType?: string; searchTerm?: string; actorUserId?: string }) =>
+    fetchApi<any>(`/Cycles/${cycleId}/employees/bulk-unassign`, { method: 'POST', body: JSON.stringify(data) }),
+  bulkOverrideCycleFormType: (cycleId: string, data: { employeeCycleIds: string[]; formType: string; actorUserId?: string }) =>
+    fetchApi<any>(`/Cycles/${cycleId}/employees/bulk-override-form-type`, { method: 'POST', body: JSON.stringify(data) }),
+  bulkAssignCycleAppraisers: (cycleId: string, data: { employeeCycleIds: string[]; firstAppraiserSapId?: string; secondAppraiserSapId?: string; actorUserId?: string }) =>
+    fetchApi<any>(`/Cycles/${cycleId}/employees/bulk-assign-appraisers`, { method: 'POST', body: JSON.stringify(data) }),
 
   // My Appraisal Form, Objectives & Appraiser Self-Service Updates
   getMyAppraisal: (sapId: string = '84920') => fetchApi<any>(`/Appraisals/my-cycle?sapId=${sapId}`),
