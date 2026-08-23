@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import {
   Users,
   PieChart,
@@ -16,7 +17,16 @@ import {
   CheckCircle2,
   AlertCircle,
   BarChart3,
-  ChevronRight
+  ChevronRight,
+  Camera,
+  Layers,
+  Building2,
+  GraduationCap,
+  Sparkles,
+  Edit2,
+  X,
+  Check,
+  ShieldAlert
 } from 'lucide-react';
 import { api } from '@/lib/api';
 
@@ -34,10 +44,23 @@ export const PmwDashboard: React.FC<PmwDashboardProps> = ({
   const [cycles, setCycles] = useState<any[]>([]);
   const [activeCycleId, setActiveCycleId] = useState<string>('');
   const [cycleStats, setCycleStats] = useState<any>(null);
+  const [snapshotSummary, setSnapshotSummary] = useState<any>(null);
+  const [selectedGroupFilter, setSelectedGroupFilter] = useState<string>('ALL');
+  
   const [loadingCycles, setLoadingCycles] = useState(true);
   const [loadingStats, setLoadingStats] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+
+  // Snapshot Management Modals
+  const [showGroupsModal, setShowGroupsModal] = useState(false);
+  const [showGradesModal, setShowGradesModal] = useState(false);
+  const [snapshotGroups, setSnapshotGroups] = useState<any[]>([]);
+  const [snapshotGrades, setSnapshotGrades] = useState<any[]>([]);
+  const [editingGroupId, setEditingGroupId] = useState<string | null>(null);
+  const [editingGradeId, setEditingGradeId] = useState<string | null>(null);
+  const [groupEditForm, setGroupEditForm] = useState<any>({});
+  const [gradeEditForm, setGradeEditForm] = useState<any>({});
 
   // Load list of all cycles
   const loadCycles = async () => {
@@ -71,13 +94,17 @@ export const PmwDashboard: React.FC<PmwDashboardProps> = ({
     }
   }, [selectedCycleId]);
 
-  // Load specific cycle stats when activeCycleId changes
+  // Load specific cycle stats & snapshot summary when activeCycleId changes
   const loadStats = async (cycleId: string) => {
     if (!cycleId) return;
     setLoadingStats(true);
     try {
-      const stats = await api.getCycleStats(cycleId);
+      const [stats, summary] = await Promise.all([
+        api.getCycleStats(cycleId).catch(() => null),
+        api.getCycleSnapshotSummary(cycleId).catch(() => null)
+      ]);
       setCycleStats(stats);
+      setSnapshotSummary(summary);
     } catch (e) {
       console.error(`Failed to load stats for cycle ${cycleId}`, e);
     } finally {
@@ -95,6 +122,84 @@ export const PmwDashboard: React.FC<PmwDashboardProps> = ({
     setActiveCycleId(newCycleId);
     if (onSelectCycle) {
       onSelectCycle(newCycleId);
+    }
+  };
+
+  const handleSnapshotOrg = async () => {
+    if (!activeCycleId) return;
+    setActionLoading(true);
+    try {
+      const res = await api.snapshotCycleOrg(activeCycleId);
+      setMessage(res.message || 'Organizational hierarchy snapshot captured successfully.');
+      await loadStats(activeCycleId);
+      await loadCycles();
+    } catch (e: any) {
+      alert(e.message || 'Failed to capture organizational snapshot.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleSnapshotEmployees = async () => {
+    if (!activeCycleId) return;
+    setActionLoading(true);
+    try {
+      const res = await api.snapshotCycleEmployees(activeCycleId, {
+        rpsaCode: selectedGroupFilter === 'ALL' ? undefined : selectedGroupFilter
+      });
+      setMessage(res.message || 'Employee snapshot captured successfully.');
+      await loadStats(activeCycleId);
+      await loadCycles();
+    } catch (e: any) {
+      alert(e.message || 'Failed to capture employee snapshot.');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleOpenGroupsModal = async () => {
+    if (!activeCycleId) return;
+    try {
+      const groups = await api.getCycleSnapshotGroups(activeCycleId);
+      setSnapshotGroups(groups || []);
+      setShowGroupsModal(true);
+    } catch (e: any) {
+      alert(e.message || 'Failed to load snapshot groups.');
+    }
+  };
+
+  const handleSaveSnapshotGroup = async (groupId: string) => {
+    try {
+      await api.updateCycleSnapshotGroup(activeCycleId, groupId, groupEditForm);
+      const groups = await api.getCycleSnapshotGroups(activeCycleId);
+      setSnapshotGroups(groups || []);
+      setEditingGroupId(null);
+      await loadStats(activeCycleId);
+    } catch (e: any) {
+      alert(e.message || 'Failed to update snapshot group.');
+    }
+  };
+
+  const handleOpenGradesModal = async () => {
+    if (!activeCycleId) return;
+    try {
+      const grades = await api.getCycleSnapshotGrades(activeCycleId);
+      setSnapshotGrades(grades || []);
+      setShowGradesModal(true);
+    } catch (e: any) {
+      alert(e.message || 'Failed to load snapshot grades.');
+    }
+  };
+
+  const handleSaveSnapshotGrade = async (gradeId: string) => {
+    try {
+      await api.updateCycleSnapshotGrade(activeCycleId, gradeId, gradeEditForm);
+      const grades = await api.getCycleSnapshotGrades(activeCycleId);
+      setSnapshotGrades(grades || []);
+      setEditingGradeId(null);
+      await loadStats(activeCycleId);
+    } catch (e: any) {
+      alert(e.message || 'Failed to update snapshot grade.');
     }
   };
 
@@ -355,6 +460,136 @@ export const PmwDashboard: React.FC<PmwDashboardProps> = ({
         </Card>
       </div>
 
+      {/* Appraisal Cycle Snapshot & Calibration Center */}
+      <Card className="border-2 border-emerald-700/40 bg-gradient-to-br from-emerald-50/40 via-white to-teal-50/30 shadow-md">
+        <CardHeader className="pb-3 border-b border-emerald-100">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <div className="space-y-1">
+              <div className="flex items-center space-x-2">
+                <Camera className="h-5 w-5 text-emerald-800" />
+                <CardTitle className="text-base font-black text-slate-900">
+                  Appraisal Cycle Snapshot Center (Organizational & Staff Isolation)
+                </CardTitle>
+              </div>
+              <CardDescription className="text-xs text-slate-600">
+                Capture on-demand snapshots of Reporting Groups (RPSA), Grade hierarchy (ESG), and Staff for <strong>{currentCycle?.title}</strong>. Downstream appraisal activities will strictly use these frozen tables.
+              </CardDescription>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Badge variant={snapshotSummary?.hasOrgSnapshot ? 'nbp' : 'danger'} className="text-xs font-bold py-1 px-3">
+                {snapshotSummary?.hasOrgSnapshot ? '✓ Org Hierarchy Frozen' : '⚠ No Org Snapshot Yet'}
+              </Badge>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="p-6 space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Step 1: Organizational Hierarchy Snapshot */}
+            <div className="p-4 bg-white border border-slate-200 rounded-xl shadow-xs space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black uppercase tracking-wider text-emerald-800 flex items-center">
+                  <Layers className="h-4 w-4 mr-1 text-emerald-700" />
+                  Step 1: Organizational Hierarchy Snapshot
+                </span>
+                <span className="text-[11px] font-bold text-slate-500">
+                  {snapshotSummary?.groupsCount ?? 0} Groups • {snapshotSummary?.gradesCount ?? 0} Grades
+                </span>
+              </div>
+              <p className="text-xs text-slate-600">
+                Freezes active Reporting Groups (RPSA: 0001–0008) and Grade hierarchy (ESG: 01–09). Repeat snapshots automatically deduplicate and update existing snapshot records.
+              </p>
+              
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                <Button
+                  variant="nbp"
+                  size="sm"
+                  disabled={actionLoading}
+                  onClick={handleSnapshotOrg}
+                  className="h-8 text-xs font-bold bg-emerald-800 hover:bg-emerald-900 text-white shadow-xs"
+                >
+                  <Camera className="h-3.5 w-3.5 mr-1" />
+                  {snapshotSummary?.hasOrgSnapshot ? 'Re-Snapshot Groups & Grades' : 'Capture Org Snapshot'}
+                </Button>
+
+                {snapshotSummary?.hasOrgSnapshot && (
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleOpenGroupsModal}
+                      className="h-8 text-xs font-bold border-slate-300 text-slate-800 hover:bg-slate-50"
+                      title="Inspect and edit snapshot reporting groups for this cycle"
+                    >
+                      <Building2 className="h-3.5 w-3.5 mr-1 text-emerald-700" />
+                      Manage Groups ({snapshotSummary?.groupsCount ?? 0})
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleOpenGradesModal}
+                      className="h-8 text-xs font-bold border-slate-300 text-slate-800 hover:bg-slate-50"
+                      title="Inspect and edit snapshot grade hierarchy for this cycle"
+                    >
+                      <GraduationCap className="h-3.5 w-3.5 mr-1 text-emerald-700" />
+                      Manage Grades ({snapshotSummary?.gradesCount ?? 0})
+                    </Button>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Step 2: Employee Roster Snapshot */}
+            <div className="p-4 bg-white border border-slate-200 rounded-xl shadow-xs space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black uppercase tracking-wider text-teal-800 flex items-center">
+                  <Users className="h-4 w-4 mr-1 text-teal-700" />
+                  Step 2: Employee Roster Snapshot
+                </span>
+                <span className="text-[11px] font-bold text-slate-500">
+                  {cycleStats?.totalEnrolled ?? 0} Employees Frozen
+                </span>
+              </div>
+              <p className="text-xs text-slate-600">
+                Snapshots active bank staff into this cycle. You can snapshot <strong>Bank-wide</strong> or select a <strong>specific Business Group</strong>. Deduplicates cleanly by SAP ID.
+              </p>
+
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-1">
+                <select
+                  value={selectedGroupFilter}
+                  onChange={(e) => setSelectedGroupFilter(e.target.value)}
+                  className="h-8 px-2.5 bg-slate-50 border border-slate-300 text-slate-900 rounded-lg text-xs font-bold focus:ring-2 focus:ring-emerald-500"
+                >
+                  <option value="ALL">All Groups (Bank-wide)</option>
+                  {snapshotSummary?.groups?.map((g: any) => (
+                    <option key={g.rpsaCode} value={g.rpsaCode}>
+                      {g.rpsaCode} – {g.groupName}
+                    </option>
+                  ))}
+                </select>
+
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={actionLoading}
+                  onClick={handleSnapshotEmployees}
+                  className="h-8 text-xs font-bold bg-teal-800 hover:bg-teal-900 text-white shadow-xs shrink-0"
+                >
+                  <Users className="h-3.5 w-3.5 mr-1" />
+                  {selectedGroupFilter === 'ALL' ? 'Snapshot All Staff' : `Snapshot Group ${selectedGroupFilter}`}
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-3 bg-emerald-100/60 rounded-xl text-xs text-emerald-950 flex items-start space-x-2 border border-emerald-200">
+            <Sparkles className="h-4 w-4 text-emerald-800 shrink-0 mt-0.5" />
+            <div className="leading-relaxed">
+              <strong>Role Segregation & Deduplication:</strong> PMW Admin manages cycle snapshot records and executes snapshots. Master Organizational tables are managed exclusively by PMW Super Admin. Taking repeat snapshots or importing employee sheets automatically updates existing records without duplicate rows.
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Cycle Workflow Stage Progression Tracker */}
       <Card className="border-slate-200 shadow-xs">
         <CardHeader className="pb-3">
@@ -541,6 +776,235 @@ export const PmwDashboard: React.FC<PmwDashboardProps> = ({
           </Card>
         </div>
       </div>
+
+      {/* Modal: Manage Snapshot Reporting Groups for this Cycle */}
+      {showGroupsModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="p-5 bg-gradient-to-r from-emerald-900 to-teal-900 text-white flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-bold flex items-center space-x-2">
+                  <Building2 className="h-5 w-5 text-emerald-400" />
+                  <span>Cycle Snapshot Reporting Groups ({currentCycle?.title})</span>
+                </h3>
+                <p className="text-xs text-slate-300 mt-0.5">
+                  PMW Admin can adjust group descriptions for this cycle. Master tables remain untouched.
+                </p>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowGroupsModal(false)}
+                className="text-white hover:bg-white/20 h-8 w-8 p-0"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+
+            <div className="p-5 max-h-[60vh] overflow-y-auto space-y-3">
+              <table className="w-full text-xs text-left">
+                <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider">
+                  <tr>
+                    <th className="p-2.5">RPSA</th>
+                    <th className="p-2.5">Code</th>
+                    <th className="p-2.5">Group Title</th>
+                    <th className="p-2.5">Head SAP ID</th>
+                    <th className="p-2.5 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {snapshotGroups.map((g) => (
+                    <tr key={g.id} className="hover:bg-slate-50">
+                      <td className="p-2.5 font-mono font-bold text-emerald-800">{g.rpsaCode}</td>
+                      <td className="p-2.5 font-mono font-semibold text-slate-700">{g.groupCode}</td>
+                      <td className="p-2.5">
+                        {editingGroupId === g.id ? (
+                          <Input
+                            value={groupEditForm.groupName}
+                            onChange={(e) => setGroupEditForm({ ...groupEditForm, groupName: e.target.value })}
+                            className="h-7 text-xs"
+                          />
+                        ) : (
+                          <span className="font-semibold text-slate-900">{g.groupName}</span>
+                        )}
+                      </td>
+                      <td className="p-2.5">
+                        {editingGroupId === g.id ? (
+                          <Input
+                            value={groupEditForm.headOfGroupSapId || ''}
+                            onChange={(e) => setGroupEditForm({ ...groupEditForm, headOfGroupSapId: e.target.value })}
+                            placeholder="SAP ID"
+                            className="h-7 text-xs font-mono"
+                          />
+                        ) : (
+                          <span className="font-mono text-slate-600">{g.headOfGroupSapId || '—'}</span>
+                        )}
+                      </td>
+                      <td className="p-2.5 text-right">
+                        {editingGroupId === g.id ? (
+                          <div className="flex items-center justify-end space-x-1">
+                            <Button
+                              variant="nbp"
+                              size="sm"
+                              onClick={() => handleSaveSnapshotGroup(g.id)}
+                              className="h-6 px-2 text-[10px] bg-emerald-800 hover:bg-emerald-900"
+                            >
+                              <Check className="h-3 w-3 mr-1" /> Save
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setEditingGroupId(null)}
+                              className="h-6 px-2 text-[10px]"
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        ) : (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setEditingGroupId(g.id);
+                              setGroupEditForm({ groupName: g.groupName, headOfGroupSapId: g.headOfGroupSapId });
+                            }}
+                            className="h-6 px-2 text-[10px] text-emerald-800 hover:bg-emerald-50 border-slate-300"
+                          >
+                            <Edit2 className="h-3 w-3 mr-1" /> Edit
+                          </Button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-end">
+              <Button variant="outline" size="sm" onClick={() => setShowGroupsModal(false)} className="text-xs font-bold">
+                Close
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Manage Snapshot Grade Hierarchy for this Cycle */}
+      {showGradesModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-3xl w-full border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="p-5 bg-gradient-to-r from-emerald-900 to-teal-900 text-white flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-bold flex items-center space-x-2">
+                  <GraduationCap className="h-5 w-5 text-emerald-400" />
+                  <span>Cycle Snapshot Grade Hierarchy ({currentCycle?.title})</span>
+                </h3>
+                <p className="text-xs text-slate-300 mt-0.5">
+                  PMW Admin can adjust grade names and default form type assignments for this cycle.
+                </p>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowGradesModal(false)}
+                className="text-white hover:bg-white/20 h-8 w-8 p-0"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+
+            <div className="p-5 max-h-[60vh] overflow-y-auto space-y-3">
+              <table className="w-full text-xs text-left">
+                <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase tracking-wider">
+                  <tr>
+                    <th className="p-2.5">ESG</th>
+                    <th className="p-2.5">Grade Code</th>
+                    <th className="p-2.5">Grade Title</th>
+                    <th className="p-2.5">Default Form Type</th>
+                    <th className="p-2.5 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {snapshotGrades.map((g) => (
+                    <tr key={g.id} className="hover:bg-slate-50">
+                      <td className="p-2.5 font-mono font-bold text-emerald-800">{g.esgCode}</td>
+                      <td className="p-2.5 font-mono font-semibold text-slate-700">{g.gradeCode}</td>
+                      <td className="p-2.5">
+                        {editingGradeId === g.id ? (
+                          <Input
+                            value={gradeEditForm.gradeName}
+                            onChange={(e) => setGradeEditForm({ ...gradeEditForm, gradeName: e.target.value })}
+                            className="h-7 text-xs"
+                          />
+                        ) : (
+                          <span className="font-semibold text-slate-900">{g.gradeName}</span>
+                        )}
+                      </td>
+                      <td className="p-2.5">
+                        {editingGradeId === g.id ? (
+                          <select
+                            value={gradeEditForm.defaultFormType}
+                            onChange={(e) => setGradeEditForm({ ...gradeEditForm, defaultFormType: e.target.value })}
+                            className="h-7 px-2 bg-slate-50 border border-slate-300 text-slate-900 rounded text-xs font-bold"
+                          >
+                            <option value="KPI_FORM">KPI Form (70/30)</option>
+                            <option value="BALANCED_SCORECARD">Balanced Scorecard (4-P)</option>
+                            <option value="RISK_ADJUSTED_BSC">Risk BSC (5-P)</option>
+                          </select>
+                        ) : (
+                          <Badge variant={g.defaultFormType === 'KPI_FORM' ? 'default' : 'nbp'} className="text-[10px] font-bold">
+                            {g.defaultFormType === 'KPI_FORM' ? 'KPI Form (70/30)' : 'Balanced Scorecard (4-P)'}
+                          </Badge>
+                        )}
+                      </td>
+                      <td className="p-2.5 text-right">
+                        {editingGradeId === g.id ? (
+                          <div className="flex items-center justify-end space-x-1">
+                            <Button
+                              variant="nbp"
+                              size="sm"
+                              onClick={() => handleSaveSnapshotGrade(g.id)}
+                              className="h-6 px-2 text-[10px] bg-emerald-800 hover:bg-emerald-900"
+                            >
+                              <Check className="h-3 w-3 mr-1" /> Save
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setEditingGradeId(null)}
+                              className="h-6 px-2 text-[10px]"
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        ) : (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setEditingGradeId(g.id);
+                              setGradeEditForm({ gradeName: g.gradeName, defaultFormType: g.defaultFormType });
+                            }}
+                            className="h-6 px-2 text-[10px] text-emerald-800 hover:bg-emerald-50 border-slate-300"
+                          >
+                            <Edit2 className="h-3 w-3 mr-1" /> Edit
+                          </Button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex justify-end">
+              <Button variant="outline" size="sm" onClick={() => setShowGradesModal(false)} className="text-xs font-bold">
+                Close
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

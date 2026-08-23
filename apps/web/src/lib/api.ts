@@ -75,7 +75,7 @@ export const api = {
   bulkUpdateAppraisers: (mappings: any[], actorSapId: string = 'PMW_ADMIN') =>
     fetchApi<any>('/Employees/bulk-update-appraisers', { method: 'POST', body: JSON.stringify({ mappings, actorSapId }) }),
 
-  // Appraisal Cycles
+  // Appraisal Cycles & Snapshots
   getCycles: () => fetchApi<any[]>('/Cycles'),
   getCycleById: (id: string) => fetchApi<any>(`/Cycles/${id}`),
   getCycleStats: (id: string) => fetchApi<any>(`/Cycles/${id}/stats`),
@@ -86,6 +86,19 @@ export const api = {
     fetchApi<any>(`/Cycles/${id}/suspend${actorUserId ? `?actorUserId=${encodeURIComponent(actorUserId)}` : ''}`, { method: 'POST' }),
   closeCycle: (id: string, actorUserId?: string) =>
     fetchApi<any>(`/Cycles/${id}/close${actorUserId ? `?actorUserId=${encodeURIComponent(actorUserId)}` : ''}`, { method: 'POST' }),
+  
+  // Cycle Snapshots (Groups, Grades & Employees)
+  snapshotCycleOrg: (cycleId: string, actorUserId: string = 'PMW_ADMIN') =>
+    fetchApi<any>(`/Cycles/${cycleId}/snapshot/organization?actorUserId=${encodeURIComponent(actorUserId)}`, { method: 'POST' }),
+  snapshotCycleEmployees: (cycleId: string, data: { rpsaCode?: string; actorUserId?: string }) =>
+    fetchApi<any>(`/Cycles/${cycleId}/snapshot/employees`, { method: 'POST', body: JSON.stringify(data) }),
+  getCycleSnapshotSummary: (cycleId: string) => fetchApi<any>(`/Cycles/${cycleId}/snapshot/summary`),
+  getCycleSnapshotGroups: (cycleId: string) => fetchApi<any[]>(`/Cycles/${cycleId}/snapshot/groups`),
+  updateCycleSnapshotGroup: (cycleId: string, groupId: string, data: any) =>
+    fetchApi<any>(`/Cycles/${cycleId}/snapshot/groups/${groupId}`, { method: 'PUT', body: JSON.stringify(data) }),
+  getCycleSnapshotGrades: (cycleId: string) => fetchApi<any[]>(`/Cycles/${cycleId}/snapshot/grades`),
+  updateCycleSnapshotGrade: (cycleId: string, gradeId: string, data: any) =>
+    fetchApi<any>(`/Cycles/${cycleId}/snapshot/grades/${gradeId}`, { method: 'PUT', body: JSON.stringify(data) }),
 
   // Cycle Employee Roster & Historical Snapshots
   getCycleEmployees: (cycleId: string, params?: { group?: string; grade?: string; search?: string }) => {

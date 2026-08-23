@@ -22,6 +22,8 @@ public class PmsDbContext : DbContext
     public DbSet<KeyVersion> KeyVersions => Set<KeyVersion>();
     public DbSet<ReportingGroup> ReportingGroups => Set<ReportingGroup>();
     public DbSet<GradeMapping> GradeMappings => Set<GradeMapping>();
+    public DbSet<CycleReportingGroup> CycleReportingGroups => Set<CycleReportingGroup>();
+    public DbSet<CycleGradeMapping> CycleGradeMappings => Set<CycleGradeMapping>();
     public DbSet<AppraisalFormAuditLog> AppraisalFormAuditLogs => Set<AppraisalFormAuditLog>();
     public DbSet<SystemUser> SystemUsers => Set<SystemUser>();
     public DbSet<EmailConfiguration> EmailConfigurations => Set<EmailConfiguration>();
@@ -123,5 +125,14 @@ public class PmsDbContext : DbContext
             .WithMany()
             .HasForeignKey(u => u.EmployeeId)
             .OnDelete(DeleteBehavior.SetNull);
+
+        // Cycle Snapshot Configurations & Composite Unique Constraints
+        modelBuilder.Entity<CycleReportingGroup>()
+            .HasIndex(g => new { g.CycleId, g.RpsaCode })
+            .IsUnique();
+
+        modelBuilder.Entity<CycleGradeMapping>()
+            .HasIndex(g => new { g.CycleId, g.EsgCode })
+            .IsUnique();
     }
 }

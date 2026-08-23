@@ -612,6 +612,397 @@ public class CyclesController : ControllerBase
     }
 
     #endregion
+
+    #region Appraisal Cycle Snapshots (Groups, Grades & Employees)
+
+    /// <summary>
+    /// Explicit on-demand snapshot of Reporting Groups and Grades hierarchy for an appraisal cycle.
+    /// Deduplicates by RPSA code and ESG code (Upsert logic).
+    /// </summary>
+    [HttpPost("{id}/snapshot/organization")]
+    public async Task<IActionResult> SnapshotOrganization(Guid id, [FromQuery] string? actorUserId = "PMW_ADMIN")
+    {
+        var cycle = await _db.AppraisalCycles.FirstOrDefaultAsync(c => c.Id == id);
+        if (cycle == null) return NotFound(new { message = "Cycle not found." });
+
+        var masterGroups = await _db.ReportingGroups.Where(g => g.IsActive).ToListAsync();
+        var masterGrades = await _db.GradeMappings.Where(g => g.IsActive).ToListAsync();
+
+        var existingSnapshotGroups = await _db.CycleReportingGroups.Where(g => g.CycleId == id).ToListAsync();
+        var existingSnapshotGrades = await _db.CycleGradeMappings.Where(g => g.CycleId == id).ToListAsync();
+
+        var snapshottedAt = DateTime.UtcNow;
+        var groupsUpdated = 0;
+        var groupsAdded = 0;
+        var gradesUpdated = 0;
+        var gradesAdded = 0;
+
+        // Snapshot Reporting Groups with strict RPSA code deduplication
+        foreach (var mg in masterGroups)
+        {
+            var rpsa = mg.RpsaCode ?? mg.GroupCode;
+            var snapGroup = existingSnapshotGroups.FirstOrDefault(g => g.RpsaCode == rpsa);
+            if (snapGroup != null)
+            {
+                snapGroup.GroupCode = mg.GroupCode;
+                snapGroup.GroupName = mg.GroupName;
+                snapGroup.HeadOfGroupSapId = mg.HeadOfGroupSapId;
+                snapGroup.UpdatedAt = snapshottedAt;
+                snapGroup.UpdatedBy = actorUserId;
+                groupsUpdated++;
+            }
+            else
+            {
+                _db.CycleReportingGroups.Add(new CycleReportingGroup
+                {
+                    CycleId = id,
+                    RpsaCode = rpsa,
+                    GroupCode = mg.GroupCode,
+                    GroupName = mg.GroupName,
+                    HeadOfGroupSapId = mg.HeadOfGroupSapId,
+                    SnapshottedAt = snapshottedAt,
+                    SnapshottedBy = actorUserId ?? "PMW_ADMIN"
+                });
+                groupsAdded++;
+            }
+        }
+
+        // Snapshot Grade Mappings with strict ESG code deduplication
+        foreach (var mg in masterGrades)
+        {
+            var esg = mg.EsgCode ?? mg.GradeCode;
+            var snapGrade = existingSnapshotGrades.FirstOrDefault(g => g.EsgCode == esg);
+            if (snapGrade != null)
+            {
+                snapGrade.GradeCode = mg.GradeCode;
+                snapGrade.GradeName = mg.GradeName;
+                snapGrade.HierarchyOrder = mg.RankOrder;
+                snapGrade.DefaultFormType = mg.DefaultFormType;
+                snapGrade.UpdatedAt = snapshottedAt;
+                snapGrade.UpdatedBy = actorUserId;
+                gradesUpdated++;
+            }
+            else
+            {
+                _db.CycleGradeMappings.Add(new CycleGradeMapping
+                {
+                    CycleId = id,
+                    EsgCode = esg,
+                    GradeCode = mg.GradeCode,
+                    GradeName = mg.GradeName,
+                    HierarchyOrder = mg.RankOrder,
+                    DefaultFormType = mg.DefaultFormType,
+                    SnapshottedAt = snapshottedAt,
+                    SnapshottedBy = actorUserId ?? "PMW_ADMIN"
+                });
+                gradesAdded++;
+            }
+        }
+
+        _db.AuditEvents.Add(new AuditEvent
+        {
+            EventType = "CYCLE_ORGANIZATION_SNAPSHOTTED",
+            ActorUserId = actorUserId ?? "PMW_ADMIN",
+            ActorRole = "PmwAdmin",
+            TargetEntityType = nameof(AppraisalCycle),
+            TargetEntityId = id.ToString(),
+            ActionDescription = $"Captured organizational snapshot for Cycle '{cycle.Title}': {groupsAdded + groupsUpdated} Reporting Groups, {gradesAdded + gradesUpdated} Grade Mappings.",
+            Timestamp = snapshottedAt
+        });
+
+        await _db.SaveChangesAsync();
+
+        var totalGroups = await _db.CycleReportingGroups.CountAsync(g => g.CycleId == id);
+        var totalGrades = await _db.CycleGradeMappings.CountAsync(g => g.CycleId == id);
+
+        return Ok(new
+        {
+            message = $"Organizational hierarchy snapshot captured successfully for '{cycle.Title}'.",
+            groupsCount = totalGroups,
+            gradesCount = totalGrades,
+            groupsAdded,
+            groupsUpdated,
+            gradesAdded,
+            gradesUpdated,
+            snapshottedAt
+        });
+    }
+
+    /// <summary>
+    /// Explicit on-demand employee snapshot for a cycle. Supports bank-wide or group-wise snapshot by RPSA code.
+    /// Strict SAP ID deduplication ensures repeated snapshots cleanly update rather than duplicate.
+    /// </summary>
+    [HttpPost("{id}/snapshot/employees")]
+    public async Task<IActionResult> SnapshotEmployees(Guid id, [FromBody] SnapshotCycleEmployeesDto dto)
+    {
+        var cycle = await _db.AppraisalCycles.FirstOrDefaultAsync(c => c.Id == id);
+        if (cycle == null) return NotFound(new { message = "Cycle not found." });
+
+        var snapGrades = await _db.CycleGradeMappings.Where(g => g.CycleId == id).ToListAsync();
+        var snapGroups = await _db.CycleReportingGroups.Where(g => g.CycleId == id).ToListAsync();
+
+        var empQuery = _db.Employees
+            .Include(e => e.FirstAppraiser)
+            .Include(e => e.SecondAppraiser)
+            .Where(e => e.IsActive);
+
+        if (!string.IsNullOrWhiteSpace(dto.RpsaCode) && dto.RpsaCode != "ALL")
+        {
+            empQuery = empQuery.Where(e => e.ReportingGroup == dto.RpsaCode.Trim());
+        }
+
+        var sourceEmployees = await empQuery.ToListAsync();
+        if (sourceEmployees.Count == 0)
+        {
+            return Ok(new
+            {
+                message = "No active employees found matching the specified group filter to snapshot.",
+                snapshottedCount = 0,
+                totalEnrolled = await _db.EmployeeCycles.CountAsync(ec => ec.CycleId == id)
+            });
+        }
+
+        var existingEmployeeCycles = await _db.EmployeeCycles
+            .Where(ec => ec.CycleId == id)
+            .ToListAsync();
+
+        var snapshottedAt = DateTime.UtcNow;
+        var addedCount = 0;
+        var updatedCount = 0;
+
+        foreach (var emp in sourceEmployees)
+        {
+            // Determine Form Type based on snapshotted grade rules & MRT flag
+            FormType formType = FormType.KpiForm;
+            if (emp.IsMrtOrMrc)
+            {
+                formType = FormType.RiskAdjustedBsc;
+            }
+            else
+            {
+                var gradeMatch = snapGrades.FirstOrDefault(g => g.EsgCode == emp.Grade);
+                if (gradeMatch != null)
+                {
+                    formType = gradeMatch.DefaultFormType == "BALANCED_SCORECARD" || gradeMatch.DefaultFormType == "RISK_ADJUSTED_BSC"
+                        ? FormType.BalancedScorecard
+                        : FormType.KpiForm;
+                }
+                else
+                {
+                    // Default fallback by ESG code band (01-05 = VP & Above => BSC; 06-09 = AVP & Below => KPI)
+                    formType = (emp.Grade == "01" || emp.Grade == "02" || emp.Grade == "03" || emp.Grade == "04" || emp.Grade == "05")
+                        ? FormType.BalancedScorecard
+                        : FormType.KpiForm;
+                }
+            }
+
+            var existingEc = existingEmployeeCycles.FirstOrDefault(ec => ec.EmployeeId == emp.Id);
+            if (existingEc != null)
+            {
+                // Clean Upsert: Update existing snapshot fields without creating duplicates
+                existingEc.SnapshotGrade = emp.Grade;
+                existingEc.SnapshotReportingGroup = emp.ReportingGroup;
+                existingEc.SnapshotDesignation = emp.Designation;
+                existingEc.SnapshotLocation = emp.Location;
+                existingEc.SnapshotIsMrtOrMrc = emp.IsMrtOrMrc;
+                existingEc.FirstAppraiserId = emp.FirstAppraiserId;
+                existingEc.SecondAppraiserId = emp.SecondAppraiserId;
+                existingEc.AssignedFormType = formType;
+                existingEc.UpdatedAt = snapshottedAt;
+                updatedCount++;
+            }
+            else
+            {
+                // Insert fresh employee cycle record
+                _db.EmployeeCycles.Add(new EmployeeCycle
+                {
+                    CycleId = id,
+                    EmployeeId = emp.Id,
+                    CurrentStatus = WorkflowStatus.ObjectiveDraft,
+                    AssignedFormType = formType,
+                    SnapshotGrade = emp.Grade,
+                    SnapshotReportingGroup = emp.ReportingGroup,
+                    SnapshotDesignation = emp.Designation,
+                    SnapshotLocation = emp.Location,
+                    SnapshotIsMrtOrMrc = emp.IsMrtOrMrc,
+                    FirstAppraiserId = emp.FirstAppraiserId,
+                    SecondAppraiserId = emp.SecondAppraiserId,
+                    CreatedAt = snapshottedAt
+                });
+                addedCount++;
+            }
+        }
+
+        var groupDesc = !string.IsNullOrWhiteSpace(dto.RpsaCode) && dto.RpsaCode != "ALL"
+            ? $"for Group (RPSA: {dto.RpsaCode})"
+            : "Bank-wide";
+
+        _db.AuditEvents.Add(new AuditEvent
+        {
+            EventType = "CYCLE_EMPLOYEES_SNAPSHOTTED",
+            ActorUserId = dto.ActorUserId ?? "PMW_ADMIN",
+            ActorRole = "PmwAdmin",
+            TargetEntityType = nameof(AppraisalCycle),
+            TargetEntityId = id.ToString(),
+            ActionDescription = $"Captured employee snapshot {groupDesc} for Cycle '{cycle.Title}': {addedCount} newly enrolled, {updatedCount} updated.",
+            Timestamp = snapshottedAt
+        });
+
+        await _db.SaveChangesAsync();
+
+        var totalEnrolled = await _db.EmployeeCycles.CountAsync(ec => ec.CycleId == id);
+
+        return Ok(new
+        {
+            message = $"Employee snapshot {groupDesc} captured successfully for '{cycle.Title}'.",
+            addedCount,
+            updatedCount,
+            totalEnrolled,
+            snapshottedAt
+        });
+    }
+
+    /// <summary>
+    /// Gets summary of all snapshots taken for a cycle.
+    /// </summary>
+    [HttpGet("{id}/snapshot/summary")]
+    public async Task<IActionResult> GetSnapshotSummary(Guid id)
+    {
+        var cycle = await _db.AppraisalCycles.FirstOrDefaultAsync(c => c.Id == id);
+        if (cycle == null) return NotFound(new { message = "Cycle not found." });
+
+        var groups = await _db.CycleReportingGroups.Where(g => g.CycleId == id).ToListAsync();
+        var grades = await _db.CycleGradeMappings.Where(g => g.CycleId == id).OrderBy(g => g.HierarchyOrder).ToListAsync();
+        var enrolledEmployees = await _db.EmployeeCycles.Where(ec => ec.CycleId == id).ToListAsync();
+
+        var lastOrgAudit = await _db.AuditEvents
+            .Where(a => a.TargetEntityId == id.ToString() && a.EventType == "CYCLE_ORGANIZATION_SNAPSHOTTED")
+            .OrderByDescending(a => a.Timestamp)
+            .FirstOrDefaultAsync();
+
+        var lastEmpAudit = await _db.AuditEvents
+            .Where(a => a.TargetEntityId == id.ToString() && a.EventType == "CYCLE_EMPLOYEES_SNAPSHOTTED")
+            .OrderByDescending(a => a.Timestamp)
+            .FirstOrDefaultAsync();
+
+        var groupBreakdown = groups.Select(g => new
+        {
+            g.Id,
+            g.RpsaCode,
+            g.GroupCode,
+            g.GroupName,
+            g.HeadOfGroupSapId,
+            EnrolledCount = enrolledEmployees.Count(ec => ec.SnapshotReportingGroup == g.RpsaCode)
+        }).ToList();
+
+        return Ok(new
+        {
+            cycleId = id,
+            cycleTitle = cycle.Title,
+            hasOrgSnapshot = groups.Count > 0 && grades.Count > 0,
+            groupsCount = groups.Count,
+            gradesCount = grades.Count,
+            employeesCount = enrolledEmployees.Count,
+            lastOrgSnapshotAt = lastOrgAudit?.Timestamp ?? groups.FirstOrDefault()?.SnapshottedAt,
+            lastEmployeeSnapshotAt = lastEmpAudit?.Timestamp,
+            groups = groupBreakdown,
+            grades = grades.Select(g => new
+            {
+                g.Id,
+                g.EsgCode,
+                g.GradeCode,
+                g.GradeName,
+                g.HierarchyOrder,
+                g.DefaultFormType
+            })
+        });
+    }
+
+    /// <summary>
+    /// Gets frozen reporting groups for a cycle.
+    /// </summary>
+    [HttpGet("{id}/snapshot/groups")]
+    public async Task<IActionResult> GetSnapshotGroups(Guid id)
+    {
+        var groups = await _db.CycleReportingGroups
+            .Where(g => g.CycleId == id)
+            .OrderBy(g => g.RpsaCode)
+            .ToListAsync();
+        return Ok(groups);
+    }
+
+    /// <summary>
+    /// Allows PMW Admin to fine-tune a snapshot reporting group for this cycle without mutating master data.
+    /// </summary>
+    [HttpPut("{id}/snapshot/groups/{groupId}")]
+    public async Task<IActionResult> UpdateSnapshotGroup(Guid id, Guid groupId, [FromBody] UpdateSnapshotGroupDto dto)
+    {
+        var snapGroup = await _db.CycleReportingGroups.FirstOrDefaultAsync(g => g.CycleId == id && g.Id == groupId);
+        if (snapGroup == null) return NotFound(new { message = "Snapshot group not found for this cycle." });
+
+        snapGroup.GroupName = dto.GroupName.Trim();
+        snapGroup.HeadOfGroupSapId = dto.HeadOfGroupSapId?.Trim();
+        snapGroup.UpdatedAt = DateTime.UtcNow;
+        snapGroup.UpdatedBy = dto.ActorUserId ?? "PMW_ADMIN";
+
+        _db.AuditEvents.Add(new AuditEvent
+        {
+            EventType = "CYCLE_SNAPSHOT_GROUP_UPDATED",
+            ActorUserId = dto.ActorUserId ?? "PMW_ADMIN",
+            ActorRole = "PmwAdmin",
+            TargetEntityType = nameof(CycleReportingGroup),
+            TargetEntityId = groupId.ToString(),
+            ActionDescription = $"Updated Cycle Snapshot Group '{snapGroup.GroupCode}' (RPSA: {snapGroup.RpsaCode}) in Cycle {id}.",
+            Timestamp = DateTime.UtcNow
+        });
+
+        await _db.SaveChangesAsync();
+        return Ok(snapGroup);
+    }
+
+    /// <summary>
+    /// Gets frozen grades for a cycle.
+    /// </summary>
+    [HttpGet("{id}/snapshot/grades")]
+    public async Task<IActionResult> GetSnapshotGrades(Guid id)
+    {
+        var grades = await _db.CycleGradeMappings
+            .Where(g => g.CycleId == id)
+            .OrderBy(g => g.HierarchyOrder)
+            .ToListAsync();
+        return Ok(grades);
+    }
+
+    /// <summary>
+    /// Allows PMW Admin to fine-tune a snapshot grade mapping for this cycle without mutating master data.
+    /// </summary>
+    [HttpPut("{id}/snapshot/grades/{gradeId}")]
+    public async Task<IActionResult> UpdateSnapshotGrade(Guid id, Guid gradeId, [FromBody] UpdateSnapshotGradeDto dto)
+    {
+        var snapGrade = await _db.CycleGradeMappings.FirstOrDefaultAsync(g => g.CycleId == id && g.Id == gradeId);
+        if (snapGrade == null) return NotFound(new { message = "Snapshot grade not found for this cycle." });
+
+        snapGrade.GradeName = dto.GradeName.Trim();
+        snapGrade.DefaultFormType = dto.DefaultFormType.Trim();
+        snapGrade.UpdatedAt = DateTime.UtcNow;
+        snapGrade.UpdatedBy = dto.ActorUserId ?? "PMW_ADMIN";
+
+        _db.AuditEvents.Add(new AuditEvent
+        {
+            EventType = "CYCLE_SNAPSHOT_GRADE_UPDATED",
+            ActorUserId = dto.ActorUserId ?? "PMW_ADMIN",
+            ActorRole = "PmwAdmin",
+            TargetEntityType = nameof(CycleGradeMapping),
+            TargetEntityId = gradeId.ToString(),
+            ActionDescription = $"Updated Cycle Snapshot Grade '{snapGrade.GradeCode}' (ESG: {snapGrade.EsgCode}) in Cycle {id}.",
+            Timestamp = DateTime.UtcNow
+        });
+
+        await _db.SaveChangesAsync();
+        return Ok(snapGrade);
+    }
+
+    #endregion
 }
 
 public record CreateCycleDto(
@@ -648,5 +1039,22 @@ public record UpdateCycleEmployeeSnapshotDto(
     bool? SnapshotIsMrtOrMrc,
     string? FirstAppraiserSapId,
     string? SecondAppraiserSapId,
+    string? ActorUserId = "PMW_ADMIN"
+);
+
+public record SnapshotCycleEmployeesDto(
+    string? RpsaCode = null,
+    string? ActorUserId = "PMW_ADMIN"
+);
+
+public record UpdateSnapshotGroupDto(
+    string GroupName,
+    string? HeadOfGroupSapId,
+    string? ActorUserId = "PMW_ADMIN"
+);
+
+public record UpdateSnapshotGradeDto(
+    string GradeName,
+    string DefaultFormType,
     string? ActorUserId = "PMW_ADMIN"
 );
