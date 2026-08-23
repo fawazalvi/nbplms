@@ -253,15 +253,15 @@ export const OrganizationManagementPage: React.FC = () => {
       filename = "NBP_Reporting_Groups_Sample_Import.csv";
     } else {
       content = "GradeCode,ESG,GradeName,RankOrder,DefaultFormType\n" +
-        "OG_III,01,OG III,1,KPI_FORM\n" +
-        "OG_II,02,OG II,2,KPI_FORM\n" +
-        "OG_I,03,OG I,3,KPI_FORM\n" +
-        "AVP,04,AVP,4,KPI_FORM\n" +
+        "OG_III,09,OG III,1,KPI_FORM\n" +
+        "OG_II,08,OG II,2,KPI_FORM\n" +
+        "OG_I,07,OG I,3,KPI_FORM\n" +
+        "AVP,06,AVP,4,KPI_FORM\n" +
         "VP,05,VP,5,BALANCED_SCORECARD\n" +
-        "SVP,06,SVP,6,BALANCED_SCORECARD\n" +
-        "EVP,07,EVP,7,BALANCED_SCORECARD\n" +
-        "SEVP,08,SEVP,8,BALANCED_SCORECARD\n" +
-        "PRESIDENT_CEO,09,President/CEO,9,BALANCED_SCORECARD";
+        "SVP,04,SVP,6,BALANCED_SCORECARD\n" +
+        "EVP,03,EVP,7,BALANCED_SCORECARD\n" +
+        "SEVP,02,SEVP,8,BALANCED_SCORECARD\n" +
+        "PRESIDENT_CEO,01,President/CEO,9,BALANCED_SCORECARD";
       filename = "NBP_Grade_Hierarchy_Sample_Import.csv";
     }
 

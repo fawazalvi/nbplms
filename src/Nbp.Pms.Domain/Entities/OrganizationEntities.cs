@@ -16,6 +16,7 @@ public class GradeMapping
     public Guid Id { get; set; } = Guid.NewGuid();
     public required string GradeCode { get; set; }
     public string? EsgCode { get; set; } // 2-digit ESG code e.g. "01", "04"
+    [System.ComponentModel.DataAnnotations.Schema.NotMapped]
     public string? GradeNumericCode { get => EsgCode; set => EsgCode = value; } // Backwards compatibility alias
     public required string GradeName { get; set; }
     public int RankOrder { get; set; }

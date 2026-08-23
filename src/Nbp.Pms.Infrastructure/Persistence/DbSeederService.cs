@@ -116,15 +116,15 @@ public class DbSeederService
                 END
 
                 EXEC('
-                    UPDATE GradeMappings SET EsgCode = ''01'' WHERE GradeCode = ''OG_III'' AND (EsgCode IS NULL OR EsgCode = '''');
-                    UPDATE GradeMappings SET EsgCode = ''02'' WHERE GradeCode = ''OG_II'' AND (EsgCode IS NULL OR EsgCode = '''');
-                    UPDATE GradeMappings SET EsgCode = ''03'' WHERE GradeCode = ''OG_I'' AND (EsgCode IS NULL OR EsgCode = '''');
-                    UPDATE GradeMappings SET EsgCode = ''04'' WHERE GradeCode = ''AVP'' AND (EsgCode IS NULL OR EsgCode = '''');
-                    UPDATE GradeMappings SET EsgCode = ''05'' WHERE GradeCode = ''VP'' AND (EsgCode IS NULL OR EsgCode = '''');
-                    UPDATE GradeMappings SET EsgCode = ''06'' WHERE GradeCode = ''SVP'' AND (EsgCode IS NULL OR EsgCode = '''');
-                    UPDATE GradeMappings SET EsgCode = ''07'' WHERE GradeCode = ''EVP'' AND (EsgCode IS NULL OR EsgCode = '''');
-                    UPDATE GradeMappings SET EsgCode = ''08'' WHERE GradeCode = ''SEVP'' AND (EsgCode IS NULL OR EsgCode = '''');
-                    UPDATE GradeMappings SET EsgCode = ''09'' WHERE (GradeCode = ''PRESIDENT'' OR GradeCode = ''PRESIDENT_CEO'') AND (EsgCode IS NULL OR EsgCode = '''');
+                    UPDATE GradeMappings SET EsgCode = ''01'' WHERE (GradeCode = ''PRESIDENT'' OR GradeCode = ''PRESIDENT_CEO'');
+                    UPDATE GradeMappings SET EsgCode = ''02'' WHERE GradeCode = ''SEVP'';
+                    UPDATE GradeMappings SET EsgCode = ''03'' WHERE GradeCode = ''EVP'';
+                    UPDATE GradeMappings SET EsgCode = ''04'' WHERE GradeCode = ''SVP'';
+                    UPDATE GradeMappings SET EsgCode = ''05'' WHERE GradeCode = ''VP'';
+                    UPDATE GradeMappings SET EsgCode = ''06'' WHERE GradeCode = ''AVP'';
+                    UPDATE GradeMappings SET EsgCode = ''07'' WHERE GradeCode = ''OG_I'';
+                    UPDATE GradeMappings SET EsgCode = ''08'' WHERE GradeCode = ''OG_II'';
+                    UPDATE GradeMappings SET EsgCode = ''09'' WHERE GradeCode = ''OG_III'';
                 ');
 
                 IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'EmployeeCycles' AND COLUMN_NAME = 'SnapshotGrade')
@@ -260,15 +260,15 @@ public class DbSeederService
         // 3. Grade Mappings
         var grades = new List<GradeMapping>
         {
-            new GradeMapping { GradeCode = "OG_III", GradeName = "OG III", EsgCode = "01", RankOrder = 1, DefaultFormType = "KPI_FORM" },
-            new GradeMapping { GradeCode = "OG_II", GradeName = "OG II", EsgCode = "02", RankOrder = 2, DefaultFormType = "KPI_FORM" },
-            new GradeMapping { GradeCode = "OG_I", GradeName = "OG I", EsgCode = "03", RankOrder = 3, DefaultFormType = "KPI_FORM" },
-            new GradeMapping { GradeCode = "AVP", GradeName = "AVP", EsgCode = "04", RankOrder = 4, DefaultFormType = "KPI_FORM" },
+            new GradeMapping { GradeCode = "OG_III", GradeName = "OG III", EsgCode = "09", RankOrder = 1, DefaultFormType = "KPI_FORM" },
+            new GradeMapping { GradeCode = "OG_II", GradeName = "OG II", EsgCode = "08", RankOrder = 2, DefaultFormType = "KPI_FORM" },
+            new GradeMapping { GradeCode = "OG_I", GradeName = "OG I", EsgCode = "07", RankOrder = 3, DefaultFormType = "KPI_FORM" },
+            new GradeMapping { GradeCode = "AVP", GradeName = "AVP", EsgCode = "06", RankOrder = 4, DefaultFormType = "KPI_FORM" },
             new GradeMapping { GradeCode = "VP", GradeName = "VP", EsgCode = "05", RankOrder = 5, DefaultFormType = "BALANCED_SCORECARD" },
-            new GradeMapping { GradeCode = "SVP", GradeName = "SVP", EsgCode = "06", RankOrder = 6, DefaultFormType = "BALANCED_SCORECARD" },
-            new GradeMapping { GradeCode = "EVP", GradeName = "EVP", EsgCode = "07", RankOrder = 7, DefaultFormType = "BALANCED_SCORECARD" },
-            new GradeMapping { GradeCode = "SEVP", GradeName = "SEVP", EsgCode = "08", RankOrder = 8, DefaultFormType = "BALANCED_SCORECARD" },
-            new GradeMapping { GradeCode = "PRESIDENT", GradeName = "President/CEO", EsgCode = "09", RankOrder = 9, DefaultFormType = "BALANCED_SCORECARD" },
+            new GradeMapping { GradeCode = "SVP", GradeName = "SVP", EsgCode = "04", RankOrder = 6, DefaultFormType = "BALANCED_SCORECARD" },
+            new GradeMapping { GradeCode = "EVP", GradeName = "EVP", EsgCode = "03", RankOrder = 7, DefaultFormType = "BALANCED_SCORECARD" },
+            new GradeMapping { GradeCode = "SEVP", GradeName = "SEVP", EsgCode = "02", RankOrder = 8, DefaultFormType = "BALANCED_SCORECARD" },
+            new GradeMapping { GradeCode = "PRESIDENT", GradeName = "President/CEO", EsgCode = "01", RankOrder = 9, DefaultFormType = "BALANCED_SCORECARD" },
         };
         _db.GradeMappings.AddRange(grades);
 

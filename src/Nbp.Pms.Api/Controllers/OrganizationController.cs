@@ -236,15 +236,15 @@ public class OrganizationController : ControllerBase
         {
             var defaultGrades = new List<GradeMapping>
             {
-                new GradeMapping { GradeCode = "OG_III", GradeName = "OG III", EsgCode = "01", RankOrder = 1, DefaultFormType = "KPI_FORM" },
-                new GradeMapping { GradeCode = "OG_II", GradeName = "OG II", EsgCode = "02", RankOrder = 2, DefaultFormType = "KPI_FORM" },
-                new GradeMapping { GradeCode = "OG_I", GradeName = "OG I", EsgCode = "03", RankOrder = 3, DefaultFormType = "KPI_FORM" },
-                new GradeMapping { GradeCode = "AVP", GradeName = "AVP", EsgCode = "04", RankOrder = 4, DefaultFormType = "KPI_FORM" },
+                new GradeMapping { GradeCode = "OG_III", GradeName = "OG III", EsgCode = "09", RankOrder = 1, DefaultFormType = "KPI_FORM" },
+                new GradeMapping { GradeCode = "OG_II", GradeName = "OG II", EsgCode = "08", RankOrder = 2, DefaultFormType = "KPI_FORM" },
+                new GradeMapping { GradeCode = "OG_I", GradeName = "OG I", EsgCode = "07", RankOrder = 3, DefaultFormType = "KPI_FORM" },
+                new GradeMapping { GradeCode = "AVP", GradeName = "AVP", EsgCode = "06", RankOrder = 4, DefaultFormType = "KPI_FORM" },
                 new GradeMapping { GradeCode = "VP", GradeName = "VP", EsgCode = "05", RankOrder = 5, DefaultFormType = "BALANCED_SCORECARD" },
-                new GradeMapping { GradeCode = "SVP", GradeName = "SVP", EsgCode = "06", RankOrder = 6, DefaultFormType = "BALANCED_SCORECARD" },
-                new GradeMapping { GradeCode = "EVP", GradeName = "EVP", EsgCode = "07", RankOrder = 7, DefaultFormType = "BALANCED_SCORECARD" },
-                new GradeMapping { GradeCode = "SEVP", GradeName = "SEVP", EsgCode = "08", RankOrder = 8, DefaultFormType = "BALANCED_SCORECARD" },
-                new GradeMapping { GradeCode = "PRESIDENT", GradeName = "President/CEO", EsgCode = "09", RankOrder = 9, DefaultFormType = "BALANCED_SCORECARD" },
+                new GradeMapping { GradeCode = "SVP", GradeName = "SVP", EsgCode = "04", RankOrder = 6, DefaultFormType = "BALANCED_SCORECARD" },
+                new GradeMapping { GradeCode = "EVP", GradeName = "EVP", EsgCode = "03", RankOrder = 7, DefaultFormType = "BALANCED_SCORECARD" },
+                new GradeMapping { GradeCode = "SEVP", GradeName = "SEVP", EsgCode = "02", RankOrder = 8, DefaultFormType = "BALANCED_SCORECARD" },
+                new GradeMapping { GradeCode = "PRESIDENT", GradeName = "President/CEO", EsgCode = "01", RankOrder = 9, DefaultFormType = "BALANCED_SCORECARD" },
             };
             _db.GradeMappings.AddRange(defaultGrades);
             await _db.SaveChangesAsync();
