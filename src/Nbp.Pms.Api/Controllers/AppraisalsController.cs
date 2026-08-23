@@ -91,6 +91,18 @@ public class AppraisalsController : ControllerBase
             
         if (empCycle == null) return NotFound();
 
+        // Lock against re-requests if line is already validated by supervisor
+        if (string.Equals(empCycle.AppraiserValidationStatus, "Validated", StringComparison.OrdinalIgnoreCase))
+        {
+            return BadRequest(new { message = "Your reporting line has been confirmed and validated by your supervisor and is locked against modifications. Only PMW Admin can unlock or reset the reporting line." });
+        }
+
+        // Prevent concurrent duplicate requests if already pending confirmation
+        if (string.Equals(empCycle.AppraiserValidationStatus, "PendingConfirmation", StringComparison.OrdinalIgnoreCase))
+        {
+            return BadRequest(new { message = "Your previous appraiser update request is currently pending supervisor confirmation. Please wait for confirmation or rejection before submitting a new request." });
+        }
+
         empCycle.PendingFirstAppraiserSapId = dto.FirstAppraiserSapId?.Trim();
         empCycle.PendingSecondAppraiserSapId = dto.SecondAppraiserSapId?.Trim();
         empCycle.PendingCoAppraiserSapId = dto.CoAppraiserSapId?.Trim();

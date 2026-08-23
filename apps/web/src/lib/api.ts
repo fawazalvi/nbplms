@@ -160,6 +160,10 @@ export const api = {
     fetchApi<any>(`/Appraisers/${employeeCycleId}/confirm-appraiser-mapping`, { method: 'POST', body: JSON.stringify(data) }),
   rejectAppraiserMapping: (employeeCycleId: string, data: { rejectionReason: string; actorSapId?: string }) =>
     fetchApi<any>(`/Appraisers/${employeeCycleId}/reject-appraiser-mapping`, { method: 'POST', body: JSON.stringify(data) }),
+  unlockAppraiserLine: (employeeCycleId: string, actorSapId: string = 'admin') =>
+    fetchApi<any>(`/Appraisers/${employeeCycleId}/unlock-appraiser-line`, { method: 'POST', body: JSON.stringify({ actorSapId }) }),
+  resetAppraiserLine: (employeeCycleId: string, actorSapId: string = 'admin') =>
+    fetchApi<any>(`/Appraisers/${employeeCycleId}/reset-appraiser-line`, { method: 'POST', body: JSON.stringify({ actorSapId }) }),
 
   // Development Review
   getDevelopmentReview: (employeeCycleId: string) =>

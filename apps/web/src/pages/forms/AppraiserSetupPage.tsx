@@ -18,7 +18,10 @@ import {
   GraduationCap,
   Layers,
   Save,
-  RefreshCw
+  RefreshCw,
+  Lock,
+  Unlock,
+  RotateCcw
 } from 'lucide-react';
 
 interface AppraiserSetupPageProps {
@@ -110,7 +113,53 @@ export const AppraiserSetupPage: React.FC<AppraiserSetupPageProps> = ({
     }
   };
 
+  const handleUnlockLine = async () => {
+    if (!empCycle) return;
+    setSaving(true);
+    setMessage(null);
+    try {
+      const res = await api.unlockAppraiserLine(empCycle.id, 'admin');
+      setMessage({
+        text: res.message || 'Reporting line unlocked successfully. Employee can now submit a new request.',
+        type: 'success'
+      });
+      await loadData();
+    } catch (e: any) {
+      setMessage({ text: e.message || 'Failed to unlock reporting line.', type: 'error' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleResetLine = async () => {
+    if (!empCycle) return;
+    if (!window.confirm('Are you sure you want to completely reset this employee\'s appraiser line?')) return;
+    setSaving(true);
+    setMessage(null);
+    try {
+      const res = await api.resetAppraiserLine(empCycle.id, 'admin');
+      setMessage({
+        text: res.message || 'Reporting line reset successfully.',
+        type: 'success'
+      });
+      setFirstSap('');
+      setSecondSap('');
+      setCoAppSap('');
+      setFirstAppraiserInfo(null);
+      setSecondAppraiserInfo(null);
+      setCoAppraiserInfo(null);
+      await loadData();
+    } catch (e: any) {
+      setMessage({ text: e.message || 'Failed to reset reporting line.', type: 'error' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const validationStatus = empCycle?.appraiserValidationStatus || 'PendingConfirmation';
+  const isLocked = validationStatus === 'Validated';
+  const isPending = validationStatus === 'PendingConfirmation';
+  const isPmwAdmin = userRole === 'PmwAdmin' || userRole === 'PmwSuperAdmin';
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-12">
@@ -197,10 +246,95 @@ export const AppraiserSetupPage: React.FC<AppraiserSetupPageProps> = ({
         </div>
       )}
 
+      {/* Lock Banner when Confirmed & Validated */}
+      {isLocked && (
+        <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-300 text-emerald-950 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xs">
+          <div className="flex items-center space-x-3.5 text-xs">
+            <div className="h-10 w-10 rounded-xl bg-emerald-700 text-white flex items-center justify-center flex-shrink-0 shadow-sm">
+              <Lock className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="flex items-center space-x-2">
+                <h4 className="font-bold text-emerald-950 text-sm">Reporting Line Confirmed & Locked</h4>
+                <Badge className="bg-emerald-200/80 text-emerald-900 border-emerald-400 text-[10px] font-bold">
+                  Immutable
+                </Badge>
+              </div>
+              <p className="text-emerald-800 text-xs mt-0.5 leading-relaxed">
+                Your appraisal hierarchy has been validated by your supervisor and is locked to maintain audit and evaluation integrity. 
+                Endusers cannot re-request modifications. If an organizational realignment is needed, please contact <strong>PMW Admin</strong> to unlock your line.
+              </p>
+            </div>
+          </div>
+
+          {isPmwAdmin && (
+            <div className="flex items-center space-x-2 flex-shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-emerald-200">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleUnlockLine}
+                disabled={saving}
+                className="text-xs font-bold border-amber-300 text-amber-950 bg-amber-50 hover:bg-amber-100 shadow-xs"
+              >
+                <Unlock className="h-3.5 w-3.5 mr-1 text-amber-700" />
+                PMW Admin: Unlock Line
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleResetLine}
+                disabled={saving}
+                className="text-xs font-bold border-rose-300 text-rose-950 bg-rose-50 hover:bg-rose-100 shadow-xs"
+              >
+                <RotateCcw className="h-3.5 w-3.5 mr-1 text-rose-700" />
+                Reset Line
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Pending Banner */}
+      {isPending && (
+        <div className="p-4 rounded-2xl bg-amber-50 border border-amber-300 text-amber-950 flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-xs">
+          <div className="flex items-center space-x-3.5 text-xs">
+            <div className="h-10 w-10 rounded-xl bg-amber-600 text-white flex items-center justify-center flex-shrink-0 shadow-sm">
+              <AlertCircle className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="flex items-center space-x-2">
+                <h4 className="font-bold text-amber-950 text-sm">Update Request Awaiting Appraiser Confirmation</h4>
+                <Badge className="bg-amber-200/80 text-amber-900 border-amber-400 text-[10px] font-bold">
+                  In Review
+                </Badge>
+              </div>
+              <p className="text-amber-800 text-xs mt-0.5 leading-relaxed">
+                You have already submitted an appraiser update request. Editing is disabled until your supervisor confirms or returns your request.
+              </p>
+            </div>
+          </div>
+
+          {isPmwAdmin && (
+            <div className="flex items-center space-x-2 flex-shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-amber-200">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleUnlockLine}
+                disabled={saving}
+                className="text-xs font-bold border-amber-400 text-amber-950 bg-amber-100/70 hover:bg-amber-200 shadow-xs"
+              >
+                <Unlock className="h-3.5 w-3.5 mr-1 text-amber-700" />
+                PMW Admin: Force Unlock
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Main Appraiser Setup Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* 1. First Appraiser Card */}
-        <Card className="border-slate-200 shadow-sm flex flex-col justify-between">
+        <Card className={`border-slate-200 shadow-sm flex flex-col justify-between ${isLocked ? 'bg-slate-50/50 opacity-95' : ''}`}>
           <CardHeader className="pb-3 border-b border-slate-100 bg-slate-50/50">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2.5">
@@ -223,11 +357,12 @@ export const AppraiserSetupPage: React.FC<AppraiserSetupPageProps> = ({
               <SapIdAutocomplete
                 label="First Appraiser (SAP ID or Name)"
                 value={firstSap}
+                disabled={isLocked || isPending}
                 onChange={(val) => setFirstSap(val)}
                 onEmployeeSelected={(emp) => {
                   if (emp) setFirstAppraiserInfo(emp);
                 }}
-                placeholder="e.g. 10004 or Tariq Mahmood"
+                placeholder={isLocked ? 'Line is locked & validated' : 'e.g. 10004 or Tariq Mahmood'}
               />
             </div>
 
@@ -253,7 +388,7 @@ export const AppraiserSetupPage: React.FC<AppraiserSetupPageProps> = ({
         </Card>
 
         {/* 2. Second Appraiser / Supervisor Card */}
-        <Card className="border-slate-200 shadow-sm flex flex-col justify-between">
+        <Card className={`border-slate-200 shadow-sm flex flex-col justify-between ${isLocked ? 'bg-slate-50/50 opacity-95' : ''}`}>
           <CardHeader className="pb-3 border-b border-slate-100 bg-slate-50/50">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2.5">
@@ -276,11 +411,12 @@ export const AppraiserSetupPage: React.FC<AppraiserSetupPageProps> = ({
               <SapIdAutocomplete
                 label="Second Appraiser / Supervisor (SAP ID or Name)"
                 value={secondSap}
+                disabled={isLocked || isPending}
                 onChange={(val) => setSecondSap(val)}
                 onEmployeeSelected={(emp) => {
                   if (emp) setSecondAppraiserInfo(emp);
                 }}
-                placeholder="e.g. 10003 or Rashid Khan"
+                placeholder={isLocked ? 'Line is locked & validated' : 'e.g. 10003 or Rashid Khan'}
               />
             </div>
 
@@ -306,7 +442,7 @@ export const AppraiserSetupPage: React.FC<AppraiserSetupPageProps> = ({
         </Card>
 
         {/* 3. Optional Co-Appraiser / Project Supervisor Card */}
-        <Card className="border-slate-200 shadow-sm md:col-span-2">
+        <Card className={`border-slate-200 shadow-sm md:col-span-2 ${isLocked ? 'bg-slate-50/50 opacity-95' : ''}`}>
           <CardHeader className="pb-3 border-b border-slate-100 bg-slate-50/50">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2.5">
@@ -330,11 +466,12 @@ export const AppraiserSetupPage: React.FC<AppraiserSetupPageProps> = ({
                 <SapIdAutocomplete
                   label="Additional Co-Appraiser (Optional)"
                   value={coAppSap}
+                  disabled={isLocked || isPending}
                   onChange={(val) => setCoAppSap(val)}
                   onEmployeeSelected={(emp) => {
                     if (emp) setCoAppraiserInfo(emp);
                   }}
-                  placeholder="Optional SAP ID or Name"
+                  placeholder={isLocked ? 'Line is locked & validated' : 'Optional SAP ID or Name'}
                 />
               </div>
 
@@ -360,7 +497,13 @@ export const AppraiserSetupPage: React.FC<AppraiserSetupPageProps> = ({
       <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-sm flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="flex items-center space-x-2 text-xs text-slate-600">
           <Info className="h-4 w-4 text-emerald-700 flex-shrink-0" />
-          <span>Saving sends a confirmation notification to your nominated appraisers for validation.</span>
+          <span>
+            {isLocked
+              ? 'Reporting line is locked and confirmed. Modifications require PMW Admin authorization.'
+              : isPending
+              ? 'Request is pending supervisor review. Modifications are disabled.'
+              : 'Saving sends a confirmation notification to your nominated appraisers for validation.'}
+          </span>
         </div>
 
         <div className="flex items-center space-x-2">
@@ -375,16 +518,35 @@ export const AppraiserSetupPage: React.FC<AppraiserSetupPageProps> = ({
             </Button>
           )}
 
-          <Button
-            variant="nbp"
-            size="sm"
-            disabled={saving || !firstSap || !secondSap}
-            onClick={handleSaveAppraiserLine}
-            className="text-xs font-black h-9 px-5 bg-emerald-600 hover:bg-emerald-500 text-white shadow-md"
-          >
-            <Save className="h-4 w-4 mr-1.5" />
-            {saving ? 'Saving...' : 'Save & Request Appraiser Confirmation'}
-          </Button>
+          {isLocked ? (
+            <div className="flex items-center space-x-2">
+              <Badge className="bg-emerald-100 text-emerald-900 border-emerald-300 text-xs px-3 py-1.5 font-bold flex items-center space-x-1.5">
+                <Lock className="h-3.5 w-3.5 text-emerald-700" />
+                <span>Line Locked & Confirmed</span>
+              </Badge>
+            </div>
+          ) : isPending ? (
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled
+              className="text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300"
+            >
+              <RefreshCw className="h-3.5 w-3.5 mr-1 animate-spin" />
+              Pending Confirmation
+            </Button>
+          ) : (
+            <Button
+              variant="nbp"
+              size="sm"
+              disabled={saving || !firstSap || !secondSap}
+              onClick={handleSaveAppraiserLine}
+              className="text-xs font-black h-9 px-5 bg-emerald-600 hover:bg-emerald-500 text-white shadow-md"
+            >
+              <Save className="h-4 w-4 mr-1.5" />
+              {saving ? 'Saving...' : 'Save & Request Appraiser Confirmation'}
+            </Button>
+          )}
         </div>
       </div>
     </div>

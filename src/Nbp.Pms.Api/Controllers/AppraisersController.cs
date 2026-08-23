@@ -284,7 +284,83 @@ public class AppraisersController : ControllerBase
         await _db.SaveChangesAsync();
         return Ok(new { message = "Appraiser mapping rejected. Employee must re-enter details.", employeeCycle = empCycle });
     }
+
+    /// <summary>
+    /// PMW Admin unlocks the confirmed reporting line so that the employee can make changes and re-request.
+    /// </summary>
+    [HttpPost("{id}/unlock-appraiser-line")]
+    public async Task<IActionResult> UnlockAppraiserLine(Guid id, [FromBody] AdminAppraiserActionDto dto)
+    {
+        var empCycle = await _db.EmployeeCycles
+            .Include(ec => ec.Employee)
+            .FirstOrDefaultAsync(ec => ec.Id == id);
+
+        if (empCycle == null) return NotFound();
+
+        empCycle.AppraiserValidationStatus = "UnlockedForRevision";
+        empCycle.AppraiserRejectionReason = null;
+        empCycle.PendingFirstAppraiserSapId = null;
+        empCycle.PendingSecondAppraiserSapId = null;
+        empCycle.PendingCoAppraiserSapId = null;
+        empCycle.UpdatedAt = DateTime.UtcNow;
+
+        var audit = new AuditEvent
+        {
+            EventType = "APPRAISER_LINE_UNLOCKED_BY_ADMIN",
+            ActorUserId = dto.ActorSapId,
+            ActorRole = "PmwAdmin",
+            TargetEntityId = empCycle.Id.ToString(),
+            TargetEntityType = nameof(EmployeeCycle),
+            ActionDescription = $"PMW Admin {dto.ActorSapId} unlocked reporting line for employee {empCycle.Employee?.FullName} (SAP ID: {empCycle.Employee?.SapId}) to allow re-requesting.",
+            Timestamp = DateTime.UtcNow
+        };
+        _db.AuditEvents.Add(audit);
+
+        await _db.SaveChangesAsync();
+        return Ok(new { message = "Reporting line unlocked successfully. Employee is now permitted to submit a new appraiser line request.", employeeCycle = empCycle });
+    }
+
+    /// <summary>
+    /// PMW Admin resets the appraiser line mapping completely.
+    /// </summary>
+    [HttpPost("{id}/reset-appraiser-line")]
+    public async Task<IActionResult> ResetAppraiserLine(Guid id, [FromBody] AdminAppraiserActionDto dto)
+    {
+        var empCycle = await _db.EmployeeCycles
+            .Include(ec => ec.Employee)
+            .FirstOrDefaultAsync(ec => ec.Id == id);
+
+        if (empCycle == null) return NotFound();
+
+        empCycle.FirstAppraiserId = null;
+        empCycle.SecondAppraiserId = null;
+        empCycle.CoAppraiserId = null;
+        empCycle.PendingFirstAppraiserSapId = null;
+        empCycle.PendingSecondAppraiserSapId = null;
+        empCycle.PendingCoAppraiserSapId = null;
+        empCycle.AppraiserValidationStatus = null;
+        empCycle.AppraiserRejectionReason = null;
+        empCycle.AppraiserValidatedAt = null;
+        empCycle.AppraiserValidatedBySapId = null;
+        empCycle.UpdatedAt = DateTime.UtcNow;
+
+        var audit = new AuditEvent
+        {
+            EventType = "APPRAISER_LINE_RESET_BY_ADMIN",
+            ActorUserId = dto.ActorSapId,
+            ActorRole = "PmwAdmin",
+            TargetEntityId = empCycle.Id.ToString(),
+            TargetEntityType = nameof(EmployeeCycle),
+            ActionDescription = $"PMW Admin {dto.ActorSapId} reset reporting line hierarchy for employee {empCycle.Employee?.FullName} (SAP ID: {empCycle.Employee?.SapId}).",
+            Timestamp = DateTime.UtcNow
+        };
+        _db.AuditEvents.Add(audit);
+
+        await _db.SaveChangesAsync();
+        return Ok(new { message = "Reporting line hierarchy reset successfully.", employeeCycle = empCycle });
+    }
 }
 
 public record ConfirmAppraiserDto(string FirstAppraiserSapId, string SecondAppraiserSapId, string? CoAppraiserSapId, string ActorSapId = "10004");
 public record RejectAppraiserDto(string RejectionReason, string ActorSapId = "10004");
+public record AdminAppraiserActionDto(string ActorSapId = "admin");
