@@ -26,7 +26,9 @@ import {
   HelpCircle,
   RefreshCw,
   Scale,
-  History
+  History,
+  Lock,
+  Unlock
 } from 'lucide-react';
 
 import { ScoreSelector } from '@/components/appraisal/ScoreSelector';
@@ -57,15 +59,21 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
 
   // Appraiser Self-Service Line Status
   const [empCycleData, setEmpCycleData] = useState<any>(null);
-  const [appraiserStatus, setAppraiserStatus] = useState<'Validated' | 'PendingConfirmation' | 'Rejected'>('Validated');
+  const [appraiserStatus, setAppraiserStatus] = useState<'Validated' | 'PendingConfirmation' | 'UnlockedForRevision' | 'Rejected' | 'Draft'>('Draft');
   const [firstAppraiserName, setFirstAppraiserName] = useState('Tariq Mahmood (VP - SAP ID: 10004)');
   const [secondAppraiserName, setSecondAppraiserName] = useState('Rashid Khan (SVP - SAP ID: 10003)');
   const [rejectionReason, setRejectionReason] = useState<string | null>(null);
+
+  // Appraiser Profile Info States
+  const [firstAppraiserInfo, setFirstAppraiserInfo] = useState<any>(null);
+  const [secondAppraiserInfo, setSecondAppraiserInfo] = useState<any>(null);
+  const [coAppraiserInfo, setCoAppraiserInfo] = useState<any>(null);
 
   // Update Appraiser Modal State
   const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [inputFirstSap, setInputFirstSap] = useState('10004');
   const [inputSecondSap, setInputSecondSap] = useState('10003');
+  const [inputCoAppSap, setInputCoAppSap] = useState('');
   const [updatingAppraiser, setUpdatingAppraiser] = useState(false);
 
   // Audit History Modal State
@@ -133,7 +141,8 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
       const data = await api.getMyAppraisal('84920');
       if (data && data.employeeCycle) {
         setEmpCycleData(data.employeeCycle);
-        setAppraiserStatus(data.employeeCycle.appraiserValidationStatus || 'Validated');
+        const vStatus = data.employeeCycle.appraiserValidationStatus || 'Draft';
+        setAppraiserStatus(vStatus as any);
         setRejectionReason(data.employeeCycle.appraiserRejectionReason || null);
 
         // Set form type based on assigned form
@@ -145,12 +154,26 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
         if (data.employeeCycle.firstAppraiser) {
           const fa = data.employeeCycle.firstAppraiser;
           setFirstAppraiserName(`${fa.fullName} (${fa.grade} - SAP ID: ${fa.sapId})`);
+          setFirstAppraiserInfo(fa);
           setInputFirstSap(fa.sapId);
+        } else if (data.employeeCycle.pendingFirstAppraiserSapId) {
+          setInputFirstSap(data.employeeCycle.pendingFirstAppraiserSapId);
         }
+
         if (data.employeeCycle.secondAppraiser) {
           const sa = data.employeeCycle.secondAppraiser;
           setSecondAppraiserName(`${sa.fullName} (${sa.grade} - SAP ID: ${sa.sapId})`);
+          setSecondAppraiserInfo(sa);
           setInputSecondSap(sa.sapId);
+        } else if (data.employeeCycle.pendingSecondAppraiserSapId) {
+          setInputSecondSap(data.employeeCycle.pendingSecondAppraiserSapId);
+        }
+
+        if (data.employeeCycle.coAppraiser) {
+          setCoAppraiserInfo(data.employeeCycle.coAppraiser);
+          setInputCoAppSap(data.employeeCycle.coAppraiser.sapId);
+        } else if (data.employeeCycle.pendingCoAppraiserSapId) {
+          setInputCoAppSap(data.employeeCycle.pendingCoAppraiserSapId);
         }
 
         // Map Objectives from DB to KPI items
@@ -205,6 +228,7 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
         const res = await api.requestAppraiserUpdate(empCycleData.id, {
           firstAppraiserSapId: inputFirstSap,
           secondAppraiserSapId: inputSecondSap,
+          coAppraiserSapId: inputCoAppSap || undefined,
         });
         setMessage(res.message);
         setShowUpdateModal(false);
@@ -413,52 +437,148 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
       </Card>
 
       {/* Appraiser & Supervisor Self-Service Validation Card */}
-      <Card className="border-emerald-200 bg-gradient-to-r from-slate-900 via-emerald-950 to-teal-950 text-white shadow-xl">
-        <CardContent className="p-5">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <Card className="border-emerald-300 bg-gradient-to-r from-slate-950 via-emerald-950 to-teal-950 text-white shadow-xl overflow-hidden">
+        <CardContent className="p-5 space-y-4">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-white/10 pb-4">
             <div className="space-y-1">
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-2 flex-wrap gap-y-1">
                 <UserCheck className="h-4 w-4 text-emerald-400" />
-                <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">Assigned Appraiser & Supervisor Line</span>
+                <span className="text-xs font-bold uppercase tracking-wider text-emerald-400">Assigned Appraiser Hierarchy & Reporting Line</span>
                 <span>•</span>
-                <Badge
-                  variant={appraiserStatus === 'Validated' ? 'success' : appraiserStatus === 'PendingConfirmation' ? 'warning' : 'danger'}
-                  className="text-[10px] uppercase font-bold"
-                >
-                  {appraiserStatus === 'Validated' ? 'Validated & Confirmed' : appraiserStatus === 'PendingConfirmation' ? 'Awaiting Appraiser Confirmation' : 'Appraiser Mapping Rejected'}
-                </Badge>
+                {appraiserStatus === 'Validated' ? (
+                  <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-400/40 text-[10px] uppercase font-bold flex items-center space-x-1">
+                    <CheckCircle2 className="h-3 w-3 text-emerald-400" />
+                    <span>Confirmed & Validated</span>
+                  </Badge>
+                ) : appraiserStatus === 'PendingConfirmation' ? (
+                  <Badge className="bg-amber-500/20 text-amber-300 border-amber-400/40 text-[10px] uppercase font-bold flex items-center space-x-1">
+                    <Clock className="h-3 w-3 text-amber-400" />
+                    <span>Pending Appraiser Confirmation</span>
+                  </Badge>
+                ) : appraiserStatus === 'UnlockedForRevision' ? (
+                  <Badge className="bg-sky-500/20 text-sky-300 border-sky-400/40 text-[10px] uppercase font-bold flex items-center space-x-1">
+                    <Unlock className="h-3 w-3 text-sky-400" />
+                    <span>Unlocked by Admin (Ready to Nominate)</span>
+                  </Badge>
+                ) : appraiserStatus === 'Rejected' ? (
+                  <Badge className="bg-rose-500/20 text-rose-300 border-rose-400/40 text-[10px] uppercase font-bold flex items-center space-x-1">
+                    <AlertTriangle className="h-3 w-3 text-rose-400" />
+                    <span>Rejected — Needs Revision</span>
+                  </Badge>
+                ) : (
+                  <Badge className="bg-slate-500/20 text-slate-300 border-slate-400/40 text-[10px] uppercase font-bold">
+                    <span>Draft / Needs Setup</span>
+                  </Badge>
+                )}
               </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 pt-1 text-xs">
-                <div>
-                  <span className="text-slate-400">First Appraiser:</span>{' '}
-                  <strong className="text-white">{firstAppraiserName}</strong>
-                </div>
-                <div>
-                  <span className="text-slate-400">Second Appraiser / Supervisor:</span>{' '}
-                  <strong className="text-white">{secondAppraiserName}</strong>
-                </div>
-              </div>
+              <p className="text-[11px] text-slate-300">
+                Designate and confirm your First Appraiser, Second Appraiser (Supervisor), and optional Co-Appraiser.
+              </p>
             </div>
 
-            <div>
-              <Button
-                variant="gold"
-                size="sm"
-                onClick={() => setShowUpdateModal(true)}
-                className="font-bold text-xs shadow-md"
-              >
-                <Edit3 className="h-4 w-4 mr-1.5" />
-                Update Appraiser / Supervisor Info
-              </Button>
+            <div className="flex items-center space-x-2">
+              {appraiserStatus === 'Validated' ? (
+                <Badge className="bg-emerald-500/20 text-emerald-300 border-emerald-400/40 text-xs px-3 py-1.5 font-bold flex items-center space-x-1.5">
+                  <Lock className="h-3.5 w-3.5 text-emerald-400" />
+                  <span>Line Locked & Confirmed</span>
+                </Badge>
+              ) : appraiserStatus === 'PendingConfirmation' ? (
+                <Badge className="bg-amber-500/20 text-amber-300 border-amber-400/40 text-xs px-3 py-1.5 font-bold flex items-center space-x-1.5">
+                  <Clock className="h-3.5 w-3.5 text-amber-300 animate-pulse" />
+                  <span>Awaiting Appraiser Review</span>
+                </Badge>
+              ) : (
+                <Button
+                  variant="gold"
+                  size="sm"
+                  onClick={() => setShowUpdateModal(true)}
+                  className="font-bold text-xs shadow-md bg-amber-500 hover:bg-amber-400 text-slate-950"
+                >
+                  <Edit3 className="h-4 w-4 mr-1.5" />
+                  Setup / Update Appraisers
+                </Button>
+              )}
             </div>
           </div>
 
+          {/* 3 Profile Boxes */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
+            {/* 1. First Appraiser Box */}
+            <div className="p-3 bg-white/5 border border-white/10 rounded-xl space-y-1 text-xs">
+              <div className="flex items-center justify-between text-[11px] text-emerald-400 font-bold uppercase">
+                <span>1st Appraiser (Mandatory)</span>
+                <span className="text-slate-400 font-mono text-[10px]">{firstAppraiserInfo?.sapId || inputFirstSap || '—'}</span>
+              </div>
+              <div className="font-bold text-white text-xs truncate">
+                {firstAppraiserInfo?.fullName || (inputFirstSap ? `SAP ID: ${inputFirstSap}` : 'Not designated')}
+              </div>
+              <div className="text-slate-300 text-[11px]">
+                {firstAppraiserInfo?.grade || '—'} • {firstAppraiserInfo?.designation || '—'}
+              </div>
+              <div className="text-slate-400 text-[10px] pt-0.5 truncate">
+                🏢 {firstAppraiserInfo?.reportingGroup || '—'}
+              </div>
+            </div>
+
+            {/* 2. Second Appraiser Box */}
+            <div className="p-3 bg-white/5 border border-white/10 rounded-xl space-y-1 text-xs">
+              <div className="flex items-center justify-between text-[11px] text-teal-400 font-bold uppercase">
+                <span>2nd Appraiser / Supervisor</span>
+                <span className="text-slate-400 font-mono text-[10px]">{secondAppraiserInfo?.sapId || inputSecondSap || '—'}</span>
+              </div>
+              <div className="font-bold text-white text-xs truncate">
+                {secondAppraiserInfo?.fullName || (inputSecondSap ? `SAP ID: ${inputSecondSap}` : 'Not designated')}
+              </div>
+              <div className="text-slate-300 text-[11px]">
+                {secondAppraiserInfo?.grade || '—'} • {secondAppraiserInfo?.designation || '—'}
+              </div>
+              <div className="text-slate-400 text-[10px] pt-0.5 truncate">
+                🏢 {secondAppraiserInfo?.reportingGroup || '—'}
+              </div>
+            </div>
+
+            {/* 3. Co-Appraiser Box */}
+            <div className="p-3 bg-white/5 border border-white/10 rounded-xl space-y-1 text-xs">
+              <div className="flex items-center justify-between text-[11px] text-slate-400 font-bold uppercase">
+                <span>Co-Appraiser (Optional)</span>
+                <span className="text-slate-400 font-mono text-[10px]">{coAppraiserInfo?.sapId || inputCoAppSap || '—'}</span>
+              </div>
+              <div className="font-bold text-white text-xs truncate">
+                {coAppraiserInfo?.fullName || (inputCoAppSap ? `SAP ID: ${inputCoAppSap}` : 'None designated')}
+              </div>
+              <div className="text-slate-300 text-[11px]">
+                {coAppraiserInfo?.grade || '—'} • {coAppraiserInfo?.designation || '—'}
+              </div>
+              <div className="text-slate-400 text-[10px] pt-0.5 truncate">
+                🏢 {coAppraiserInfo?.reportingGroup || '—'}
+              </div>
+            </div>
+          </div>
+
+          {/* Alert messages */}
           {appraiserStatus === 'PendingConfirmation' && (
-            <div className="mt-3 p-3 rounded-xl bg-amber-500/20 border border-amber-400/40 text-amber-200 text-xs flex items-center space-x-2">
+            <div className="p-3 rounded-xl bg-amber-500/20 border border-amber-400/40 text-amber-200 text-xs flex items-center space-x-2">
               <Clock className="h-4 w-4 text-amber-300 shrink-0" />
               <span>
-                <strong>Confirmation Pending:</strong> Form submission is locked until your requested Appraiser & Supervisor line is confirmed by your First Appraiser.
+                <strong>Confirmation Pending:</strong> Your nominated appraiser hierarchy is awaiting review and confirmation by your supervisor.
+              </span>
+            </div>
+          )}
+
+          {appraiserStatus === 'Rejected' && (
+            <div className="p-3 rounded-xl bg-rose-500/20 border border-rose-400/40 text-rose-200 text-xs flex items-center space-x-2">
+              <AlertTriangle className="h-4 w-4 text-rose-300 shrink-0" />
+              <span>
+                <strong>Appraiser Nomination Returned:</strong> {rejectionReason || 'Please update and re-submit your appraiser selections.'}
+              </span>
+            </div>
+          )}
+
+          {appraiserStatus === 'UnlockedForRevision' && (
+            <div className="p-3 rounded-xl bg-sky-500/20 border border-sky-400/40 text-sky-200 text-xs flex items-center space-x-2">
+              <Unlock className="h-4 w-4 text-sky-300 shrink-0" />
+              <span>
+                <strong>Reporting Line Unlocked by PMW Admin:</strong> Click <strong>"Setup / Update Appraisers"</strong> above to select and submit your updated reporting hierarchy.
               </span>
             </div>
           )}
@@ -839,15 +959,15 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
       {/* 6. Update Appraiser & Supervisor Modal */}
       {showUpdateModal && (
         <div className="fixed inset-0 z-[100] bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
-          <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-200 my-auto">
+          <div className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-200 my-auto">
             <div className="bg-gradient-to-r from-slate-950 via-emerald-950 to-teal-950 p-5 text-white flex items-center justify-between">
               <div className="flex items-center space-x-3">
                 <div className="h-10 w-10 rounded-xl bg-emerald-700/40 p-2 flex items-center justify-center border border-emerald-500/30">
                   <UserCheck className="h-5 w-5 text-emerald-400" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-white leading-tight">Update Appraiser & Supervisor Info</h3>
-                  <p className="text-[11px] text-slate-300">Self-Service Appraiser Line Request</p>
+                  <h3 className="text-base font-bold text-white leading-tight">Setup / Update Appraisal Reporting Line</h3>
+                  <p className="text-[11px] text-slate-300">Designate your First Appraiser, Supervisor, and optional Co-Appraiser</p>
                 </div>
               </div>
               <button onClick={() => setShowUpdateModal(false)} className="text-slate-300 hover:text-white">
@@ -857,32 +977,81 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
 
             <div className="p-6 space-y-4 text-xs">
               <p className="text-slate-600 leading-relaxed">
-                Start typing a SAP ID or employee name to search. Select the matching employee from the dropdown to auto-fill their details.
+                Type a SAP ID or staff name to search and select your evaluators. Submitting will send an automated confirmation request to your nominated appraisers.
               </p>
 
-              <div className="space-y-4">
-                <SapIdAutocomplete
-                  label="First Appraiser (Mandatory)"
-                  value={inputFirstSap}
-                  onChange={(sapId) => setInputFirstSap(sapId)}
-                  placeholder="Type SAP ID or name to search..."
-                  required
-                />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <SapIdAutocomplete
+                    label="First Appraiser (Mandatory)"
+                    value={inputFirstSap}
+                    onChange={(sapId) => setInputFirstSap(sapId)}
+                    onEmployeeSelected={(emp) => {
+                      if (emp) setFirstAppraiserInfo(emp);
+                    }}
+                    placeholder="e.g. 10004 or Tariq Mahmood"
+                    required
+                  />
+                  {firstAppraiserInfo && (
+                    <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-lg text-[11px] space-y-0.5 text-slate-700">
+                      <div className="font-bold text-emerald-950">{firstAppraiserInfo.fullName}</div>
+                      <div>{firstAppraiserInfo.grade} • {firstAppraiserInfo.designation}</div>
+                      <div className="text-[10px] text-slate-500">🏢 {firstAppraiserInfo.reportingGroup}</div>
+                    </div>
+                  )}
+                </div>
 
-                <SapIdAutocomplete
-                  label="Second Appraiser / Supervisor (Mandatory)"
-                  value={inputSecondSap}
-                  onChange={(sapId) => setInputSecondSap(sapId)}
-                  placeholder="Type SAP ID or name to search..."
-                  required
-                />
+                <div className="space-y-1.5">
+                  <SapIdAutocomplete
+                    label="Second Appraiser / Supervisor (Mandatory)"
+                    value={inputSecondSap}
+                    onChange={(sapId) => setInputSecondSap(sapId)}
+                    onEmployeeSelected={(emp) => {
+                      if (emp) setSecondAppraiserInfo(emp);
+                    }}
+                    placeholder="e.g. 10003 or Rashid Khan"
+                    required
+                  />
+                  {secondAppraiserInfo && (
+                    <div className="p-2.5 bg-teal-50 border border-teal-200 rounded-lg text-[11px] space-y-0.5 text-slate-700">
+                      <div className="font-bold text-teal-950">{secondAppraiserInfo.fullName}</div>
+                      <div>{secondAppraiserInfo.grade} • {secondAppraiserInfo.designation}</div>
+                      <div className="text-[10px] text-slate-500">🏢 {secondAppraiserInfo.reportingGroup}</div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-1.5 md:col-span-2">
+                  <SapIdAutocomplete
+                    label="Additional Co-Appraiser (Optional)"
+                    value={inputCoAppSap}
+                    onChange={(sapId) => setInputCoAppSap(sapId)}
+                    onEmployeeSelected={(emp) => {
+                      if (emp) setCoAppraiserInfo(emp);
+                    }}
+                    placeholder="Optional SAP ID or staff name..."
+                  />
+                  {coAppraiserInfo && (
+                    <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-[11px] space-y-0.5 text-slate-700">
+                      <div className="font-bold text-slate-900">{coAppraiserInfo.fullName}</div>
+                      <div>{coAppraiserInfo.grade} • {coAppraiserInfo.designation}</div>
+                      <div className="text-[10px] text-slate-500">🏢 {coAppraiserInfo.reportingGroup}</div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
             <div className="p-4 bg-slate-50 border-t flex items-center justify-between">
               <Button variant="secondary" size="sm" onClick={() => setShowUpdateModal(false)}>Cancel</Button>
-              <Button variant="nbp" size="sm" onClick={handleRequestAppraiserUpdate} disabled={updatingAppraiser}>
-                {updatingAppraiser ? 'Submitting...' : 'Submit Request for Appraiser Confirmation'}
+              <Button
+                variant="nbp"
+                size="sm"
+                onClick={handleRequestAppraiserUpdate}
+                disabled={updatingAppraiser || !inputFirstSap || !inputSecondSap}
+                className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold"
+              >
+                {updatingAppraiser ? 'Submitting...' : 'Save & Submit Request for Appraiser Confirmation'}
               </Button>
             </div>
           </div>

@@ -146,7 +146,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentRole, activeTab, onTabC
             items: [
               { id: 'dashboard', label: 'My Performance Center', icon: LayoutDashboard },
               { id: 'my-appraisal', label: 'My Appraisal & Objectives', icon: FileCheck },
-              { id: 'appraiser-setup', label: 'My Appraiser Line Setup', icon: UserCog },
               { id: 'my-dev-review', label: 'My Development Feedback', icon: GraduationCap },
             ]
           },
