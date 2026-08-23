@@ -1192,10 +1192,8 @@ public class CyclesController : ControllerBase
             }
             if (!string.IsNullOrWhiteSpace(dto.FormType) && dto.FormType != "ALL")
             {
-                if (Enum.TryParse<FormType>(dto.FormType, true, out var parsedFormType))
-                {
-                    query = query.Where(ec => ec.AssignedFormType == parsedFormType);
-                }
+                var parsedFormType = ParseFormType(dto.FormType, "OG I", false);
+                query = query.Where(ec => ec.AssignedFormType == parsedFormType);
             }
             if (!string.IsNullOrWhiteSpace(dto.SearchTerm))
             {
