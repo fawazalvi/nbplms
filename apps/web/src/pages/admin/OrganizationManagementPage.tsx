@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { api } from '@/lib/api';
-import { Building2, Plus, Trash2, CheckCircle2, RefreshCw, Layers, Upload, Download, FileSpreadsheet, X, FileText, AlertTriangle, Pencil, Users, ToggleLeft, ToggleRight, Search } from 'lucide-react';
+import { Building2, Plus, Trash2, CheckCircle2, RefreshCw, Layers, Upload, Download, FileSpreadsheet, X, FileText, AlertTriangle, Pencil, Users, ToggleLeft, ToggleRight, Search, Hash } from 'lucide-react';
 
 export const OrganizationManagementPage: React.FC = () => {
   const [activeSubTab, setActiveSubTab] = useState<'groups' | 'grades'>('groups');
@@ -20,6 +20,7 @@ export const OrganizationManagementPage: React.FC = () => {
   const [editingGroup, setEditingGroup] = useState<any | null>(null);
   const [groupCode, setGroupCode] = useState('');
   const [groupName, setGroupName] = useState('');
+  const [groupRpsaCode, setGroupRpsaCode] = useState('');
   const [groupHeadSapId, setGroupHeadSapId] = useState('');
   const [groupIsActive, setGroupIsActive] = useState(true);
 
@@ -38,6 +39,12 @@ export const OrganizationManagementPage: React.FC = () => {
   const [importing, setImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const formatRpsa = (val: string) => {
+    if (!val) return '';
+    const digits = val.replace(/\D/g, '').slice(0, 4);
+    return digits ? digits.padStart(4, '0') : '';
+  };
+
   const loadData = async () => {
     setLoading(true);
     setErrorMessage(null);
@@ -49,8 +56,8 @@ export const OrganizationManagementPage: React.FC = () => {
         groupsData = await api.getReportingGroups();
       }
       const gradesData = await api.getGradeMappings();
-      setGroups(groupsData);
-      setGrades(gradesData);
+      setGroups(groupsData || []);
+      setGrades(gradesData || []);
     } catch (e: any) {
       console.error(e);
       setErrorMessage(e.message || String(e));
@@ -68,6 +75,7 @@ export const OrganizationManagementPage: React.FC = () => {
     setEditingGroup(null);
     setGroupCode('');
     setGroupName('');
+    setGroupRpsaCode('');
     setGroupHeadSapId('');
     setGroupIsActive(true);
     setShowGroupModal(true);
@@ -77,6 +85,7 @@ export const OrganizationManagementPage: React.FC = () => {
     setEditingGroup(g);
     setGroupCode(g.groupCode || '');
     setGroupName(g.groupName || '');
+    setGroupRpsaCode(g.rpsaCode || '');
     setGroupHeadSapId(g.headOfGroupSapId || '');
     setGroupIsActive(g.isActive !== false);
     setShowGroupModal(true);
@@ -86,25 +95,28 @@ export const OrganizationManagementPage: React.FC = () => {
     if (!groupCode || !groupName) return;
     setErrorMessage(null);
     try {
+      const formattedRpsa = groupRpsaCode ? formatRpsa(groupRpsaCode) : null;
       if (editingGroup) {
         // Update existing group
         await api.updateReportingGroup(editingGroup.id, {
           groupCode,
           groupName,
+          rpsaCode: formattedRpsa,
           headOfGroupSapId: groupHeadSapId || null,
           isActive: groupIsActive,
           actorUserId: 'PMW_ADMIN'
         });
-        setMessage(`Reporting Group "${groupName}" (${groupCode}) updated successfully.`);
+        setMessage(`Reporting Group "${groupName}" (${groupCode}) with RPSA ${formattedRpsa || 'N/A'} updated successfully.`);
       } else {
         // Create new group
         await api.createReportingGroup({
           groupCode,
           groupName,
+          rpsaCode: formattedRpsa,
           headOfGroupSapId: groupHeadSapId || null,
           actorUserId: 'PMW_ADMIN'
         });
-        setMessage(`Reporting Group "${groupName}" (${groupCode}) created successfully.`);
+        setMessage(`Reporting Group "${groupName}" (${groupCode}) with RPSA ${formattedRpsa || 'N/A'} created successfully.`);
       }
       setShowGroupModal(false);
       setEditingGroup(null);
@@ -120,6 +132,7 @@ export const OrganizationManagementPage: React.FC = () => {
       await api.updateReportingGroup(g.id, {
         groupCode: g.groupCode,
         groupName: g.groupName,
+        rpsaCode: g.rpsaCode || null,
         headOfGroupSapId: g.headOfGroupSapId,
         isActive: !g.isActive,
         actorUserId: 'PMW_ADMIN'
@@ -177,18 +190,27 @@ export const OrganizationManagementPage: React.FC = () => {
     let filename = "";
 
     if (importType === 'groups') {
-      content = "GroupCode,GroupName,HeadOfGroupSapId\n" +
-        "CBG,Commercial Banking Group,10002\n" +
-        "RBG,Consumer Banking Group,10003\n" +
-        "RMG,Risk Management Group,10004\n" +
-        "ITG,Information Technology Group,10005";
+      content = "GroupCode,GroupName,RPSA,HeadOfGroupSapId\n" +
+        "CBG,Commercial Banking Group,0001,10002\n" +
+        "RBG,Consumer Banking Group,0002,10003\n" +
+        "RMG,Risk Management Group,0003,10004\n" +
+        "TGM,Treasury & Global Markets,0004,10005\n" +
+        "ITG,Information Technology Group,0005,10006\n" +
+        "OPS,Operations Group,0006,10007\n" +
+        "HRG,HR Management Group,0007,10008\n" +
+        "CMP,Compliance Group,0008,10009";
       filename = "NBP_Reporting_Groups_Sample_Import.csv";
     } else {
       content = "GradeCode,GradeName,RankOrder,DefaultFormType\n" +
         "OG_III,OG III,1,KPI_FORM\n" +
         "OG_II,OG II,2,KPI_FORM\n" +
+        "OG_I,OG I,3,KPI_FORM\n" +
         "AVP,AVP,4,KPI_FORM\n" +
-        "VP,VP,5,BALANCED_SCORECARD";
+        "VP,VP,5,BALANCED_SCORECARD\n" +
+        "SVP,SVP,6,BALANCED_SCORECARD\n" +
+        "EVP,EVP,7,BALANCED_SCORECARD\n" +
+        "SEVP,SEVP,8,BALANCED_SCORECARD\n" +
+        "PRESIDENT_CEO,President/CEO,9,BALANCED_SCORECARD";
       filename = "NBP_Grade_Hierarchy_Sample_Import.csv";
     }
 
@@ -215,10 +237,16 @@ export const OrganizationManagementPage: React.FC = () => {
       if (cols.length < 2) continue;
 
       if (importType === 'groups') {
+        const rawRpsa = cols[2] || '';
+        const isNumericRpsa = /^\d+$/.test(rawRpsa.trim()) || cols.length >= 4;
+        const formattedRpsa = isNumericRpsa && rawRpsa ? formatRpsa(rawRpsa) : (cols.length >= 4 ? formatRpsa(cols[2]) : '');
+        const headSap = cols.length >= 4 ? cols[3] : (isNumericRpsa ? '' : cols[2]);
+
         rows.push({
           groupCode: cols[0] || '',
           groupName: cols[1] || '',
-          headOfGroupSapId: cols[2] || ''
+          rpsaCode: formattedRpsa,
+          headOfGroupSapId: headSap || ''
         });
       } else {
         rows.push({
@@ -274,29 +302,32 @@ export const OrganizationManagementPage: React.FC = () => {
     return (
       (g.groupCode || '').toLowerCase().includes(q) ||
       (g.groupName || '').toLowerCase().includes(q) ||
+      (g.rpsaCode || '').toLowerCase().includes(q) ||
       (g.headOfGroupSapId || '').toLowerCase().includes(q)
     );
   });
 
   const activeGroupCount = groups.filter(g => g.isActive !== false).length;
   const inactiveGroupCount = groups.filter(g => g.isActive === false).length;
-  const totalEmployees = groups.reduce((sum: number, g: any) => sum + (g.employeeCount || 0), 0);
+  const totalEmployees = groups.reduce((sum, g) => sum + (g.employeeCount || 0), 0);
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-12">
-      {/* Header Banner */}
-      <div className="rounded-2xl bg-gradient-to-r from-slate-950 via-emerald-950 to-teal-950 p-6 text-white shadow-xl flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      {/* Top Banner */}
+      <div className="rounded-2xl bg-gradient-to-r from-emerald-950 via-slate-900 to-teal-950 p-6 text-white shadow-xl flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <div className="flex items-center space-x-2 text-emerald-400 text-xs font-bold uppercase tracking-wider mb-1">
-            <span>Organizational Hierarchy & Form Rules</span>
+            <Building2 className="h-4 w-4" />
+            <span>NBP Organizational Architecture</span>
             <span>•</span>
-            <Badge variant="nbp" className="bg-emerald-800 text-white">PMW Control</Badge>
+            <Badge variant="nbp" className="bg-emerald-700 text-white">Database Driven</Badge>
           </div>
           <h1 className="text-2xl font-black tracking-tight">Reporting Groups & Grade Hierarchy</h1>
           <p className="text-slate-300 text-xs mt-1">
-            Manage NBP Bank Divisions, Reporting Groups, Grade Rank Orders, and Default Form Assignments.
+            Configure bank reporting groups with 4-digit RPSA codes and manage grade rank hierarchies with form rules.
           </p>
         </div>
+
         <div className="flex items-center space-x-2">
           <Button variant="secondary" size="sm" onClick={loadData}>
             <RefreshCw className="h-4 w-4 mr-1" />
@@ -426,7 +457,7 @@ export const OrganizationManagementPage: React.FC = () => {
           <div className="relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
             <Input
-              placeholder="Search by group code, name, or head SAP ID..."
+              placeholder="Search by group code, RPSA code, group name, or head SAP ID..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10 h-10 text-sm"
@@ -437,7 +468,7 @@ export const OrganizationManagementPage: React.FC = () => {
           <Card>
             <CardHeader>
               <CardTitle className="text-base font-bold text-slate-900">Bank Reporting Groups</CardTitle>
-              <CardDescription className="text-xs">Database-driven NBP organizational groups — click Edit to manage details</CardDescription>
+              <CardDescription className="text-xs">Database-driven NBP organizational groups with 4-digit RPSA codes</CardDescription>
             </CardHeader>
             <CardContent>
               {loading ? (
@@ -451,7 +482,8 @@ export const OrganizationManagementPage: React.FC = () => {
                   <table className="w-full text-xs text-left">
                     <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase">
                       <tr>
-                        <th className="p-3">Code</th>
+                        <th className="p-3">Group Code</th>
+                        <th className="p-3">RPSA Code</th>
                         <th className="p-3">Group Name</th>
                         <th className="p-3">Head of Group (SAP ID)</th>
                         <th className="p-3 text-center">Employees</th>
@@ -463,7 +495,12 @@ export const OrganizationManagementPage: React.FC = () => {
                       {filteredGroups.map((g) => (
                         <tr key={g.id} className={`hover:bg-slate-50 transition-colors ${g.isActive === false ? 'opacity-60' : ''}`}>
                           <td className="p-3">
-                            <Badge variant="secondary" className="font-mono text-[10px]">{g.groupCode}</Badge>
+                            <Badge variant="secondary" className="font-mono text-[10px] font-bold">{g.groupCode}</Badge>
+                          </td>
+                          <td className="p-3">
+                            <span className="font-mono text-xs font-black px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-900 border border-emerald-200/80">
+                              {g.rpsaCode ? g.rpsaCode.padStart(4, '0') : '0000'}
+                            </span>
                           </td>
                           <td className="p-3">
                             <span className="font-bold text-slate-900 text-sm">{g.groupName}</span>
@@ -523,12 +560,16 @@ export const OrganizationManagementPage: React.FC = () => {
         /* ═══════════════ GRADES TAB ═══════════════ */
         <Card>
           <CardHeader>
-            <CardTitle className="text-base font-bold text-slate-900">Grade Hierarchy & Default Form Assignments</CardTitle>
-            <CardDescription className="text-xs">Grade rank order and standard form mapping rules</CardDescription>
+            <CardTitle className="text-base font-bold text-slate-900">Grade Hierarchy & Form Assignment Rules</CardTitle>
+            <CardDescription className="text-xs">
+              System grade progression rules. OG III to AVP are assigned KPI Forms (70/30), while VP to President are assigned Balanced Scorecards.
+            </CardDescription>
           </CardHeader>
           <CardContent>
             {loading ? (
               <div className="p-8 text-center text-xs text-slate-500">Loading grade hierarchy...</div>
+            ) : grades.length === 0 ? (
+              <div className="p-8 text-center text-xs text-slate-400">No grade mappings configured.</div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-xs text-left">
@@ -536,24 +577,30 @@ export const OrganizationManagementPage: React.FC = () => {
                     <tr>
                       <th className="p-3">Rank Order</th>
                       <th className="p-3">Grade Code</th>
-                      <th className="p-3">Grade Name</th>
-                      <th className="p-3">Default Form Assignment</th>
-                      <th className="p-3 text-right">Action</th>
+                      <th className="p-3">Display Name</th>
+                      <th className="p-3">Form Rule Assigned</th>
+                      <th className="p-3 text-center">Status</th>
+                      <th className="p-3 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {grades.map((gr) => (
-                      <tr key={gr.id} className="hover:bg-slate-50">
-                        <td className="p-3 font-bold text-slate-900">#{gr.rankOrder}</td>
-                        <td className="p-3 font-mono text-slate-600">{gr.gradeCode}</td>
-                        <td className="p-3 font-bold text-slate-900">{gr.gradeName}</td>
+                    {grades.map((g) => (
+                      <tr key={g.id} className="hover:bg-slate-50">
+                        <td className="p-3 font-mono font-bold text-slate-900">#{g.rankOrder}</td>
                         <td className="p-3">
-                          <Badge variant={gr.defaultFormType === 'KPI_FORM' ? 'nbp' : 'warning'}>
-                            {gr.defaultFormType === 'KPI_FORM' ? 'KPI Form (70/30)' : 'Balanced Scorecard (4-P)'}
+                          <Badge variant="secondary" className="font-mono">{g.gradeCode}</Badge>
+                        </td>
+                        <td className="p-3 font-semibold text-slate-900">{g.gradeName}</td>
+                        <td className="p-3">
+                          <Badge variant={g.defaultFormType === 'BALANCED_SCORECARD' ? 'warning' : 'nbp'}>
+                            {g.defaultFormType === 'BALANCED_SCORECARD' ? 'Balanced Scorecard (4-P)' : 'KPI Form (70/30)'}
                           </Badge>
                         </td>
+                        <td className="p-3 text-center">
+                          <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 text-[10px] font-bold">Active</Badge>
+                        </td>
                         <td className="p-3 text-right">
-                          <Button variant="ghost" size="icon" onClick={() => handleDeleteGrade(gr.id)} title="Delete Grade">
+                          <Button variant="ghost" size="icon" onClick={() => handleDeleteGrade(g.id)}>
                             <Trash2 className="h-4 w-4 text-slate-400 hover:text-red-600" />
                           </Button>
                         </td>
@@ -591,9 +638,9 @@ export const OrganizationManagementPage: React.FC = () => {
             </div>
 
             <div className="p-6 space-y-4 text-xs">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">Group Code</label>
+                  <label className="font-bold text-slate-700 block mb-1">Group Code *</label>
                   <Input
                     value={groupCode}
                     onChange={(e) => setGroupCode(e.target.value)}
@@ -601,10 +648,24 @@ export const OrganizationManagementPage: React.FC = () => {
                     disabled={!!editingGroup}
                     className={editingGroup ? 'bg-slate-100 text-slate-500' : ''}
                   />
-                  {editingGroup && <p className="text-[10px] text-slate-400 mt-1">Code cannot be changed after creation</p>}
+                  {editingGroup && <p className="text-[10px] text-slate-400 mt-1">Code is immutable</p>}
                 </div>
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">Head of Group (SAP ID)</label>
+                  <label className="font-bold text-slate-700 block mb-1">RPSA Code *</label>
+                  <Input
+                    value={groupRpsaCode}
+                    onChange={(e) => setGroupRpsaCode(e.target.value)}
+                    onBlur={() => {
+                      if (groupRpsaCode) setGroupRpsaCode(formatRpsa(groupRpsaCode));
+                    }}
+                    placeholder="0001"
+                    maxLength={4}
+                    className="font-mono font-bold text-xs"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1">4-digits with zeros</p>
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Head SAP ID</label>
                   <Input
                     value={groupHeadSapId}
                     onChange={(e) => setGroupHeadSapId(e.target.value)}
@@ -612,8 +673,9 @@ export const OrganizationManagementPage: React.FC = () => {
                   />
                 </div>
               </div>
+
               <div>
-                <label className="font-bold text-slate-700 block mb-1">Group Full Name</label>
+                <label className="font-bold text-slate-700 block mb-1">Group Full Name *</label>
                 <Input
                   value={groupName}
                   onChange={(e) => setGroupName(e.target.value)}
@@ -628,6 +690,7 @@ export const OrganizationManagementPage: React.FC = () => {
                     <p className="text-[11px] text-slate-500">Inactive groups are hidden from appraisal cycle scope</p>
                   </div>
                   <button
+                    type="button"
                     onClick={() => setGroupIsActive(!groupIsActive)}
                     className="flex items-center space-x-2 cursor-pointer"
                   >
@@ -649,9 +712,8 @@ export const OrganizationManagementPage: React.FC = () => {
 
             <div className="p-4 bg-slate-50 border-t flex items-center justify-between">
               <Button variant="secondary" size="sm" onClick={() => { setShowGroupModal(false); setEditingGroup(null); }}>Cancel</Button>
-              <Button variant="nbp" size="sm" onClick={handleSaveGroup}>
-                <CheckCircle2 className="h-4 w-4 mr-1" />
-                {editingGroup ? 'Update Group' : 'Save Reporting Group'}
+              <Button variant="nbp" size="sm" onClick={handleSaveGroup} disabled={!groupCode || !groupName}>
+                {editingGroup ? 'Save Changes' : 'Create Group'}
               </Button>
             </div>
           </div>
@@ -722,7 +784,7 @@ export const OrganizationManagementPage: React.FC = () => {
                   <h3 className="text-base font-bold text-white leading-tight">
                     Upload Bulk {importType === 'groups' ? 'Reporting Groups' : 'Grade Mappings'} CSV
                   </h3>
-                  <p className="text-[11px] text-slate-300">CSV Bulk Import & Data Commit Wizard</p>
+                  <p className="text-[11px] text-slate-300">CSV Bulk Import & Data Commit Wizard with 4-Digit RPSA Codes</p>
                 </div>
               </div>
               <button onClick={() => setShowImportModal(false)} className="p-1 text-slate-300 hover:text-white">
@@ -734,7 +796,9 @@ export const OrganizationManagementPage: React.FC = () => {
               <div className="flex items-center justify-between p-3 rounded-xl bg-emerald-50 border border-emerald-200">
                 <div className="flex items-center space-x-2 text-emerald-900 font-semibold">
                   <FileText className="h-4 w-4 text-emerald-700 shrink-0" />
-                  <span>Need the standard CSV import template format?</span>
+                  <span>
+                    {importType === 'groups' ? 'Standard Format: GroupCode, GroupName, RPSA (4-Digit), HeadOfGroupSapId' : 'Standard Format: GradeCode, GradeName, RankOrder, DefaultFormType'}
+                  </span>
                 </div>
                 <Button variant="outline" size="sm" onClick={handleDownloadSampleCsv} className="h-8 text-xs font-bold border-emerald-300">
                   <Download className="h-3.5 w-3.5 mr-1" />
@@ -759,13 +823,13 @@ export const OrganizationManagementPage: React.FC = () => {
                   onClick={() => fileInputRef.current?.click()}
                   className="mt-3 font-bold"
                 >
-                  Select File From Computer
+                  Browse Computer
                 </Button>
               </div>
 
-              {/* Or Paste CSV Data Directly */}
+              {/* Textarea Paste */}
               <div>
-                <label className="font-bold text-slate-700 block mb-1">Or Paste CSV Data Directly:</label>
+                <label className="font-bold text-slate-700 block mb-1">Or Paste CSV Data Below:</label>
                 <textarea
                   rows={4}
                   value={csvText}
@@ -773,7 +837,7 @@ export const OrganizationManagementPage: React.FC = () => {
                     setCsvText(e.target.value);
                     parseCsv(e.target.value);
                   }}
-                  placeholder={importType === 'groups' ? "GroupCode,GroupName,HeadOfGroupSapId" : "GradeCode,GradeName,RankOrder,DefaultFormType"}
+                  placeholder={importType === 'groups' ? "GroupCode,GroupName,RPSA,HeadOfGroupSapId\nCBG,Commercial Banking Group,0001,10002" : "GradeCode,GradeName,RankOrder,DefaultFormType\nOG_III,OG III,1,KPI_FORM"}
                   className="w-full p-2 text-xs font-mono bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-700"
                 />
               </div>
@@ -792,6 +856,7 @@ export const OrganizationManagementPage: React.FC = () => {
                         {importType === 'groups' ? (
                           <tr>
                             <th className="p-2">Group Code</th>
+                            <th className="p-2">RPSA Code</th>
                             <th className="p-2">Group Name</th>
                             <th className="p-2">Head SAP ID</th>
                           </tr>
@@ -810,6 +875,11 @@ export const OrganizationManagementPage: React.FC = () => {
                             {importType === 'groups' ? (
                               <>
                                 <td className="p-2 font-mono font-bold">{r.groupCode}</td>
+                                <td className="p-2 font-mono font-bold text-emerald-800">
+                                  <span className="bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                                    {r.rpsaCode || '0000'}
+                                  </span>
+                                </td>
                                 <td className="p-2 font-semibold">{r.groupName}</td>
                                 <td className="p-2 font-mono text-slate-500">{r.headOfGroupSapId || '—'}</td>
                               </>

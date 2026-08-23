@@ -89,6 +89,27 @@ public class DbSeederService
                     ALTER TABLE EmployeeCycles ADD AppraiserValidatedBySapId NVARCHAR(50) NULL;
                 END
 
+                IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'ReportingGroups' AND COLUMN_NAME = 'RpsaCode')
+                BEGIN
+                    ALTER TABLE ReportingGroups ADD RpsaCode NVARCHAR(10) NULL;
+                END
+
+                -- Deduplicate ReportingGroups keeping the record with RpsaCode or latest
+                WITH CTE AS (
+                    SELECT Id, GroupCode, RpsaCode, ROW_NUMBER() OVER(PARTITION BY GroupCode ORDER BY CASE WHEN RpsaCode IS NOT NULL AND RpsaCode <> '' THEN 1 ELSE 2 END, CreatedAt DESC) as rn
+                    FROM ReportingGroups
+                )
+                DELETE FROM ReportingGroups WHERE Id IN (SELECT Id FROM CTE WHERE rn > 1);
+
+                UPDATE ReportingGroups SET RpsaCode = '0001' WHERE GroupCode = 'CBG' AND (RpsaCode IS NULL OR RpsaCode = '');
+                UPDATE ReportingGroups SET RpsaCode = '0002' WHERE GroupCode = 'RBG' AND (RpsaCode IS NULL OR RpsaCode = '');
+                UPDATE ReportingGroups SET RpsaCode = '0003' WHERE GroupCode = 'RMG' AND (RpsaCode IS NULL OR RpsaCode = '');
+                UPDATE ReportingGroups SET RpsaCode = '0004' WHERE GroupCode = 'TGM' AND (RpsaCode IS NULL OR RpsaCode = '');
+                UPDATE ReportingGroups SET RpsaCode = '0005' WHERE GroupCode = 'ITG' AND (RpsaCode IS NULL OR RpsaCode = '');
+                UPDATE ReportingGroups SET RpsaCode = '0006' WHERE GroupCode = 'OPS' AND (RpsaCode IS NULL OR RpsaCode = '');
+                UPDATE ReportingGroups SET RpsaCode = '0007' WHERE GroupCode = 'HRG' AND (RpsaCode IS NULL OR RpsaCode = '');
+                UPDATE ReportingGroups SET RpsaCode = '0008' WHERE GroupCode = 'CMP' AND (RpsaCode IS NULL OR RpsaCode = '');
+
                 IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'EmployeeCycles' AND COLUMN_NAME = 'SnapshotGrade')
                 BEGIN
                     ALTER TABLE EmployeeCycles ADD SnapshotGrade NVARCHAR(50) NULL;
@@ -202,17 +223,17 @@ public class DbSeederService
         };
         _db.KeyVersions.Add(keyVer);
 
-        // 2. Reporting Groups
+        // 2. Reporting Groups with 4-Digit Leading-Zero RPSA Codes
         var groups = new List<ReportingGroup>
         {
-            new ReportingGroup { GroupCode = "CBG", GroupName = "Commercial Banking Group" },
-            new ReportingGroup { GroupCode = "RBG", GroupName = "Consumer Banking Group" },
-            new ReportingGroup { GroupCode = "RMG", GroupName = "Risk Management Group" },
-            new ReportingGroup { GroupCode = "TGM", GroupName = "Treasury & Global Markets" },
-            new ReportingGroup { GroupCode = "ITG", GroupName = "Information Technology Group" },
-            new ReportingGroup { GroupCode = "OPS", GroupName = "Operations Group" },
-            new ReportingGroup { GroupCode = "HRG", GroupName = "HR Management Group" },
-            new ReportingGroup { GroupCode = "CMP", GroupName = "Compliance Group" },
+            new ReportingGroup { GroupCode = "CBG", GroupName = "Commercial Banking Group", RpsaCode = "0001" },
+            new ReportingGroup { GroupCode = "RBG", GroupName = "Consumer Banking Group", RpsaCode = "0002" },
+            new ReportingGroup { GroupCode = "RMG", GroupName = "Risk Management Group", RpsaCode = "0003" },
+            new ReportingGroup { GroupCode = "TGM", GroupName = "Treasury & Global Markets", RpsaCode = "0004" },
+            new ReportingGroup { GroupCode = "ITG", GroupName = "Information Technology Group", RpsaCode = "0005" },
+            new ReportingGroup { GroupCode = "OPS", GroupName = "Operations Group", RpsaCode = "0006" },
+            new ReportingGroup { GroupCode = "HRG", GroupName = "HR Management Group", RpsaCode = "0007" },
+            new ReportingGroup { GroupCode = "CMP", GroupName = "Compliance Group", RpsaCode = "0008" },
         };
         _db.ReportingGroups.AddRange(groups);
 

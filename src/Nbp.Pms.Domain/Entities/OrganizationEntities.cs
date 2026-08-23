@@ -5,6 +5,7 @@ public class ReportingGroup
     public Guid Id { get; set; } = Guid.NewGuid();
     public required string GroupName { get; set; }
     public required string GroupCode { get; set; }
+    public string? RpsaCode { get; set; } // 4-digit code with leading zeros e.g. "0001", "0012"
     public string? HeadOfGroupSapId { get; set; }
     public bool IsActive { get; set; } = true;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

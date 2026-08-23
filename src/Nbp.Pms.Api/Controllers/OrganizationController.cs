@@ -18,6 +18,17 @@ public class OrganizationController : ControllerBase
 
     #region Reporting Groups
 
+    private static string? FormatRpsaCode(string? code)
+    {
+        if (string.IsNullOrWhiteSpace(code)) return null;
+        string digits = new string(code.Where(char.IsDigit).ToArray());
+        if (int.TryParse(digits, out int num))
+        {
+            return num.ToString("D4");
+        }
+        return code.Trim().PadLeft(4, '0');
+    }
+
     [HttpGet("groups")]
     public async Task<IActionResult> GetReportingGroups()
     {
@@ -27,14 +38,14 @@ public class OrganizationController : ControllerBase
         {
             var defaultGroups = new List<ReportingGroup>
             {
-                new ReportingGroup { GroupCode = "CBG", GroupName = "Commercial Banking Group" },
-                new ReportingGroup { GroupCode = "RBG", GroupName = "Consumer Banking Group" },
-                new ReportingGroup { GroupCode = "RMG", GroupName = "Risk Management Group" },
-                new ReportingGroup { GroupCode = "TGM", GroupName = "Treasury & Global Markets" },
-                new ReportingGroup { GroupCode = "ITG", GroupName = "Information Technology Group" },
-                new ReportingGroup { GroupCode = "OPS", GroupName = "Operations Group" },
-                new ReportingGroup { GroupCode = "HRG", GroupName = "HR Management Group" },
-                new ReportingGroup { GroupCode = "CMP", GroupName = "Compliance Group" },
+                new ReportingGroup { GroupCode = "CBG", GroupName = "Commercial Banking Group", RpsaCode = "0001" },
+                new ReportingGroup { GroupCode = "RBG", GroupName = "Consumer Banking Group", RpsaCode = "0002" },
+                new ReportingGroup { GroupCode = "RMG", GroupName = "Risk Management Group", RpsaCode = "0003" },
+                new ReportingGroup { GroupCode = "TGM", GroupName = "Treasury & Global Markets", RpsaCode = "0004" },
+                new ReportingGroup { GroupCode = "ITG", GroupName = "Information Technology Group", RpsaCode = "0005" },
+                new ReportingGroup { GroupCode = "OPS", GroupName = "Operations Group", RpsaCode = "0006" },
+                new ReportingGroup { GroupCode = "HRG", GroupName = "HR Management Group", RpsaCode = "0007" },
+                new ReportingGroup { GroupCode = "CMP", GroupName = "Compliance Group", RpsaCode = "0008" },
             };
             _db.ReportingGroups.AddRange(defaultGroups);
             await _db.SaveChangesAsync();
@@ -56,6 +67,7 @@ public class OrganizationController : ControllerBase
         {
             GroupCode = dto.GroupCode.Trim().ToUpperInvariant(),
             GroupName = dto.GroupName.Trim(),
+            RpsaCode = FormatRpsaCode(dto.RpsaCode),
             HeadOfGroupSapId = dto.HeadOfGroupSapId,
             IsActive = true
         };
@@ -69,7 +81,7 @@ public class OrganizationController : ControllerBase
             ActorRole = "PmwAdmin",
             TargetEntityId = group.Id.ToString(),
             TargetEntityType = nameof(ReportingGroup),
-            ActionDescription = $"Created new NBP Reporting Group: {group.GroupName} ({group.GroupCode}).",
+            ActionDescription = $"Created new NBP Reporting Group: {group.GroupName} ({group.GroupCode}) with RPSA Code: {group.RpsaCode}.",
             Timestamp = DateTime.UtcNow
         };
         _db.AuditEvents.Add(audit);
@@ -87,11 +99,13 @@ public class OrganizationController : ControllerBase
             if (string.IsNullOrWhiteSpace(row.GroupCode) || string.IsNullOrWhiteSpace(row.GroupName)) continue;
 
             string code = row.GroupCode.Trim().ToUpperInvariant();
+            string? rpsa = FormatRpsaCode(row.RpsaCode);
             var existing = await _db.ReportingGroups.FirstOrDefaultAsync(g => g.GroupCode == code);
 
             if (existing != null)
             {
                 existing.GroupName = row.GroupName.Trim();
+                if (!string.IsNullOrWhiteSpace(rpsa)) existing.RpsaCode = rpsa;
                 existing.HeadOfGroupSapId = row.HeadOfGroupSapId;
             }
             else
@@ -100,6 +114,7 @@ public class OrganizationController : ControllerBase
                 {
                     GroupCode = code,
                     GroupName = row.GroupName.Trim(),
+                    RpsaCode = rpsa,
                     HeadOfGroupSapId = row.HeadOfGroupSapId,
                     IsActive = true
                 });
@@ -112,7 +127,7 @@ public class OrganizationController : ControllerBase
             EventType = "BULK_REPORTING_GROUPS_IMPORTED",
             ActorUserId = "PMW_ADMIN",
             ActorRole = "PmwAdmin",
-            ActionDescription = $"Bulk imported/updated {importedCount} Reporting Groups into SQL Server database.",
+            ActionDescription = $"Bulk imported/updated {importedCount} Reporting Groups with RPSA codes into SQL Server database.",
             Timestamp = DateTime.UtcNow
         };
         _db.AuditEvents.Add(audit);
@@ -153,6 +168,7 @@ public class OrganizationController : ControllerBase
 
         group.GroupCode = dto.GroupCode.Trim().ToUpperInvariant();
         group.GroupName = dto.GroupName.Trim();
+        group.RpsaCode = FormatRpsaCode(dto.RpsaCode) ?? group.RpsaCode;
         group.HeadOfGroupSapId = dto.HeadOfGroupSapId;
         group.IsActive = dto.IsActive;
 
@@ -163,7 +179,7 @@ public class OrganizationController : ControllerBase
             ActorRole = "PmwAdmin",
             TargetEntityId = group.Id.ToString(),
             TargetEntityType = nameof(ReportingGroup),
-            ActionDescription = $"Updated NBP Reporting Group: {group.GroupName} ({group.GroupCode}).",
+            ActionDescription = $"Updated NBP Reporting Group: {group.GroupName} ({group.GroupCode}) with RPSA Code: {group.RpsaCode}.",
             Timestamp = DateTime.UtcNow
         };
         _db.AuditEvents.Add(audit);
@@ -181,6 +197,7 @@ public class OrganizationController : ControllerBase
                 id = g.Id,
                 groupCode = g.GroupCode,
                 groupName = g.GroupName,
+                rpsaCode = g.RpsaCode,
                 headOfGroupSapId = g.HeadOfGroupSapId,
                 isActive = g.IsActive,
                 createdAt = g.CreatedAt,
@@ -330,6 +347,6 @@ public class OrganizationController : ControllerBase
     #endregion
 }
 
-public record CreateGroupDto(string GroupCode, string GroupName, string? HeadOfGroupSapId, string ActorUserId = "PMW_ADMIN");
+public record CreateGroupDto(string GroupCode, string GroupName, string? RpsaCode, string? HeadOfGroupSapId, string ActorUserId = "PMW_ADMIN");
 public record CreateGradeDto(string GradeCode, string GradeName, int RankOrder, string DefaultFormType, string ActorUserId = "PMW_ADMIN");
-public record UpdateGroupDto(string GroupCode, string GroupName, string? HeadOfGroupSapId, bool IsActive = true, string ActorUserId = "PMW_ADMIN");
+public record UpdateGroupDto(string GroupCode, string GroupName, string? RpsaCode, string? HeadOfGroupSapId, bool IsActive = true, string ActorUserId = "PMW_ADMIN");
