@@ -96,13 +96,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentRole, activeTab, onTabC
             ]
           },
           {
-            title: 'Master Data Reference',
-            items: [
-              { id: 'employees', label: 'Master Staff (Read-Only)', icon: Users },
-              { id: 'organization', label: 'Master Groups & Grades', icon: Building2 },
-            ]
-          },
-          {
             title: 'Evaluation & Workflows',
             items: [
               { id: 'forms', label: 'Form Configurations', icon: FileSpreadsheet },

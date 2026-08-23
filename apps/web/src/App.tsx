@@ -123,10 +123,17 @@ export function App() {
           />
         );
       case 'organization':
-        return <OrganizationManagementPage userRole={userRole} />;
-      case 'users':
-        return <UserManagementPage />;
       case 'employees':
+        if (userRole === 'PmwAdmin') {
+          return (
+            <CycleSnapshotManagerPage
+              userRole={userRole}
+              selectedCycleId={selectedCycleId}
+              onSelectCycle={setSelectedCycleId}
+              onNavigate={setActiveTab}
+            />
+          );
+        }
         return <EmployeeDataPage userRole={userRole} />;
       case 'my-appraisal':
       case 'forms':
