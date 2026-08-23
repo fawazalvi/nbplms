@@ -66,6 +66,8 @@ export function App() {
           return <SecurityKeyVaultPage />;
         case 'audit':
           return <AuditLogPage />;
+        case 'db-tools':
+          return <DatabaseToolsPage userRole={userRole} />;
         case 'dashboard':
         default:
           return <SuperAdminDashboard onSelectCycle={handleSelectCycle} onNavigate={setActiveTab} />;
