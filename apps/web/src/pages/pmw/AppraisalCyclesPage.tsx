@@ -26,11 +26,17 @@ import {
   Building2,
   ShieldAlert,
   Layers,
-  Sparkles
+  Sparkles,
+  BarChart3
 } from 'lucide-react';
 import { SapIdAutocomplete } from '@/components/appraisal/SapIdAutocomplete';
 
-export const AppraisalCyclesPage: React.FC = () => {
+interface AppraisalCyclesPageProps {
+  onSelectCycle?: (cycleId: string) => void;
+  onNavigate?: (tab: string) => void;
+}
+
+export const AppraisalCyclesPage: React.FC<AppraisalCyclesPageProps> = ({ onSelectCycle, onNavigate }) => {
   const [cycles, setCycles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -527,6 +533,22 @@ export const AppraisalCyclesPage: React.FC = () => {
                         {new Date(c.acknowledgementDeadline).toLocaleDateString()}
                       </td>
                       <td className="p-3 space-x-1.5">
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => {
+                            if (onSelectCycle) {
+                              onSelectCycle(c.id);
+                            } else if (onNavigate) {
+                              onNavigate('cycle-control');
+                            }
+                          }}
+                          className="h-8 text-xs font-bold border border-emerald-300 text-emerald-950 bg-emerald-50 hover:bg-emerald-100 shadow-xs"
+                          title="Enter this cycle's dedicated Control Center & Dashboard"
+                        >
+                          <BarChart3 className="h-3.5 w-3.5 mr-1 text-emerald-700" />
+                          <span>Control Center</span>
+                        </Button>
                         <Button
                           variant="nbp"
                           size="sm"

@@ -70,6 +70,86 @@ public class CyclesController : ControllerBase
         });
     }
 
+    /// <summary>
+    /// Gets detailed analytics, form breakdowns, stage progress, and audit logs for a specific appraisal cycle control center.
+    /// </summary>
+    [HttpGet("{id}/stats")]
+    public async Task<IActionResult> GetCycleStats(Guid id)
+    {
+        var cycle = await _db.AppraisalCycles.FirstOrDefaultAsync(c => c.Id == id);
+        if (cycle == null) return NotFound(new { message = "Cycle not found." });
+
+        var employeeCycles = await _db.EmployeeCycles
+            .Where(ec => ec.CycleId == id)
+            .Include(ec => ec.Employee)
+            .ToListAsync();
+
+        var totalEnrolled = employeeCycles.Count;
+        var kpiCount = employeeCycles.Count(ec => ec.AssignedFormType == FormType.KpiForm);
+        var bscCount = employeeCycles.Count(ec => ec.AssignedFormType == FormType.BalancedScorecard);
+        var riskBscCount = employeeCycles.Count(ec => ec.AssignedFormType == FormType.RiskAdjustedBsc);
+
+        var objectiveDraftCount = employeeCycles.Count(ec => ec.CurrentStatus == WorkflowStatus.ObjectiveDraft);
+        var objectiveSubmittedCount = employeeCycles.Count(ec => ec.CurrentStatus == WorkflowStatus.ObjectiveSubmitted);
+        var objectiveApprovedCount = employeeCycles.Count(ec => ec.CurrentStatus == WorkflowStatus.ObjectiveApproved);
+        var annualReviewCount = employeeCycles.Count(ec => ec.CurrentStatus == WorkflowStatus.AnnualReviewSelfAssessment || ec.CurrentStatus == WorkflowStatus.FirstAppraiserAssessment || ec.CurrentStatus == WorkflowStatus.SecondAppraiserReview);
+        var completedCount = employeeCycles.Count(ec => ec.CurrentStatus == WorkflowStatus.CycleClosed || ec.CurrentStatus == WorkflowStatus.Published || ec.CurrentStatus == WorkflowStatus.AdministrativelyCompleted || ec.CurrentStatus == WorkflowStatus.EmployeeAgreed);
+        var disagreementCount = employeeCycles.Count(ec => ec.CurrentStatus == WorkflowStatus.EmployeeDisagreed);
+
+        var groups = await _db.ReportingGroups.ToListAsync();
+        var groupMap = groups.ToDictionary(g => g.RpsaCode ?? g.GroupCode, g => g.GroupName);
+
+        var groupBreakdown = employeeCycles
+            .GroupBy(ec => ec.SnapshotReportingGroup ?? "0001")
+            .Select(g => new
+            {
+                GroupCode = g.Key,
+                GroupName = groupMap.TryGetValue(g.Key, out var name) ? name : g.Key,
+                Count = g.Count(),
+                CompletedCount = g.Count(ec => ec.CurrentStatus == WorkflowStatus.CycleClosed || ec.CurrentStatus == WorkflowStatus.Published || ec.CurrentStatus == WorkflowStatus.AdministrativelyCompleted || ec.CurrentStatus == WorkflowStatus.EmployeeAgreed),
+                DraftCount = g.Count(ec => ec.CurrentStatus == WorkflowStatus.ObjectiveDraft)
+            })
+            .OrderByDescending(g => g.Count)
+            .ToList();
+
+        var recentAudits = await _db.AuditEvents
+            .Where(a => a.TargetEntityId == id.ToString() || (a.ActionDescription != null && a.ActionDescription.Contains(cycle.Title)))
+            .OrderByDescending(a => a.Timestamp)
+            .Take(8)
+            .ToListAsync();
+
+        return Ok(new
+        {
+            cycle.Id,
+            cycle.Title,
+            cycle.CircularReference,
+            cycle.StartDate,
+            cycle.EndDate,
+            cycle.AcknowledgementDeadline,
+            Status = (int)cycle.Status,
+            StatusName = cycle.Status.ToString(),
+            cycle.MultipleActiveCyclesAllowed,
+            TotalEnrolled = totalEnrolled,
+            FormBreakdown = new
+            {
+                Kpi = kpiCount,
+                Bsc = bscCount,
+                RiskBsc = riskBscCount
+            },
+            StageBreakdown = new
+            {
+                ObjectiveDraft = objectiveDraftCount,
+                ObjectiveSubmitted = objectiveSubmittedCount,
+                ObjectiveApproved = objectiveApprovedCount,
+                AnnualReview = annualReviewCount,
+                Completed = completedCount,
+                Disagreement = disagreementCount
+            },
+            GroupBreakdown = groupBreakdown,
+            RecentAudits = recentAudits
+        });
+    }
+
     [HttpPost]
     public async Task<IActionResult> CreateCycle([FromBody] CreateCycleDto dto)
     {

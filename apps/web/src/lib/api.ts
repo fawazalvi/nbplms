@@ -78,6 +78,7 @@ export const api = {
   // Appraisal Cycles
   getCycles: () => fetchApi<any[]>('/Cycles'),
   getCycleById: (id: string) => fetchApi<any>(`/Cycles/${id}`),
+  getCycleStats: (id: string) => fetchApi<any>(`/Cycles/${id}/stats`),
   createCycle: (data: any) => fetchApi<any>('/Cycles', { method: 'POST', body: JSON.stringify(data) }),
   openCycle: (id: string, actorUserId?: string) =>
     fetchApi<any>(`/Cycles/${id}/open${actorUserId ? `?actorUserId=${encodeURIComponent(actorUserId)}` : ''}`, { method: 'POST' }),

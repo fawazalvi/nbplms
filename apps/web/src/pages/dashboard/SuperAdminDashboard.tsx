@@ -6,26 +6,30 @@ import { Users, Shield, UserCog, Building2, Lock, Activity, RefreshCw, KeyRound,
 import { api } from '@/lib/api';
 
 interface SuperAdminDashboardProps {
+  onSelectCycle?: (cycleId: string) => void;
   onNavigate?: (tab: string) => void;
 }
 
-export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onNavigate }) => {
+export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onSelectCycle, onNavigate }) => {
   const [dbStatus, setDbStatus] = useState<any>(null);
   const [users, setUsers] = useState<any[]>([]);
   const [auditEvents, setAuditEvents] = useState<any[]>([]);
+  const [cycles, setCycles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const [statusData, usersData, auditData] = await Promise.all([
+      const [statusData, usersData, auditData, cyclesData] = await Promise.all([
         api.getDbStatus().catch(() => null),
         api.getUsers().catch(() => []),
-        api.getAuditEvents().catch(() => [])
+        api.getAuditEvents().catch(() => []),
+        api.getCycles().catch(() => [])
       ]);
       setDbStatus(statusData);
       setUsers(usersData || []);
       setAuditEvents(auditData || []);
+      setCycles(cyclesData || []);
     } catch (e) {
       console.error(e);
     } finally {
@@ -257,6 +261,81 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onNavi
           </CardContent>
         </Card>
       </div>
+
+      {/* Cycle Control Centers Quick Switcher */}
+      <Card className="border-slate-200 shadow-xs">
+        <CardHeader className="pb-3 flex flex-row items-center justify-between">
+          <div>
+            <CardTitle className="text-sm font-bold text-slate-900 flex items-center space-x-2">
+              <Building2 className="h-4 w-4 text-emerald-700" />
+              <span>Appraisal Cycle Control Centers</span>
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Select a cycle to enter its dedicated Control Center, live metrics, and staff rosters
+            </CardDescription>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => onNavigate?.('cycles')} className="text-xs font-bold border-slate-300 h-8">
+            Manage All Cycles →
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <div className="p-6 text-center text-xs text-slate-500 font-medium">Loading cycles...</div>
+          ) : cycles.length === 0 ? (
+            <div className="p-6 text-center text-xs text-slate-500 border border-dashed border-slate-200 rounded-xl">
+              No cycles found. Click <strong>"Manage All Cycles"</strong> to create your first appraisal cycle!
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {cycles.map((c) => (
+                <div
+                  key={c.id}
+                  onClick={() => {
+                    if (onSelectCycle) {
+                      onSelectCycle(c.id);
+                    } else if (onNavigate) {
+                      onNavigate('cycle-control');
+                    }
+                  }}
+                  className="p-4 bg-slate-50 hover:bg-emerald-50/60 border border-slate-200 hover:border-emerald-500/50 rounded-xl transition-all cursor-pointer space-y-3 group shadow-xs"
+                >
+                  <div className="flex items-center justify-between">
+                    <Badge
+                      variant={
+                        c.status === 101 || c.statusName === 'CycleActive'
+                          ? 'nbp'
+                          : c.status === 102 || c.statusName === 'CycleSuspended'
+                          ? 'danger'
+                          : c.status === 103 || c.statusName === 'CycleClosed'
+                          ? 'secondary'
+                          : 'default'
+                      }
+                      className="text-[10px] font-bold"
+                    >
+                      {c.statusName || (c.status === 101 ? 'Active' : 'Draft')}
+                    </Badge>
+                    <span className="text-[11px] font-mono text-slate-500 group-hover:text-emerald-800 font-bold">
+                      {c.enrolledCount ?? 0} Enrolled
+                    </span>
+                  </div>
+
+                  <div>
+                    <h4 className="text-sm font-bold text-slate-900 group-hover:text-emerald-950 leading-tight">
+                      {c.title}
+                    </h4>
+                    <p className="text-[11px] text-slate-500 font-mono mt-0.5">{c.circularReference}</p>
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-200/80 flex items-center justify-between text-xs font-bold text-emerald-800 group-hover:translate-x-0.5 transition-transform">
+                    <span>Enter Control Center</span>
+                    <span>→</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Database Schema Health Overview */}
       <Card className="border-slate-200/80 shadow-xs">

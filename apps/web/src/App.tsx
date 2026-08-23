@@ -25,6 +25,7 @@ export function App() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [userRole, setUserRole] = useState<string>('Employee');
   const [activeTab, setActiveTab] = useState<string>('dashboard');
+  const [selectedCycleId, setSelectedCycleId] = useState<string | null>(null);
 
   const handleLoginSuccess = (user: any) => {
     setCurrentUser(user);
@@ -38,6 +39,11 @@ export function App() {
     setIsAuthenticated(false);
   };
 
+  const handleSelectCycle = (cycleId: string) => {
+    setSelectedCycleId(cycleId);
+    setActiveTab(userRole === 'PmwSuperAdmin' ? 'cycle-control' : 'dashboard');
+  };
+
   if (!isAuthenticated) {
     return <LoginPage onLoginSuccess={handleLoginSuccess} />;
   }
@@ -47,9 +53,15 @@ export function App() {
     if (userRole === 'PmwSuperAdmin') {
       switch (activeTab) {
         case 'cycles':
-          return <AppraisalCyclesPage />;
+          return <AppraisalCyclesPage onSelectCycle={handleSelectCycle} onNavigate={setActiveTab} />;
         case 'cycle-control':
-          return <PmwDashboard onNavigate={setActiveTab} />;
+          return (
+            <PmwDashboard
+              selectedCycleId={selectedCycleId}
+              onSelectCycle={setSelectedCycleId}
+              onNavigate={setActiveTab}
+            />
+          );
         case 'users':
           return <UserManagementPage />;
         case 'organization':
@@ -72,13 +84,13 @@ export function App() {
           return <AuditLogPage />;
         case 'dashboard':
         default:
-          return <SuperAdminDashboard onNavigate={setActiveTab} />;
+          return <SuperAdminDashboard onSelectCycle={handleSelectCycle} onNavigate={setActiveTab} />;
       }
     }
 
     switch (activeTab) {
       case 'cycles':
-        return <AppraisalCyclesPage />;
+        return <AppraisalCyclesPage onSelectCycle={handleSelectCycle} onNavigate={setActiveTab} />;
       case 'organization':
         return <OrganizationManagementPage />;
       case 'users':
@@ -108,7 +120,13 @@ export function App() {
       case 'dashboard':
       default:
         if (userRole === 'PmwAdmin') {
-          return <PmwDashboard onNavigate={setActiveTab} />;
+          return (
+            <PmwDashboard
+              selectedCycleId={selectedCycleId}
+              onSelectCycle={setSelectedCycleId}
+              onNavigate={setActiveTab}
+            />
+          );
         }
         return <EmployeeDashboard onNavigate={setActiveTab} />;
     }
