@@ -380,9 +380,12 @@ public class EmployeesController : ControllerBase
     }
 
     [HttpPost("import")]
-    public async Task<IActionResult> ImportEmployees([FromBody] List<EmployeeImportRowDto> rows)
+    public async Task<IActionResult> ImportEmployees(
+        [FromBody] List<EmployeeImportRowDto> rows,
+        [FromQuery] Guid? cycleId,
+        [FromQuery] string? actorUserId)
     {
-        var result = await _importService.ProcessImportAsync(rows);
+        var result = await _importService.ProcessImportAsync(rows, cycleId, actorUserId ?? "PMW_ADMIN");
         if (result.ErrorCount > 0 && result.SuccessfulImports == 0)
         {
             return BadRequest(result);

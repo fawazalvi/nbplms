@@ -42,7 +42,7 @@ public class EmployeeImportService
         _db = db;
     }
 
-    public async Task<ImportResultDto> ProcessImportAsync(List<EmployeeImportRowDto> rows, string actorUserId = "PMW_ADMIN")
+    public async Task<ImportResultDto> ProcessImportAsync(List<EmployeeImportRowDto> rows, Guid? targetCycleId = null, string actorUserId = "PMW_ADMIN")
     {
         var errors = new List<string>();
         var importedList = new List<Employee>();
@@ -152,41 +152,81 @@ public class EmployeeImportService
         // Save employees to Database
         await _db.SaveChangesAsync();
 
-        // 3. Auto-assign EmployeeCycle records for active cycle so dashboards reflect live counts!
-        var activeCycle = await _db.AppraisalCycles.FirstOrDefaultAsync(c => c.Status == WorkflowStatus.CycleActive)
-                          ?? await _db.AppraisalCycles.OrderByDescending(c => c.CreatedAt).FirstOrDefaultAsync();
-
-        if (activeCycle == null)
+        // 3. Resolve target appraisal cycle to enroll employees with historical frozen snapshot
+        AppraisalCycle? cycle = null;
+        if (targetCycleId.HasValue)
         {
-            activeCycle = new AppraisalCycle
+            cycle = await _db.AppraisalCycles.FindAsync(targetCycleId.Value);
+        }
+
+        if (cycle == null)
+        {
+            cycle = await _db.AppraisalCycles.FirstOrDefaultAsync(c => c.Status == WorkflowStatus.CycleActive)
+                    ?? await _db.AppraisalCycles.OrderByDescending(c => c.CreatedAt).FirstOrDefaultAsync();
+        }
+
+        if (cycle == null)
+        {
+            cycle = new AppraisalCycle
             {
-                Title = "Annual Performance Appraisal Cycle 2026",
-                CircularReference = "NBP/HR/2026/001",
+                Title = $"Annual Performance Appraisal Cycle {DateTime.UtcNow.Year}",
+                CircularReference = $"NBP/HR/{DateTime.UtcNow.Year}/001",
                 StartDate = DateTime.UtcNow,
                 EndDate = DateTime.UtcNow.AddYears(1),
                 AcknowledgementDeadline = DateTime.UtcNow.AddMonths(11),
                 Status = WorkflowStatus.CycleActive
             };
-            _db.AppraisalCycles.Add(activeCycle);
+            _db.AppraisalCycles.Add(cycle);
             await _db.SaveChangesAsync();
         }
 
-        foreach (var emp in importedList)
+        foreach (var row in rows)
         {
-            var empCycleExists = await _db.EmployeeCycles.AnyAsync(ec => ec.CycleId == activeCycle.Id && ec.EmployeeId == emp.Id);
-            if (!empCycleExists)
+            if (!employeeMap.TryGetValue(row.SapId, out var emp)) continue;
+
+            var empCycle = await _db.EmployeeCycles
+                .FirstOrDefaultAsync(ec => ec.CycleId == cycle.Id && ec.EmployeeId == emp.Id);
+
+            var formType = DetermineFormType(row.Grade, row.IsMrtOrMrc);
+
+            if (empCycle == null)
             {
-                var formType = DetermineFormType(emp.Grade, emp.IsMrtOrMrc);
-                var empCycle = new EmployeeCycle
+                empCycle = new EmployeeCycle
                 {
                     EmployeeId = emp.Id,
-                    CycleId = activeCycle.Id,
+                    CycleId = cycle.Id,
                     AssignedFormType = formType,
                     CurrentStatus = WorkflowStatus.ObjectiveDraft,
+                    SnapshotGrade = row.Grade.Trim(),
+                    SnapshotDesignation = row.Designation?.Trim() ?? emp.Designation,
+                    SnapshotReportingGroup = row.ReportingGroup?.Trim() ?? emp.ReportingGroup,
+                    SnapshotDivision = row.Division?.Trim() ?? emp.Division,
+                    SnapshotWingDepartment = row.WingDepartment?.Trim() ?? emp.WingDepartment,
+                    SnapshotRegionBranch = row.RegionBranch?.Trim() ?? emp.RegionBranch,
+                    SnapshotLocation = row.Location?.Trim() ?? emp.Location,
+                    SnapshotIsMrtOrMrc = row.IsMrtOrMrc,
                     FirstAppraiserId = emp.FirstAppraiserId,
-                    SecondAppraiserId = emp.SecondAppraiserId
+                    SecondAppraiserId = emp.SecondAppraiserId,
+                    AppraiserValidationStatus = "Validated",
+                    CreatedAt = DateTime.UtcNow
                 };
                 _db.EmployeeCycles.Add(empCycle);
+            }
+            else
+            {
+                // Update snapshot values for this specific cycle
+                empCycle.SnapshotGrade = row.Grade.Trim();
+                empCycle.SnapshotDesignation = row.Designation?.Trim() ?? emp.Designation;
+                empCycle.SnapshotReportingGroup = row.ReportingGroup?.Trim() ?? emp.ReportingGroup;
+                empCycle.SnapshotDivision = row.Division?.Trim() ?? emp.Division;
+                empCycle.SnapshotWingDepartment = row.WingDepartment?.Trim() ?? emp.WingDepartment;
+                empCycle.SnapshotRegionBranch = row.RegionBranch?.Trim() ?? emp.RegionBranch;
+                empCycle.SnapshotLocation = row.Location?.Trim() ?? emp.Location;
+                empCycle.SnapshotIsMrtOrMrc = row.IsMrtOrMrc;
+                empCycle.AssignedFormType = formType;
+                if (emp.FirstAppraiserId.HasValue) empCycle.FirstAppraiserId = emp.FirstAppraiserId;
+                if (emp.SecondAppraiserId.HasValue) empCycle.SecondAppraiserId = emp.SecondAppraiserId;
+                empCycle.UpdatedAt = DateTime.UtcNow;
             }
         }
 
@@ -196,7 +236,7 @@ public class EmployeeImportService
             EventType = "BULK_EMPLOYEE_IMPORT_EXECUTED",
             ActorUserId = actorUserId,
             ActorRole = "PmwAdmin",
-            ActionDescription = $"Bulk import committed {importedList.Count} employee records and initialized appraisal forms into SQL Server database.",
+            ActionDescription = $"Bulk import uploaded {importedList.Count} employee records into Cycle '{cycle.Title}' with frozen historical snapshot attributes.",
             Timestamp = DateTime.UtcNow
         };
         _db.AuditEvents.Add(audit);

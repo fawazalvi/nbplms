@@ -28,9 +28,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentRole, activeTab, onTabC
       case 'PmwSuperAdmin':
         return [
           { id: 'dashboard', label: 'System Admin Center', icon: LayoutDashboard },
+          { id: 'cycles', label: 'Appraisal Cycles', icon: Settings },
+          { id: 'cycle-control', label: 'Cycle Control Center', icon: LayoutDashboard },
           { id: 'users', label: 'User & Role Management', icon: UserCog },
           { id: 'organization', label: 'Groups & Grade Hierarchy', icon: Building2 },
-          { id: 'employees', label: 'Employee Master Data', icon: Users },
+          { id: 'employees', label: 'Employee & Cycle Rosters', icon: Users },
+          { id: 'forms', label: 'Form Configurations', icon: FileSpreadsheet },
+          { id: 'bellcurve', label: 'Bell Curve Calibration', icon: PieChart },
+          { id: 'reminders', label: 'Reminders & Notifications', icon: Mail },
+          { id: 'disagreements', label: 'Disagreement Register', icon: FileCheck },
           { id: 'email-config', label: 'Email & Exchange Setup', icon: Mail },
           { id: 'security', label: 'Security & Key Vault', icon: Lock },
           { id: 'audit', label: 'Audit & Compliance Logs', icon: Shield },

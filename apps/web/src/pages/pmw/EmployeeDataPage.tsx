@@ -33,6 +33,8 @@ export const EmployeeDataPage: React.FC = () => {
   const [selectedGroup, setSelectedGroup] = useState('All Groups');
   const [selectedGrade, setSelectedGrade] = useState('All Grades');
   const [groups, setGroups] = useState<any[]>([]);
+  const [cycles, setCycles] = useState<any[]>([]);
+  const [selectedCycleId, setSelectedCycleId] = useState<string>('all');
 
   // Add / Edit Modal State
   const [showFormModal, setShowFormModal] = useState(false);
@@ -77,15 +79,60 @@ export const EmployeeDataPage: React.FC = () => {
   const [parsedAppraiserRows, setParsedAppraiserRows] = useState<any[]>([]);
   const [savingBulkAppraisers, setSavingBulkAppraisers] = useState(false);
 
+  const loadCycles = async () => {
+    try {
+      const data = await api.getCycles();
+      setCycles(data || []);
+      // If there is an active cycle, select it by default
+      const active = data?.find((c: any) => c.status === 101 || c.statusName === 'CycleActive');
+      if (active && selectedCycleId === 'all') {
+        setSelectedCycleId(active.id);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   const loadEmployees = async () => {
     setLoading(true);
     try {
-      const data = await api.getEmployees({
-        group: selectedGroup,
-        grade: selectedGrade,
-        search: searchTerm
-      });
-      setEmployees(data);
+      if (selectedCycleId && selectedCycleId !== 'all') {
+        const cycleData = await api.getCycleEmployees(selectedCycleId, {
+          group: selectedGroup,
+          grade: selectedGrade,
+          search: searchTerm
+        });
+        const mapped = (cycleData || []).map((ec: any) => ({
+          id: ec.employeeId,
+          employeeCycleId: ec.employeeCycleId,
+          sapId: ec.sapId,
+          fullName: ec.fullName,
+          email: ec.email,
+          grade: ec.snapshotGrade,
+          designation: ec.snapshotDesignation,
+          reportingGroup: ec.snapshotReportingGroup,
+          location: ec.snapshotLocation,
+          division: ec.snapshotDivision,
+          wingDepartment: ec.snapshotWingDepartment,
+          regionBranch: ec.snapshotRegionBranch,
+          isMrtOrMrc: ec.snapshotIsMrtOrMrc,
+          isActive: true,
+          firstAppraiserSapId: ec.firstAppraiserSapId,
+          firstAppraiserName: ec.firstAppraiserName,
+          secondAppraiserSapId: ec.secondAppraiserSapId,
+          secondAppraiserName: ec.secondAppraiserName,
+          formTypeAssigned: ec.assignedFormType,
+          currentStatus: ec.currentStatus
+        }));
+        setEmployees(mapped);
+      } else {
+        const data = await api.getEmployees({
+          group: selectedGroup,
+          grade: selectedGrade,
+          search: searchTerm
+        });
+        setEmployees(data || []);
+      }
     } catch (e: any) {
       console.error(e);
     } finally {
@@ -103,12 +150,13 @@ export const EmployeeDataPage: React.FC = () => {
   };
 
   useEffect(() => {
-    loadEmployees();
-  }, [selectedGroup, selectedGrade]);
-
-  useEffect(() => {
+    loadCycles();
     loadGroups();
   }, []);
+
+  useEffect(() => {
+    loadEmployees();
+  }, [selectedCycleId, selectedGroup, selectedGrade]);
 
   const handleOpenAddModal = () => {
     setIsEditing(false);
@@ -358,12 +406,15 @@ export const EmployeeDataPage: React.FC = () => {
         isMrtOrMrc: r.isMrtOrMrc
       }));
 
-      const res = await api.importEmployees(payload);
-      setImportMessage(`Successfully imported ${res.successfulImports ?? parsedRows.length} staff records into database!`);
+      const targetCycle = selectedCycleId !== 'all' ? selectedCycleId : undefined;
+      const res = await api.importEmployees(payload, targetCycle, 'PMW_ADMIN');
+      const cycleTitle = cycles.find(c => c.id === targetCycle)?.title;
+      setImportMessage(`Successfully imported ${res.successfulImports ?? parsedRows.length} staff records ${cycleTitle ? `into '${cycleTitle}' with frozen historical snapshots` : 'into master directory'}!`);
       setShowImportModal(false);
       setParsedRows([]);
       setCsvText('');
       await loadEmployees();
+      await loadCycles();
     } catch (e: any) {
       setImportMessage(`Import error: ${e.message}`);
     } finally {
@@ -402,14 +453,31 @@ export const EmployeeDataPage: React.FC = () => {
         <div>
           <div className="flex items-center space-x-2 text-emerald-400 text-xs font-bold uppercase tracking-wider mb-1">
             <Users className="h-4 w-4" />
-            <span>SAP ID Master Data & Form Mapping</span>
+            <span>Cycle-Specific Staff Rosters & Master Data</span>
             <span>•</span>
             <Badge variant="nbp" className="bg-emerald-700 text-white">Database Driven</Badge>
           </div>
-          <h1 className="text-2xl font-black tracking-tight">Employee Directory & Management</h1>
+          <h1 className="text-2xl font-black tracking-tight">Employee Directory & Cycle Rosters</h1>
           <p className="text-slate-300 text-xs mt-1">
-            Create, edit, remove, and import employee records, appraiser hierarchies, and material risk classifications.
+            Upload staff sheets directly into appraisal cycles, freeze historical snapshots, and manage employee records.
           </p>
+
+          {/* Cycle Scope Selector */}
+          <div className="mt-3 flex items-center space-x-2 bg-slate-950/70 p-1.5 px-3 rounded-xl border border-emerald-500/30 w-fit">
+            <span className="text-[11px] font-bold text-emerald-400">Target Cycle:</span>
+            <select
+              value={selectedCycleId}
+              onChange={(e) => setSelectedCycleId(e.target.value)}
+              className="bg-transparent text-xs font-bold text-white focus:outline-none cursor-pointer"
+            >
+              <option value="all" className="bg-slate-900 text-white">All Staff (Master Directory)</option>
+              {cycles.map((c) => (
+                <option key={c.id} value={c.id} className="bg-slate-900 text-white">
+                  {c.title} ({c.enrolledCount ?? 0} Enrolled)
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="nbp" size="sm" onClick={handleOpenAddModal} className="font-bold shadow-md">

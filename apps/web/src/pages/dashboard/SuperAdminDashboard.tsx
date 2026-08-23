@@ -125,6 +125,50 @@ export const SuperAdminDashboard: React.FC<SuperAdminDashboardProps> = ({ onNavi
 
       {/* Quick Access Modules */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+        <Card className="border-slate-200/80 shadow-sm hover:border-emerald-700/50 transition-all cursor-pointer" onClick={() => onNavigate?.('cycles')}>
+          <CardHeader className="p-4">
+            <div className="flex items-center space-x-3">
+              <div className="h-9 w-9 rounded-lg bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
+                <Building2 className="h-4 w-4" />
+              </div>
+              <div>
+                <CardTitle className="text-sm font-bold text-slate-900 leading-tight">Appraisal Cycles</CardTitle>
+                <CardDescription className="text-[11px]">Cycles, circulars & rosters</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="p-4 pt-0">
+            <p className="text-[11px] text-slate-600 line-clamp-2">
+              Create and manage annual appraisal cycles, upload employee batches, and freeze historical snapshots.
+            </p>
+            <Button variant="outline" size="sm" className="mt-3 w-full text-[11px] font-bold border-emerald-700/30 text-emerald-900 hover:bg-emerald-50 h-8">
+              Open Cycles →
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card className="border-slate-200/80 shadow-sm hover:border-emerald-700/50 transition-all cursor-pointer" onClick={() => onNavigate?.('employees')}>
+          <CardHeader className="p-4">
+            <div className="flex items-center space-x-3">
+              <div className="h-9 w-9 rounded-lg bg-teal-100 text-teal-800 flex items-center justify-center shrink-0">
+                <Users className="h-4 w-4" />
+              </div>
+              <div>
+                <CardTitle className="text-sm font-bold text-slate-900 leading-tight">Staff & Cycle Rosters</CardTitle>
+                <CardDescription className="text-[11px]">Uploads, grades & groups</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="p-4 pt-0">
+            <p className="text-[11px] text-slate-600 line-clamp-2">
+              Add, edit, remove staff records, upload cycle batches, and configure appraiser assignments.
+            </p>
+            <Button variant="outline" size="sm" className="mt-3 w-full text-[11px] font-bold border-teal-700/30 text-teal-900 hover:bg-teal-50 h-8">
+              Manage Staff →
+            </Button>
+          </CardContent>
+        </Card>
+
         <Card className="border-slate-200/80 shadow-sm hover:border-emerald-700/50 transition-all cursor-pointer" onClick={() => onNavigate?.('users')}>
           <CardHeader className="p-4">
             <div className="flex items-center space-x-3">

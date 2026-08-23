@@ -43,15 +43,27 @@ export function App() {
   }
 
   const renderContent = () => {
-    // PmwSuperAdmin restricted from Appraisal Cycles, Cycle Control Center, and Disagreements
+    // PmwSuperAdmin full management capabilities (Cycles, Users, Employees, Security, Email, Audit)
     if (userRole === 'PmwSuperAdmin') {
       switch (activeTab) {
+        case 'cycles':
+          return <AppraisalCyclesPage />;
+        case 'cycle-control':
+          return <PmwDashboard onNavigate={setActiveTab} />;
         case 'users':
           return <UserManagementPage />;
         case 'organization':
           return <OrganizationManagementPage />;
         case 'employees':
           return <EmployeeDataPage />;
+        case 'forms':
+          return <ObjectiveFormPage formType="BSC" />;
+        case 'bellcurve':
+          return <BellCurvePage />;
+        case 'reminders':
+          return <RemindersPage />;
+        case 'disagreements':
+          return <DisagreementRegisterPage />;
         case 'email-config':
           return <EmailConfigurationPage />;
         case 'security':

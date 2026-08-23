@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -18,11 +18,14 @@ import {
   Trash2,
   X,
   Search,
+  Upload,
+  FileSpreadsheet,
+  Download,
+  AlertTriangle,
+  FileText,
   Building2,
-  History,
   ShieldAlert,
   Layers,
-  ArrowRight,
   Sparkles
 } from 'lucide-react';
 import { SapIdAutocomplete } from '@/components/appraisal/SapIdAutocomplete';
@@ -44,6 +47,13 @@ export const AppraisalCyclesPage: React.FC = () => {
   const [rosterGroupFilter, setRosterGroupFilter] = useState('All Groups');
   const [rosterGradeFilter, setRosterGradeFilter] = useState('All Grades');
   const [groups, setGroups] = useState<any[]>([]);
+
+  // Cycle Employee Batch Upload Modal State
+  const [showCycleUploadModal, setShowCycleUploadModal] = useState(false);
+  const [cycleUploadText, setCycleUploadText] = useState('');
+  const [cycleParsedRows, setCycleParsedRows] = useState<any[]>([]);
+  const [uploadingCycleStaff, setUploadingCycleStaff] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Enroll Staff Modal State
   const [showEnrollModal, setShowEnrollModal] = useState(false);
@@ -120,6 +130,13 @@ export const AppraisalCyclesPage: React.FC = () => {
     await loadRoster(cycle.id);
   };
 
+  const handleOpenCycleUpload = (cycle: any) => {
+    setSelectedCycle(cycle);
+    setCycleUploadText('');
+    setCycleParsedRows([]);
+    setShowCycleUploadModal(true);
+  };
+
   const handleCreate = async () => {
     try {
       await api.createCycle({
@@ -130,7 +147,7 @@ export const AppraisalCyclesPage: React.FC = () => {
         acknowledgementDeadline: new Date(new Date().setMonth(new Date().getMonth() + 11)),
         multipleActiveCyclesAllowed: true
       });
-      setMessage('Cycle created successfully.');
+      setMessage('Cycle created successfully. You can now upload and enroll staff into this cycle.');
       setShowCreateModal(false);
       await loadCycles();
     } catch (e: any) {
@@ -156,7 +173,108 @@ export const AppraisalCyclesPage: React.FC = () => {
     await loadCycles();
   };
 
-  // Handle Enrollment
+  // CSV Parsing for Cycle Staff Upload
+  const parseCsvText = (text: string) => {
+    setCycleUploadText(text);
+    const lines = text.trim().split('\n').filter(l => l.trim().length > 0);
+    if (lines.length === 0) {
+      setCycleParsedRows([]);
+      return;
+    }
+
+    const firstLine = lines[0].toLowerCase();
+    const hasHeader = firstLine.includes('sap') || firstLine.includes('name') || firstLine.includes('grade');
+    const dataLines = hasHeader ? lines.slice(1) : lines;
+
+    const rows = dataLines.map((line, idx) => {
+      const cols = line.includes('\t')
+        ? line.split('\t').map(c => c.trim().replace(/^["']|["']$/g, ''))
+        : line.split(',').map(c => c.trim().replace(/^["']|["']$/g, ''));
+
+      const isMrt = (cols[11] || '').toLowerCase() === 'true' || (cols[11] || '').toLowerCase() === 'yes' || (cols[11] || '') === '1';
+
+      return {
+        id: `row-${idx + 1}`,
+        sapId: cols[0] || '',
+        fullName: cols[1] || '',
+        grade: cols[2] || 'OG I',
+        designation: cols[3] || 'Operations Officer',
+        location: cols[4] || 'Karachi Head Office',
+        reportingGroup: cols[5] || 'Consumer Banking Group',
+        division: cols[6] || 'Retail Banking Division',
+        wingDepartment: cols[7] || 'Branch Operations Wing',
+        regionBranch: cols[8] || 'Karachi Main Branch',
+        firstAppraiserSapId: cols[9] || '',
+        secondAppraiserSapId: cols[10] || '',
+        isMrtOrMrc: isMrt,
+        isValid: Boolean(cols[0] && cols[1] && cols[2])
+      };
+    });
+
+    setCycleParsedRows(rows);
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const content = evt.target?.result as string;
+      parseCsvText(content);
+    };
+    reader.readAsText(file);
+  };
+
+  const handleDownloadTemplate = () => {
+    const header = "SAP_ID,Full_Name,Grade,Designation,Location,Reporting_Group,Division,Wing_Department,Region_Branch,First_Appraiser_SAP,Second_Appraiser_SAP,Is_MRT_MRC\n";
+    const sample1 = "84920,Fawaz Ahmed,AVP,Assistant Vice President,Karachi Head Office,Commercial Banking Group,Corporate Banking,Relationship Management,Karachi Main,10004,10003,false\n";
+    const sample2 = "91204,Zahid Hussain,OG I,Operations Officer,Karachi,Commercial Banking Group,Operations Division,Commercial Branch,Karachi Central,84920,10004,false\n";
+    const sample3 = "76210,Usman Farooq,AVP,Chief Market Risk Analyst,Head Office Karachi,Risk Management Group,Risk Assessment Division,Risk Assessment,Head Office,10003,10002,true\n";
+
+    const blob = new Blob([header + sample1 + sample2 + sample3], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `NBP_Cycle_Staff_Import_Template.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleCommitCycleUpload = async () => {
+    if (!selectedCycle || cycleParsedRows.length === 0) return;
+    setUploadingCycleStaff(true);
+    try {
+      const payload = cycleParsedRows.map(r => ({
+        sapId: r.sapId,
+        fullName: r.fullName,
+        grade: r.grade,
+        designation: r.designation,
+        location: r.location,
+        reportingGroup: r.reportingGroup,
+        division: r.division,
+        wingDepartment: r.wingDepartment,
+        regionBranch: r.regionBranch,
+        firstAppraiserSapId: r.firstAppraiserSapId || null,
+        secondAppraiserSapId: r.secondAppraiserSapId || null,
+        isMrtOrMrc: r.isMrtOrMrc
+      }));
+
+      const res = await api.importEmployees(payload, selectedCycle.id, 'PMW_ADMIN');
+      setMessage(`Successfully uploaded and enrolled ${res.successfulImports} staff members into '${selectedCycle.title}'!`);
+      setShowCycleUploadModal(false);
+      await loadCycles();
+      if (showRosterModal) {
+        await loadRoster(selectedCycle.id);
+      }
+    } catch (e: any) {
+      alert(e.message || 'Failed to upload staff into cycle.');
+    } finally {
+      setUploadingCycleStaff(false);
+    }
+  };
+
+  // Handle Enrollment Modal
   const handleOpenEnrollModal = () => {
     setEnrollMode('single');
     setEnrollSapId('');
@@ -269,13 +387,13 @@ export const AppraisalCyclesPage: React.FC = () => {
         <div>
           <div className="flex items-center space-x-2 text-emerald-400 text-xs font-bold uppercase tracking-wider mb-1">
             <Calendar className="h-4 w-4" />
-            <span>Cycle Control & Historical Employee Rosters</span>
+            <span>Cycle Control & Cycle-Specific Staff Upload</span>
             <span>•</span>
             <Badge variant="nbp" className="bg-emerald-700 text-white">Database Driven</Badge>
           </div>
           <h1 className="text-2xl font-black tracking-tight">Appraisal Cycles & Staff Rosters</h1>
           <p className="text-slate-300 text-xs mt-1">
-            Manage cycle timelines, circulars, and independent historical employee rosters with frozen grade & group snapshots.
+            Create an appraisal cycle first, then upload and manage the staff roster with historical grade & group snapshots for each cycle.
           </p>
         </div>
         <div className="flex items-center space-x-2">
@@ -285,7 +403,7 @@ export const AppraisalCyclesPage: React.FC = () => {
           </Button>
           <Button variant="gold" size="sm" onClick={() => setShowCreateModal(true)} className="font-bold">
             <Plus className="h-4 w-4 mr-1" />
-            Create New Cycle
+            1. Create New Cycle
           </Button>
         </div>
       </div>
@@ -303,15 +421,17 @@ export const AppraisalCyclesPage: React.FC = () => {
       {/* Cycles Table */}
       <Card className="border-slate-200 shadow-xs">
         <CardHeader className="pb-3">
-          <CardTitle className="text-base font-bold text-slate-900">Configured Appraisal Cycles</CardTitle>
-          <CardDescription className="text-xs">Active, draft, and closed appraisal cycles with independent enrolled employee rosters</CardDescription>
+          <CardTitle className="text-base font-bold text-slate-900">Appraisal Cycles & Batch Upload Centers</CardTitle>
+          <CardDescription className="text-xs">
+            Step 1: Create Cycle $\rightarrow$ Step 2: Upload Staff Sheet for that cycle $\rightarrow$ Step 3: Manage Cycle Rosters & Snapshots
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
             <div className="p-8 text-center text-xs text-slate-500 font-medium">Loading cycles from database...</div>
           ) : cycles.length === 0 ? (
             <div className="p-8 text-center text-xs text-slate-500 border border-dashed border-slate-200 rounded-xl">
-              No cycles found. Click <strong>"Create New Cycle"</strong> to begin!
+              No cycles found. Click <strong>"1. Create New Cycle"</strong> to initialize an appraisal cycle first!
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -321,7 +441,7 @@ export const AppraisalCyclesPage: React.FC = () => {
                     <th className="p-3">Cycle Title & Circular</th>
                     <th className="p-3">Period / Dates</th>
                     <th className="p-3">Ack Deadline</th>
-                    <th className="p-3">Enrolled Staff Roster</th>
+                    <th className="p-3">Cycle Staff Actions</th>
                     <th className="p-3">Status</th>
                     <th className="p-3 text-right">Lifecycle Actions</th>
                   </tr>
@@ -339,15 +459,26 @@ export const AppraisalCyclesPage: React.FC = () => {
                       <td className="p-3 font-bold text-amber-800">
                         {new Date(c.acknowledgementDeadline).toLocaleDateString()}
                       </td>
-                      <td className="p-3">
+                      <td className="p-3 space-x-1.5">
+                        <Button
+                          variant="nbp"
+                          size="sm"
+                          onClick={() => handleOpenCycleUpload(c)}
+                          className="h-8 text-xs font-bold shadow-xs bg-emerald-800 hover:bg-emerald-900 text-white"
+                          title="Upload Employee CSV/Excel sheet for this cycle"
+                        >
+                          <Upload className="h-3.5 w-3.5 mr-1" />
+                          <span>Upload Staff Sheet</span>
+                        </Button>
                         <Button
                           variant="outline"
                           size="sm"
                           onClick={() => handleOpenRoster(c)}
-                          className="h-8 text-xs font-bold border-emerald-700/30 text-emerald-900 hover:bg-emerald-50 shadow-xs"
+                          className="h-8 text-xs font-bold border-slate-300 text-slate-800 hover:bg-slate-50 shadow-xs"
+                          title="View and manage enrolled employees for this cycle"
                         >
-                          <Users className="h-3.5 w-3.5 mr-1.5 text-emerald-700" />
-                          <span>{c.enrolledCount ?? 0} Staff Enrolled</span>
+                          <Users className="h-3.5 w-3.5 mr-1 text-emerald-700" />
+                          <span>{c.enrolledCount ?? 0} Enrolled</span>
                         </Button>
                       </td>
                       <td className="p-3">
@@ -374,6 +505,140 @@ export const AppraisalCyclesPage: React.FC = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Cycle Employee Batch Upload Modal */}
+      {showCycleUploadModal && selectedCycle && (
+        <div className="fixed inset-0 z-[100] bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
+          <div className="w-full max-w-4xl bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-200 my-auto">
+            <div className="bg-gradient-to-r from-emerald-950 via-slate-900 to-teal-950 p-5 text-white flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="h-10 w-10 rounded-xl bg-emerald-700/40 p-2 flex items-center justify-center border border-emerald-500/30">
+                  <Upload className="h-5 w-5 text-emerald-400" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white leading-tight">
+                    Upload Employee Sheet for {selectedCycle.title}
+                  </h3>
+                  <p className="text-[11px] text-slate-300">
+                    Circular: {selectedCycle.circularReference} • Enrolls staff with frozen historical grade & group attributes
+                  </p>
+                </div>
+              </div>
+              <button onClick={() => setShowCycleUploadModal(false)} className="p-1 text-slate-300 hover:text-white">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4 text-xs">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3.5 bg-emerald-50/80 border border-emerald-200 rounded-xl">
+                <div>
+                  <span className="font-bold text-emerald-950 block text-xs">Standardized NBP Employee CSV/Excel Format</span>
+                  <p className="text-[11px] text-emerald-800">
+                    Columns: SAP ID, Full Name, Grade, Designation, Location, Reporting Group, Division, Wing, Branch, 1st Appraiser SAP, 2nd Appraiser SAP, MRT Flag.
+                  </p>
+                </div>
+                <Button variant="outline" size="sm" onClick={handleDownloadTemplate} className="shrink-0 font-bold border-emerald-700/40 text-emerald-900 hover:bg-emerald-100">
+                  <Download className="h-3.5 w-3.5 mr-1 text-emerald-700" />
+                  Download Sample CSV
+                </Button>
+              </div>
+
+              {/* Upload Drop Area */}
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                className="border-2 border-dashed border-emerald-700/40 bg-slate-50 hover:bg-emerald-50/40 transition-colors p-6 rounded-2xl text-center cursor-pointer"
+              >
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileUpload}
+                  accept=".csv,.txt,.tsv"
+                  className="hidden"
+                />
+                <FileSpreadsheet className="h-8 w-8 text-emerald-700 mx-auto mb-2" />
+                <span className="font-bold text-slate-800 text-sm block">Click to select CSV file from your computer</span>
+                <span className="text-slate-500 text-xs">or paste CSV/TSV plain text below</span>
+              </div>
+
+              {/* Textarea for manual paste */}
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Or Paste CSV/Tab-Separated Text Data:</label>
+                <textarea
+                  value={cycleUploadText}
+                  onChange={(e) => parseCsvText(e.target.value)}
+                  placeholder="84920,Fawaz Ahmed,AVP,Assistant Vice President,Karachi Head Office,Commercial Banking Group,Corporate Banking,Relationship Management,Karachi Main,10004,10003,false"
+                  rows={4}
+                  className="w-full p-2.5 font-mono text-xs border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-700"
+                />
+              </div>
+
+              {/* Parsed Preview Table */}
+              {cycleParsedRows.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-slate-800 text-xs">
+                      Parsed Employee Rows ({cycleParsedRows.length} total • {cycleParsedRows.filter(r => r.isValid).length} valid)
+                    </span>
+                    {cycleParsedRows.some(r => !r.isValid) && (
+                      <Badge variant="danger" className="text-[10px]">Contains rows with missing SAP ID, Name, or Grade</Badge>
+                    )}
+                  </div>
+
+                  <div className="max-h-48 overflow-y-auto border border-slate-200 rounded-xl">
+                    <table className="w-full text-xs text-left">
+                      <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold sticky top-0">
+                        <tr>
+                          <th className="p-2">SAP ID</th>
+                          <th className="p-2">Full Name</th>
+                          <th className="p-2">Grade</th>
+                          <th className="p-2">Reporting Group</th>
+                          <th className="p-2">1st / 2nd Appraisers</th>
+                          <th className="p-2">Assigned Form</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {cycleParsedRows.map((r, i) => (
+                          <tr key={i} className={r.isValid ? "hover:bg-slate-50" : "bg-rose-50"}>
+                            <td className="p-2 font-mono font-bold">{r.sapId || <span className="text-rose-600">Missing</span>}</td>
+                            <td className="p-2 font-medium">{r.fullName || <span className="text-rose-600">Missing</span>}</td>
+                            <td className="p-2">
+                              <Badge variant="secondary">{r.grade}</Badge>
+                              {r.isMrtOrMrc && <Badge variant="danger" className="ml-1 text-[9px]">MRT</Badge>}
+                            </td>
+                            <td className="p-2 text-slate-700">{r.reportingGroup}</td>
+                            <td className="p-2 font-mono text-[11px]">
+                              {r.firstAppraiserSapId && <span>1st: {r.firstAppraiserSapId}</span>}
+                              {r.secondAppraiserSapId && <span className="ml-1">2nd: {r.secondAppraiserSapId}</span>}
+                            </td>
+                            <td className="p-2">
+                              <Badge variant="nbp" className="text-[10px]">
+                                {r.isMrtOrMrc ? '5-P Risk BSC' : ['VP', 'SVP', 'EVP', 'SEVP', 'PRESIDENT', 'CEO'].includes((r.grade || '').toUpperCase()) ? '4-P BSC' : 'KPI (70/30)'}
+                              </Badge>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 bg-slate-50 border-t flex items-center justify-between">
+              <Button variant="secondary" size="sm" onClick={() => setShowCycleUploadModal(false)}>Cancel</Button>
+              <Button
+                variant="nbp"
+                size="sm"
+                onClick={handleCommitCycleUpload}
+                disabled={uploadingCycleStaff || cycleParsedRows.length === 0}
+                className="font-bold bg-emerald-800 hover:bg-emerald-900 text-white"
+              >
+                {uploadingCycleStaff ? 'Uploading & Enrolling...' : `Upload & Enroll into ${selectedCycle.title}`}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Cycle Employee Roster Modal */}
       {showRosterModal && selectedCycle && (
@@ -402,9 +667,21 @@ export const AppraisalCyclesPage: React.FC = () => {
               {/* Roster Actions & Filters */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
                 <div className="flex flex-wrap items-center gap-2">
-                  <Button variant="nbp" size="sm" onClick={handleOpenEnrollModal} className="font-bold">
-                    <UserPlus className="h-4 w-4 mr-1.5" />
-                    Enroll Staff into Cycle
+                  <Button
+                    variant="nbp"
+                    size="sm"
+                    onClick={() => {
+                      setShowRosterModal(false);
+                      handleOpenCycleUpload(selectedCycle);
+                    }}
+                    className="font-bold bg-emerald-800 text-white"
+                  >
+                    <Upload className="h-3.5 w-3.5 mr-1" />
+                    Upload Staff Sheet
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={handleOpenEnrollModal} className="font-bold border-slate-300">
+                    <UserPlus className="h-3.5 w-3.5 mr-1 text-emerald-700" />
+                    Enroll Single / Group
                   </Button>
                   <Button variant="secondary" size="sm" onClick={() => loadRoster(selectedCycle.id)} title="Refresh Roster">
                     <RefreshCw className={`h-3.5 w-3.5 mr-1 ${loadingRoster ? 'animate-spin' : ''}`} />
@@ -452,7 +729,7 @@ export const AppraisalCyclesPage: React.FC = () => {
                   <div className="p-8 text-center text-slate-500 font-medium">Loading cycle roster...</div>
                 ) : rosterEmployees.length === 0 ? (
                   <div className="p-8 text-center text-slate-500 border-dashed">
-                    No employees currently enrolled in this cycle. Click <strong>"Enroll Staff into Cycle"</strong> to add employees with historical snapshots!
+                    No employees currently enrolled in this cycle. Click <strong>"Upload Staff Sheet"</strong> or <strong>"Enroll Single / Group"</strong> to populate this cycle!
                   </div>
                 ) : (
                   <table className="w-full text-xs text-left">
@@ -829,8 +1106,10 @@ export const AppraisalCyclesPage: React.FC = () => {
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
           <Card className="w-full max-w-md bg-white shadow-2xl">
             <CardHeader>
-              <CardTitle className="text-lg font-bold text-slate-900">Create Annual Appraisal Cycle</CardTitle>
-              <CardDescription className="text-xs">Initializes a new appraisal cycle with an independent staff roster</CardDescription>
+              <CardTitle className="text-lg font-bold text-slate-900">Step 1: Create Annual Appraisal Cycle</CardTitle>
+              <CardDescription className="text-xs">
+                Creates a new cycle. After creation, you can upload and enroll the staff roster for this cycle.
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3 text-xs">
               <div>

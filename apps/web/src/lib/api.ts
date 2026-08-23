@@ -69,8 +69,8 @@ export const api = {
     fetchApi<any>(`/Employees/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   deleteEmployee: (id: string, actorUserId: string = 'PMW_ADMIN') =>
     fetchApi<any>(`/Employees/${id}?actorUserId=${encodeURIComponent(actorUserId)}`, { method: 'DELETE' }),
-  importEmployees: (rows: any[]) =>
-    fetchApi<any>('/Employees/import', { method: 'POST', body: JSON.stringify(rows) }),
+  importEmployees: (rows: any[], cycleId?: string, actorUserId: string = 'PMW_ADMIN') =>
+    fetchApi<any>(`/Employees/import${cycleId ? `?cycleId=${encodeURIComponent(cycleId)}` : ''}`, { method: 'POST', body: JSON.stringify(rows) }),
   bulkUpdateAppraisers: (mappings: any[], actorSapId: string = 'PMW_ADMIN') =>
     fetchApi<any>('/Employees/bulk-update-appraisers', { method: 'POST', body: JSON.stringify({ mappings, actorSapId }) }),
 
