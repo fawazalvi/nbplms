@@ -22,6 +22,9 @@ export const api = {
   getDbStatus: () => fetchApi<{ [key: string]: any }>('/Admin/status'),
   seedDb: (role = 'PmwSuperAdmin') => fetchApi<{ message: string; recordCounts: any }>(`/Admin/seed?role=${encodeURIComponent(role)}`, { method: 'POST' }),
   cleanDb: (role = 'PmwSuperAdmin') => fetchApi<{ message: string }>(`/Admin/clean?role=${encodeURIComponent(role)}`, { method: 'POST' }),
+  seedEntity: (entityKey: string, role = 'PmwSuperAdmin') => fetchApi<{ message: string; affectedCount: number }>(`/Admin/entities/${entityKey}/seed?role=${encodeURIComponent(role)}`, { method: 'POST' }),
+  cleanEntity: (entityKey: string, role = 'PmwSuperAdmin') => fetchApi<{ message: string; affectedCount: number }>(`/Admin/entities/${entityKey}/clean?role=${encodeURIComponent(role)}`, { method: 'POST' }),
+  migrateSchema: (role = 'PmwSuperAdmin') => fetchApi<{ message: string }>(`/Admin/schema/migrate?role=${encodeURIComponent(role)}`, { method: 'POST' }),
 
   // Organization Management (Reporting Groups & Grades)
   getReportingGroups: () => fetchApi<any[]>('/Organization/groups'),

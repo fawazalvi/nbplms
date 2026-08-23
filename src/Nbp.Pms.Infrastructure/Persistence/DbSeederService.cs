@@ -868,4 +868,464 @@ public class DbSeederService
 
         await _db.SaveChangesAsync();
     }
+
+    #region Individual Entity Seeding & Cleaning
+
+    public async Task<int> SeedReportingGroupsAsync()
+    {
+        await MigrateDatabaseSchemaAsync();
+        var existingCodes = await _db.ReportingGroups.Select(g => g.GroupCode).ToListAsync();
+        var defaultGroups = new List<ReportingGroup>
+        {
+            new ReportingGroup { GroupCode = "CBG", GroupName = "Commercial Banking Group", RpsaCode = "0001" },
+            new ReportingGroup { GroupCode = "RBG", GroupName = "Consumer Banking Group", RpsaCode = "0002" },
+            new ReportingGroup { GroupCode = "RMG", GroupName = "Risk Management Group", RpsaCode = "0003" },
+            new ReportingGroup { GroupCode = "TGM", GroupName = "Treasury & Global Markets", RpsaCode = "0004" },
+            new ReportingGroup { GroupCode = "ITG", GroupName = "Information Technology Group", RpsaCode = "0005" },
+            new ReportingGroup { GroupCode = "OPS", GroupName = "Operations Group", RpsaCode = "0006" },
+            new ReportingGroup { GroupCode = "HRG", GroupName = "HR Management Group", RpsaCode = "0007" },
+            new ReportingGroup { GroupCode = "CMP", GroupName = "Compliance Group", RpsaCode = "0008" },
+        };
+
+        int added = 0;
+        foreach (var g in defaultGroups)
+        {
+            if (!existingCodes.Contains(g.GroupCode, StringComparer.OrdinalIgnoreCase))
+            {
+                _db.ReportingGroups.Add(g);
+                added++;
+            }
+        }
+
+        await _db.SaveChangesAsync();
+        return added;
+    }
+
+    public async Task<int> CleanReportingGroupsAsync()
+    {
+        var count = await _db.ReportingGroups.CountAsync();
+        if (count > 0)
+        {
+            _db.ReportingGroups.RemoveRange(_db.ReportingGroups);
+            await _db.SaveChangesAsync();
+        }
+        return count;
+    }
+
+    public async Task<int> SeedGradeMappingsAsync()
+    {
+        await MigrateDatabaseSchemaAsync();
+        var existingCodes = await _db.GradeMappings.Select(g => g.GradeCode).ToListAsync();
+        var defaultGrades = new List<GradeMapping>
+        {
+            new GradeMapping { GradeCode = "OG_III", GradeName = "OG III", EsgCode = "09", RankOrder = 1, DefaultFormType = "KPI_FORM" },
+            new GradeMapping { GradeCode = "OG_II", GradeName = "OG II", EsgCode = "08", RankOrder = 2, DefaultFormType = "KPI_FORM" },
+            new GradeMapping { GradeCode = "OG_I", GradeName = "OG I", EsgCode = "07", RankOrder = 3, DefaultFormType = "KPI_FORM" },
+            new GradeMapping { GradeCode = "AVP", GradeName = "AVP", EsgCode = "06", RankOrder = 4, DefaultFormType = "KPI_FORM" },
+            new GradeMapping { GradeCode = "VP", GradeName = "VP", EsgCode = "05", RankOrder = 5, DefaultFormType = "BALANCED_SCORECARD" },
+            new GradeMapping { GradeCode = "SVP", GradeName = "SVP", EsgCode = "04", RankOrder = 6, DefaultFormType = "BALANCED_SCORECARD" },
+            new GradeMapping { GradeCode = "EVP", GradeName = "EVP", EsgCode = "03", RankOrder = 7, DefaultFormType = "BALANCED_SCORECARD" },
+            new GradeMapping { GradeCode = "SEVP", GradeName = "SEVP", EsgCode = "02", RankOrder = 8, DefaultFormType = "BALANCED_SCORECARD" },
+            new GradeMapping { GradeCode = "PRESIDENT", GradeName = "President/CEO", EsgCode = "01", RankOrder = 9, DefaultFormType = "BALANCED_SCORECARD" },
+        };
+
+        int added = 0;
+        foreach (var g in defaultGrades)
+        {
+            if (!existingCodes.Contains(g.GradeCode, StringComparer.OrdinalIgnoreCase))
+            {
+                _db.GradeMappings.Add(g);
+                added++;
+            }
+        }
+
+        await _db.SaveChangesAsync();
+        return added;
+    }
+
+    public async Task<int> CleanGradeMappingsAsync()
+    {
+        var count = await _db.GradeMappings.CountAsync();
+        if (count > 0)
+        {
+            _db.GradeMappings.RemoveRange(_db.GradeMappings);
+            await _db.SaveChangesAsync();
+        }
+        return count;
+    }
+
+    public async Task<int> SeedEmployeesAsync()
+    {
+        await MigrateDatabaseSchemaAsync();
+        var existingSaps = await _db.Employees.Select(e => e.SapId).ToListAsync();
+
+        var pres = new Employee
+        {
+            SapId = "10001",
+            FullName = "Rahmat Ali Hasnie",
+            Grade = "01",
+            Designation = "President & CEO",
+            Location = "Head Office Karachi",
+            ReportingGroup = "0001",
+            Division = "Executive",
+            WingDepartment = "President Office",
+            RegionBranch = "Head Office",
+            IsMrtOrMrc = true
+        };
+
+        var sevp = new Employee
+        {
+            SapId = "10002",
+            FullName = "Asad Mumtaz",
+            Grade = "02",
+            Designation = "Group Chief",
+            Location = "Head Office Karachi",
+            ReportingGroup = "0001",
+            Division = "Commercial Banking",
+            WingDepartment = "Group Chief Office",
+            RegionBranch = "Head Office",
+            IsMrtOrMrc = true,
+            FirstAppraiser = pres
+        };
+
+        var svp = new Employee
+        {
+            SapId = "10003",
+            FullName = "Rashid Khan",
+            Grade = "04",
+            Designation = "Divisional Head",
+            Location = "Head Office Karachi",
+            ReportingGroup = "0001",
+            Division = "Corporate & Commercial",
+            WingDepartment = "Commercial Division",
+            RegionBranch = "Head Office",
+            FirstAppraiser = sevp
+        };
+
+        var vp = new Employee
+        {
+            SapId = "10004",
+            FullName = "Tariq Mahmood",
+            Grade = "05",
+            Designation = "Regional Head",
+            Location = "Karachi Region",
+            ReportingGroup = "0001",
+            Division = "Commercial Banking",
+            WingDepartment = "Regional Office",
+            RegionBranch = "Karachi Central",
+            FirstAppraiser = svp
+        };
+
+        var avp = new Employee
+        {
+            SapId = "84920",
+            FullName = "Fawaz Ahmed",
+            Grade = "06",
+            Designation = "Senior Relationship Manager",
+            Location = "Karachi Region",
+            ReportingGroup = "0001",
+            Division = "Commercial Banking",
+            WingDepartment = "Commercial Branch",
+            RegionBranch = "Karachi Central",
+            FirstAppraiser = vp,
+            SecondAppraiser = svp
+        };
+
+        var og1 = new Employee
+        {
+            SapId = "91204",
+            FullName = "Zahid Hussain",
+            Grade = "07",
+            Designation = "Relationship Manager",
+            Location = "Karachi Region",
+            ReportingGroup = "0001",
+            Division = "Commercial Banking",
+            WingDepartment = "Commercial Branch",
+            RegionBranch = "Karachi Central",
+            FirstAppraiser = avp,
+            SecondAppraiser = vp
+        };
+
+        var og2 = new Employee
+        {
+            SapId = "88392",
+            FullName = "Mariam Ali",
+            Grade = "08",
+            Designation = "Operations Officer",
+            Location = "Lahore Region",
+            ReportingGroup = "0002",
+            Division = "Retail Operations",
+            WingDepartment = "Branch Operations",
+            RegionBranch = "Lahore Main",
+            FirstAppraiser = vp
+        };
+
+        var mrtAvp = new Employee
+        {
+            SapId = "76210",
+            FullName = "Usman Farooq",
+            Grade = "06",
+            Designation = "Senior Risk Analyst",
+            Location = "Head Office Karachi",
+            ReportingGroup = "0003",
+            Division = "Credit Risk",
+            WingDepartment = "Risk Assessment",
+            RegionBranch = "Head Office",
+            IsMrtOrMrc = true,
+            FirstAppraiser = svp
+        };
+
+        var defaultEmps = new List<Employee> { pres, sevp, svp, vp, avp, og1, og2, mrtAvp };
+        int added = 0;
+        foreach (var emp in defaultEmps)
+        {
+            if (!existingSaps.Contains(emp.SapId))
+            {
+                _db.Employees.Add(emp);
+                added++;
+            }
+        }
+
+        await _db.SaveChangesAsync();
+        await EnsureDefaultUsersAsync();
+        return added;
+    }
+
+    public async Task<int> CleanEmployeesAsync()
+    {
+        // Must clean dependent scores, forms, cycles first
+        if (await _db.Scores.AnyAsync()) _db.Scores.RemoveRange(_db.Scores);
+        if (await _db.Objectives.AnyAsync()) _db.Objectives.RemoveRange(_db.Objectives);
+        if (await _db.BehaviourTraits.AnyAsync()) _db.BehaviourTraits.RemoveRange(_db.BehaviourTraits);
+        if (await _db.DevelopmentReviews.AnyAsync()) _db.DevelopmentReviews.RemoveRange(_db.DevelopmentReviews);
+        if (await _db.DisagreementCases.AnyAsync()) _db.DisagreementCases.RemoveRange(_db.DisagreementCases);
+        if (await _db.EmployeeCycles.AnyAsync()) _db.EmployeeCycles.RemoveRange(_db.EmployeeCycles);
+        
+        var count = await _db.Employees.CountAsync();
+        if (count > 0)
+        {
+            _db.Employees.RemoveRange(_db.Employees);
+            await _db.SaveChangesAsync();
+        }
+        return count;
+    }
+
+    public async Task<int> SeedAppraisalCyclesAsync()
+    {
+        await MigrateDatabaseSchemaAsync();
+        var existingTitles = await _db.AppraisalCycles.Select(c => c.Title).ToListAsync();
+
+        int added = 0;
+        if (!existingTitles.Any(t => t.Contains("2026")))
+        {
+            var cycle2026 = new AppraisalCycle
+            {
+                Title = "Annual Performance Appraisal Cycle 2026",
+                CircularReference = "NBP/HR/2026/041",
+                StartDate = new DateTime(2026, 1, 1),
+                EndDate = new DateTime(2026, 12, 31),
+                AcknowledgementDeadline = new DateTime(2026, 12, 15),
+                Status = WorkflowStatus.CycleActive,
+                MultipleActiveCyclesAllowed = true
+            };
+            _db.AppraisalCycles.Add(cycle2026);
+            added++;
+        }
+
+        if (!existingTitles.Any(t => t.Contains("2027")))
+        {
+            var cycle2027 = new AppraisalCycle
+            {
+                Title = "Annual Appraisal Cycle 2027",
+                CircularReference = "NBP/HR/2027/001",
+                StartDate = new DateTime(2027, 1, 1),
+                EndDate = new DateTime(2027, 12, 31),
+                AcknowledgementDeadline = new DateTime(2027, 12, 20),
+                Status = WorkflowStatus.CycleDraft,
+                MultipleActiveCyclesAllowed = true
+            };
+            _db.AppraisalCycles.Add(cycle2027);
+            added++;
+        }
+
+        await _db.SaveChangesAsync();
+        return added;
+    }
+
+    public async Task<int> CleanAppraisalCyclesAsync()
+    {
+        if (await _db.Scores.AnyAsync()) _db.Scores.RemoveRange(_db.Scores);
+        if (await _db.Objectives.AnyAsync()) _db.Objectives.RemoveRange(_db.Objectives);
+        if (await _db.BehaviourTraits.AnyAsync()) _db.BehaviourTraits.RemoveRange(_db.BehaviourTraits);
+        if (await _db.DevelopmentReviews.AnyAsync()) _db.DevelopmentReviews.RemoveRange(_db.DevelopmentReviews);
+        if (await _db.DisagreementCases.AnyAsync()) _db.DisagreementCases.RemoveRange(_db.DisagreementCases);
+        if (await _db.EmployeeCycles.AnyAsync()) _db.EmployeeCycles.RemoveRange(_db.EmployeeCycles);
+        if (await _db.CycleReportingGroups.AnyAsync()) _db.CycleReportingGroups.RemoveRange(_db.CycleReportingGroups);
+        if (await _db.CycleGradeMappings.AnyAsync()) _db.CycleGradeMappings.RemoveRange(_db.CycleGradeMappings);
+        if (await _db.BellCurvePolicies.AnyAsync()) _db.BellCurvePolicies.RemoveRange(_db.BellCurvePolicies);
+
+        var count = await _db.AppraisalCycles.CountAsync();
+        if (count > 0)
+        {
+            _db.AppraisalCycles.RemoveRange(_db.AppraisalCycles);
+            await _db.SaveChangesAsync();
+        }
+        return count;
+    }
+
+    public async Task<int> SeedFormTemplatesAsync()
+    {
+        await MigrateDatabaseSchemaAsync();
+        if (await _db.FormTemplates.AnyAsync()) return 0;
+
+        var kpiTemplate = new FormTemplate
+        {
+            Title = "Standard KPI & Behavioural Appraisal Form (AVP & Below)",
+            FormType = FormType.KpiForm,
+            TargetGradeGroup = "AVP & Below",
+            Perspectives = new List<Perspective>
+            {
+                new Perspective { Name = "Key Performance Objectives", WeightagePercentage = 70.0m, DisplayOrder = 1 },
+                new Perspective { Name = "Core Behavioural Competencies", WeightagePercentage = 30.0m, DisplayOrder = 2 }
+            }
+        };
+
+        var bscTemplate = new FormTemplate
+        {
+            Title = "NBP Balanced Scorecard Form (VP & Above)",
+            FormType = FormType.BalancedScorecard,
+            TargetGradeGroup = "VP & Above",
+            Perspectives = new List<Perspective>
+            {
+                new Perspective { Name = "Financial Perspective", WeightagePercentage = 30.0m, DisplayOrder = 1 },
+                new Perspective { Name = "Customer & Market Focus", WeightagePercentage = 25.0m, DisplayOrder = 2 },
+                new Perspective { Name = "Internal Processes & Compliance", WeightagePercentage = 25.0m, DisplayOrder = 3 },
+                new Perspective { Name = "Learning & Organizational Growth", WeightagePercentage = 20.0m, DisplayOrder = 4 }
+            }
+        };
+
+        _db.FormTemplates.AddRange(kpiTemplate, bscTemplate);
+        await _db.SaveChangesAsync();
+        return 2;
+    }
+
+    public async Task<int> CleanFormTemplatesAsync()
+    {
+        if (await _db.Objectives.AnyAsync()) _db.Objectives.RemoveRange(_db.Objectives);
+        if (await _db.BehaviourTraits.AnyAsync()) _db.BehaviourTraits.RemoveRange(_db.BehaviourTraits);
+        if (await _db.Perspectives.AnyAsync()) _db.Perspectives.RemoveRange(_db.Perspectives);
+        
+        var count = await _db.FormTemplates.CountAsync();
+        if (count > 0)
+        {
+            _db.FormTemplates.RemoveRange(_db.FormTemplates);
+            await _db.SaveChangesAsync();
+        }
+        return count;
+    }
+
+    public async Task<int> SeedSystemUsersAsync()
+    {
+        await EnsureDefaultUsersAsync();
+        return await _db.SystemUsers.CountAsync();
+    }
+
+    public async Task<int> CleanSystemUsersAsync()
+    {
+        // Delete all non-admin users, keeping superadmin
+        var nonAdminUsers = await _db.SystemUsers.Where(u => u.Username != "admin" && u.Username != "pmwadmin").ToListAsync();
+        int count = nonAdminUsers.Count;
+        if (count > 0)
+        {
+            _db.SystemUsers.RemoveRange(nonAdminUsers);
+            await _db.SaveChangesAsync();
+        }
+        return count;
+    }
+
+    public async Task<int> CleanAuditEventsAsync()
+    {
+        if (await _db.AppraisalFormAuditLogs.AnyAsync()) _db.AppraisalFormAuditLogs.RemoveRange(_db.AppraisalFormAuditLogs);
+        var count = await _db.AuditEvents.CountAsync();
+        if (count > 0)
+        {
+            _db.AuditEvents.RemoveRange(_db.AuditEvents);
+            await _db.SaveChangesAsync();
+        }
+        return count;
+    }
+
+    public async Task<int> SeedEmailConfigAsync()
+    {
+        await MigrateDatabaseSchemaAsync();
+        if (await _db.EmailConfigurations.AnyAsync()) return 0;
+
+        var config = new EmailConfiguration
+        {
+            ProviderType = "SMTP",
+            Host = "mailhog",
+            Port = 1025,
+            EncryptionType = "None",
+            RequireAuthentication = false,
+            SenderEmail = "pms-notifications@nbp.com.pk",
+            SenderDisplayName = "NBP Performance Management System",
+            ReplyToEmail = "pms-support@nbp.com.pk",
+            IsActive = true,
+            UpdatedAt = DateTime.UtcNow
+        };
+        _db.EmailConfigurations.Add(config);
+        await _db.SaveChangesAsync();
+        return 1;
+    }
+
+    public async Task<int> CleanEmailConfigAsync()
+    {
+        var count = await _db.EmailConfigurations.CountAsync();
+        if (count > 0)
+        {
+            _db.EmailConfigurations.RemoveRange(_db.EmailConfigurations);
+            await _db.SaveChangesAsync();
+        }
+        return count;
+    }
+
+    public async Task<int> SeedBellCurvePoliciesAsync()
+    {
+        await MigrateDatabaseSchemaAsync();
+        if (await _db.BellCurvePolicies.AnyAsync()) return 0;
+
+        var cycle = await _db.AppraisalCycles.FirstOrDefaultAsync();
+        var cycleId = cycle?.Id ?? Guid.NewGuid();
+
+        var policy1 = new BellCurvePolicy
+        {
+            CycleId = cycleId,
+            TargetGroup = "Bank-Wide Standard",
+            TargetGrade = "All Grades",
+            TargetOutstandingPercentage = 10.0m,
+            TargetVeryGoodPercentage = 25.0m,
+            TargetGoodPercentage = 50.0m,
+            TargetNeedsImprovementPercentage = 10.0m,
+            TargetUnsatisfactoryPercentage = 5.0m,
+            IsCompliant = true,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        _db.BellCurvePolicies.Add(policy1);
+        await _db.SaveChangesAsync();
+        return 1;
+    }
+
+    public async Task<int> CleanBellCurvePoliciesAsync()
+    {
+        var count = await _db.BellCurvePolicies.CountAsync();
+        if (count > 0)
+        {
+            _db.BellCurvePolicies.RemoveRange(_db.BellCurvePolicies);
+            await _db.SaveChangesAsync();
+        }
+        return count;
+    }
+
+    #endregion
 }

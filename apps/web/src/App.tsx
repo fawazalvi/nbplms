@@ -20,6 +20,7 @@ import { UserManagementPage } from './pages/admin/UserManagementPage';
 import { OrganizationManagementPage } from './pages/admin/OrganizationManagementPage';
 import { EmailConfigurationPage } from './pages/admin/EmailConfigurationPage';
 import { CycleSnapshotManagerPage } from './pages/pmw/CycleSnapshotManagerPage';
+import { DatabaseToolsPage } from './pages/admin/DatabaseToolsPage';
 
 export function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -124,6 +125,8 @@ export function App() {
         return <AuditLogPage />;
       case 'security':
         return <SecurityKeyVaultPage />;
+      case 'db-tools':
+        return <DatabaseToolsPage userRole={userRole} />;
       case 'help':
         return <HelpCircularsPage />;
       case 'dashboard':

@@ -17,7 +17,8 @@ import {
   Send,
   Scale,
   Sparkles,
-  Layers
+  Layers,
+  Database
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -64,6 +65,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentRole, activeTab, onTabC
               { id: 'email-config', label: 'Email & Exchange Setup', icon: Mail },
               { id: 'security', label: 'Security & Key Vault', icon: Lock },
               { id: 'audit', label: 'Audit & Compliance Logs', icon: Shield },
+            ]
+          },
+          {
+            title: 'Database & Maintenance',
+            items: [
+              { id: 'db-tools', label: 'Database Admin Tools', icon: Database },
             ]
           }
         ];
