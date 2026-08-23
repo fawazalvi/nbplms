@@ -28,7 +28,7 @@ export const OrganizationManagementPage: React.FC = () => {
   const [showGradeModal, setShowGradeModal] = useState(false);
   const [editingGrade, setEditingGrade] = useState<any | null>(null);
   const [gradeCode, setGradeCode] = useState('');
-  const [gradeNumericCode, setGradeNumericCode] = useState('');
+  const [gradeEsgCode, setGradeEsgCode] = useState('');
   const [gradeName, setGradeName] = useState('');
   const [rankOrder, setRankOrder] = useState(1);
   const [defaultFormType, setDefaultFormType] = useState('KPI_FORM');
@@ -48,7 +48,7 @@ export const OrganizationManagementPage: React.FC = () => {
     return digits ? digits.padStart(4, '0') : '';
   };
 
-  const format2Digit = (val: string, fallbackRank: number = 1) => {
+  const formatEsg = (val: string, fallbackRank: number = 1) => {
     if (!val) return fallbackRank.toString().padStart(2, '0');
     const digits = val.replace(/\D/g, '').slice(0, 2);
     return digits ? digits.padStart(2, '0') : fallbackRank.toString().padStart(2, '0');
@@ -169,7 +169,7 @@ export const OrganizationManagementPage: React.FC = () => {
   const openCreateGradeModal = () => {
     setEditingGrade(null);
     setGradeCode('');
-    setGradeNumericCode('');
+    setGradeEsgCode('');
     setGradeName('');
     setRankOrder((grades.length || 0) + 1);
     setDefaultFormType('KPI_FORM');
@@ -180,7 +180,7 @@ export const OrganizationManagementPage: React.FC = () => {
   const openEditGradeModal = (g: any) => {
     setEditingGrade(g);
     setGradeCode(g.gradeCode || '');
-    setGradeNumericCode(g.gradeNumericCode || format2Digit('', g.rankOrder || 1));
+    setGradeEsgCode(g.esgCode || g.gradeNumericCode || formatEsg('', g.rankOrder || 1));
     setGradeName(g.gradeName || '');
     setRankOrder(g.rankOrder || 1);
     setDefaultFormType(g.defaultFormType || 'KPI_FORM');
@@ -192,28 +192,28 @@ export const OrganizationManagementPage: React.FC = () => {
     if (!gradeCode || !gradeName) return;
     setErrorMessage(null);
     try {
-      const formattedNumCode = format2Digit(gradeNumericCode, Number(rankOrder) || 1);
+      const formattedEsg = formatEsg(gradeEsgCode, Number(rankOrder) || 1);
       if (editingGrade) {
         await api.updateGradeMapping(editingGrade.id, {
           gradeCode,
-          gradeNumericCode: formattedNumCode,
+          esgCode: formattedEsg,
           gradeName,
           rankOrder: Number(rankOrder),
           defaultFormType,
           isActive: gradeIsActive,
           actorUserId: 'PMW_ADMIN'
         });
-        setMessage(`Grade Mapping "${gradeName}" (${gradeCode}) [Code: ${formattedNumCode}] updated successfully.`);
+        setMessage(`Grade Mapping "${gradeName}" (${gradeCode}) [ESG: ${formattedEsg}] updated successfully.`);
       } else {
         await api.createGradeMapping({
           gradeCode,
-          gradeNumericCode: formattedNumCode,
+          esgCode: formattedEsg,
           gradeName,
           rankOrder: Number(rankOrder),
           defaultFormType,
           actorUserId: 'PMW_ADMIN'
         });
-        setMessage(`Grade Mapping "${gradeName}" (${gradeCode}) [Code: ${formattedNumCode}] created successfully.`);
+        setMessage(`Grade Mapping "${gradeName}" (${gradeCode}) [ESG: ${formattedEsg}] created successfully.`);
       }
       setShowGradeModal(false);
       setEditingGrade(null);
@@ -252,7 +252,7 @@ export const OrganizationManagementPage: React.FC = () => {
         "CMP,Compliance Group,0008,10009";
       filename = "NBP_Reporting_Groups_Sample_Import.csv";
     } else {
-      content = "GradeCode,GradeNumericCode,GradeName,RankOrder,DefaultFormType\n" +
+      content = "GradeCode,ESG,GradeName,RankOrder,DefaultFormType\n" +
         "OG_III,01,OG III,1,KPI_FORM\n" +
         "OG_II,02,OG II,2,KPI_FORM\n" +
         "OG_I,03,OG I,3,KPI_FORM\n" +
@@ -300,22 +300,22 @@ export const OrganizationManagementPage: React.FC = () => {
           headOfGroupSapId: headSap || ''
         });
       } else {
-        // Grades CSV: GradeCode, GradeNumericCode (optional), GradeName, RankOrder, DefaultFormType
+        // Grades CSV: GradeCode, ESG (2-Digit), GradeName, RankOrder, DefaultFormType
         if (cols.length >= 5) {
           rows.push({
             gradeCode: cols[0] || '',
-            gradeNumericCode: format2Digit(cols[1], Number(cols[3]) || 1),
+            esgCode: formatEsg(cols[1], Number(cols[3]) || 1),
             gradeName: cols[2] || '',
             rankOrder: Number(cols[3]) || 1,
             defaultFormType: cols[4] || 'KPI_FORM'
           });
         } else {
-          // 4 columns: check if col[1] is 2-digit numeric code
+          // 4 columns: check if col[1] is 2-digit ESG code
           const isCol1Numeric = /^\d+$/.test(cols[1].trim());
           if (isCol1Numeric && cols.length >= 4) {
             rows.push({
               gradeCode: cols[0] || '',
-              gradeNumericCode: format2Digit(cols[1], Number(cols[2]) || 1),
+              esgCode: formatEsg(cols[1], Number(cols[2]) || 1),
               gradeName: cols[0] || '',
               rankOrder: Number(cols[2]) || 1,
               defaultFormType: cols[3] || 'KPI_FORM'
@@ -324,7 +324,7 @@ export const OrganizationManagementPage: React.FC = () => {
             const rank = Number(cols[2]) || 1;
             rows.push({
               gradeCode: cols[0] || '',
-              gradeNumericCode: format2Digit('', rank),
+              esgCode: formatEsg('', rank),
               gradeName: cols[1] || '',
               rankOrder: rank,
               defaultFormType: cols[3] || 'KPI_FORM'
@@ -642,7 +642,7 @@ export const OrganizationManagementPage: React.FC = () => {
                   <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase">
                     <tr>
                       <th className="p-3">Rank</th>
-                      <th className="p-3">2-Digit Code</th>
+                      <th className="p-3">ESG (2-Digit)</th>
                       <th className="p-3">Grade Code</th>
                       <th className="p-3">Display Name</th>
                       <th className="p-3">Form Rule Assigned</th>
@@ -656,7 +656,7 @@ export const OrganizationManagementPage: React.FC = () => {
                         <td className="p-3 font-mono font-bold text-slate-900">#{g.rankOrder}</td>
                         <td className="p-3">
                           <span className="font-mono text-xs font-black px-2.5 py-0.5 rounded-md bg-emerald-50 text-emerald-900 border border-emerald-200/80">
-                            {format2Digit(g.gradeNumericCode, g.rankOrder)}
+                            {formatEsg(g.esgCode || g.gradeNumericCode, g.rankOrder)}
                           </span>
                         </td>
                         <td className="p-3">
@@ -810,7 +810,7 @@ export const OrganizationManagementPage: React.FC = () => {
                   <h3 className="text-base font-bold text-white leading-tight">
                     {editingGrade ? 'Edit Grade Mapping' : 'Add Grade Rank Mapping'}
                   </h3>
-                  <p className="text-[11px] text-slate-300">Grade Rank & Form Type Assignment with 2-Digit Code</p>
+                  <p className="text-[11px] text-slate-300">Grade Rank & Form Type Assignment with 2-Digit ESG Code</p>
                 </div>
               </div>
               <button onClick={() => { setShowGradeModal(false); setEditingGrade(null); }} className="text-slate-300 hover:text-white">
@@ -832,12 +832,12 @@ export const OrganizationManagementPage: React.FC = () => {
                   {editingGrade && <p className="text-[10px] text-slate-400 mt-1">Code is immutable</p>}
                 </div>
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">2-Digit Code *</label>
+                  <label className="font-bold text-slate-700 block mb-1">ESG Code *</label>
                   <Input
-                    value={gradeNumericCode}
-                    onChange={(e) => setGradeNumericCode(e.target.value)}
+                    value={gradeEsgCode}
+                    onChange={(e) => setGradeEsgCode(e.target.value)}
                     onBlur={() => {
-                      if (gradeNumericCode) setGradeNumericCode(format2Digit(gradeNumericCode, Number(rankOrder) || 1));
+                      if (gradeEsgCode) setGradeEsgCode(formatEsg(gradeEsgCode, Number(rankOrder) || 1));
                     }}
                     placeholder="04"
                     maxLength={2}
@@ -891,7 +891,7 @@ export const OrganizationManagementPage: React.FC = () => {
                     Upload Bulk {importType === 'groups' ? 'Reporting Groups' : 'Grade Mappings'} CSV
                   </h3>
                   <p className="text-[11px] text-slate-300">
-                    {importType === 'groups' ? 'CSV Bulk Import with 4-Digit RPSA Codes' : 'CSV Bulk Import with 2-Digit Numeric Grade Codes'}
+                    {importType === 'groups' ? 'CSV Bulk Import with 4-Digit RPSA Codes' : 'CSV Bulk Import with 2-Digit ESG Grade Codes'}
                   </p>
                 </div>
               </div>
@@ -905,7 +905,7 @@ export const OrganizationManagementPage: React.FC = () => {
                 <div className="flex items-center space-x-2 text-emerald-900 font-semibold">
                   <FileText className="h-4 w-4 text-emerald-700 shrink-0" />
                   <span>
-                    {importType === 'groups' ? 'Format: GroupCode, GroupName, RPSA (4-Digit), HeadOfGroupSapId' : 'Format: GradeCode, 2-Digit Code, GradeName, RankOrder, DefaultFormType'}
+                    {importType === 'groups' ? 'Format: GroupCode, GroupName, RPSA (4-Digit), HeadOfGroupSapId' : 'Format: GradeCode, ESG, GradeName, RankOrder, DefaultFormType'}
                   </span>
                 </div>
                 <Button variant="outline" size="sm" onClick={handleDownloadSampleCsv} className="h-8 text-xs font-bold border-emerald-300">
@@ -945,7 +945,7 @@ export const OrganizationManagementPage: React.FC = () => {
                     setCsvText(e.target.value);
                     parseCsv(e.target.value);
                   }}
-                  placeholder={importType === 'groups' ? "GroupCode,GroupName,RPSA,HeadOfGroupSapId\nCBG,Commercial Banking Group,0001,10002" : "GradeCode,GradeNumericCode,GradeName,RankOrder,DefaultFormType\nOG_III,01,OG III,1,KPI_FORM"}
+                  placeholder={importType === 'groups' ? "GroupCode,GroupName,RPSA,HeadOfGroupSapId\nCBG,Commercial Banking Group,0001,10002" : "GradeCode,ESG,GradeName,RankOrder,DefaultFormType\nOG_III,01,OG III,1,KPI_FORM"}
                   className="w-full p-2 text-xs font-mono bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-700"
                 />
               </div>
@@ -971,7 +971,7 @@ export const OrganizationManagementPage: React.FC = () => {
                         ) : (
                           <tr>
                             <th className="p-2">Rank</th>
-                            <th className="p-2">2-Digit Code</th>
+                            <th className="p-2">ESG Code</th>
                             <th className="p-2">Grade Code</th>
                             <th className="p-2">Name</th>
                             <th className="p-2">Default Form</th>
@@ -997,7 +997,7 @@ export const OrganizationManagementPage: React.FC = () => {
                                 <td className="p-2 font-bold">#{r.rankOrder}</td>
                                 <td className="p-2 font-mono font-bold text-emerald-800">
                                   <span className="bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                                    {r.gradeNumericCode || format2Digit('', r.rankOrder)}
+                                    {r.esgCode || formatEsg('', r.rankOrder)}
                                   </span>
                                 </td>
                                 <td className="p-2 font-mono font-bold">{r.gradeCode}</td>

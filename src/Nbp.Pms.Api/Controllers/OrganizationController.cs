@@ -213,7 +213,7 @@ public class OrganizationController : ControllerBase
 
     #region Grade Hierarchy Mappings
 
-    private static string? FormatGradeNumericCode(string? code, int fallbackRank = 1)
+    private static string? FormatEsgCode(string? code, int fallbackRank = 1)
     {
         if (string.IsNullOrWhiteSpace(code))
         {
@@ -236,15 +236,15 @@ public class OrganizationController : ControllerBase
         {
             var defaultGrades = new List<GradeMapping>
             {
-                new GradeMapping { GradeCode = "OG_III", GradeName = "OG III", GradeNumericCode = "01", RankOrder = 1, DefaultFormType = "KPI_FORM" },
-                new GradeMapping { GradeCode = "OG_II", GradeName = "OG II", GradeNumericCode = "02", RankOrder = 2, DefaultFormType = "KPI_FORM" },
-                new GradeMapping { GradeCode = "OG_I", GradeName = "OG I", GradeNumericCode = "03", RankOrder = 3, DefaultFormType = "KPI_FORM" },
-                new GradeMapping { GradeCode = "AVP", GradeName = "AVP", GradeNumericCode = "04", RankOrder = 4, DefaultFormType = "KPI_FORM" },
-                new GradeMapping { GradeCode = "VP", GradeName = "VP", GradeNumericCode = "05", RankOrder = 5, DefaultFormType = "BALANCED_SCORECARD" },
-                new GradeMapping { GradeCode = "SVP", GradeName = "SVP", GradeNumericCode = "06", RankOrder = 6, DefaultFormType = "BALANCED_SCORECARD" },
-                new GradeMapping { GradeCode = "EVP", GradeName = "EVP", GradeNumericCode = "07", RankOrder = 7, DefaultFormType = "BALANCED_SCORECARD" },
-                new GradeMapping { GradeCode = "SEVP", GradeName = "SEVP", GradeNumericCode = "08", RankOrder = 8, DefaultFormType = "BALANCED_SCORECARD" },
-                new GradeMapping { GradeCode = "PRESIDENT", GradeName = "President/CEO", GradeNumericCode = "09", RankOrder = 9, DefaultFormType = "BALANCED_SCORECARD" },
+                new GradeMapping { GradeCode = "OG_III", GradeName = "OG III", EsgCode = "01", RankOrder = 1, DefaultFormType = "KPI_FORM" },
+                new GradeMapping { GradeCode = "OG_II", GradeName = "OG II", EsgCode = "02", RankOrder = 2, DefaultFormType = "KPI_FORM" },
+                new GradeMapping { GradeCode = "OG_I", GradeName = "OG I", EsgCode = "03", RankOrder = 3, DefaultFormType = "KPI_FORM" },
+                new GradeMapping { GradeCode = "AVP", GradeName = "AVP", EsgCode = "04", RankOrder = 4, DefaultFormType = "KPI_FORM" },
+                new GradeMapping { GradeCode = "VP", GradeName = "VP", EsgCode = "05", RankOrder = 5, DefaultFormType = "BALANCED_SCORECARD" },
+                new GradeMapping { GradeCode = "SVP", GradeName = "SVP", EsgCode = "06", RankOrder = 6, DefaultFormType = "BALANCED_SCORECARD" },
+                new GradeMapping { GradeCode = "EVP", GradeName = "EVP", EsgCode = "07", RankOrder = 7, DefaultFormType = "BALANCED_SCORECARD" },
+                new GradeMapping { GradeCode = "SEVP", GradeName = "SEVP", EsgCode = "08", RankOrder = 8, DefaultFormType = "BALANCED_SCORECARD" },
+                new GradeMapping { GradeCode = "PRESIDENT", GradeName = "President/CEO", EsgCode = "09", RankOrder = 9, DefaultFormType = "BALANCED_SCORECARD" },
             };
             _db.GradeMappings.AddRange(defaultGrades);
             await _db.SaveChangesAsync();
@@ -265,7 +265,7 @@ public class OrganizationController : ControllerBase
         var grade = new GradeMapping
         {
             GradeCode = dto.GradeCode.Trim().ToUpperInvariant(),
-            GradeNumericCode = FormatGradeNumericCode(dto.GradeNumericCode, dto.RankOrder),
+            EsgCode = FormatEsgCode(dto.EsgCode ?? dto.GradeNumericCode, dto.RankOrder),
             GradeName = dto.GradeName.Trim(),
             RankOrder = dto.RankOrder,
             DefaultFormType = dto.DefaultFormType ?? "KPI_FORM",
@@ -281,7 +281,7 @@ public class OrganizationController : ControllerBase
             ActorRole = "PmwAdmin",
             TargetEntityId = grade.Id.ToString(),
             TargetEntityType = nameof(GradeMapping),
-            ActionDescription = $"Created new Grade Mapping: {grade.GradeName} ({grade.GradeCode}) with 2-digit code: {grade.GradeNumericCode}.",
+            ActionDescription = $"Created new Grade Mapping: {grade.GradeName} ({grade.GradeCode}) with ESG code: {grade.EsgCode}.",
             Timestamp = DateTime.UtcNow
         };
         _db.AuditEvents.Add(audit);
@@ -299,13 +299,13 @@ public class OrganizationController : ControllerBase
             if (string.IsNullOrWhiteSpace(row.GradeCode) || string.IsNullOrWhiteSpace(row.GradeName)) continue;
 
             string code = row.GradeCode.Trim().ToUpperInvariant();
-            string? numCode = FormatGradeNumericCode(row.GradeNumericCode, row.RankOrder);
+            string? esg = FormatEsgCode(row.EsgCode ?? row.GradeNumericCode, row.RankOrder);
             var existing = await _db.GradeMappings.FirstOrDefaultAsync(g => g.GradeCode == code);
 
             if (existing != null)
             {
                 existing.GradeName = row.GradeName.Trim();
-                if (!string.IsNullOrWhiteSpace(numCode)) existing.GradeNumericCode = numCode;
+                if (!string.IsNullOrWhiteSpace(esg)) existing.EsgCode = esg;
                 existing.RankOrder = row.RankOrder;
                 existing.DefaultFormType = row.DefaultFormType ?? "KPI_FORM";
             }
@@ -314,7 +314,7 @@ public class OrganizationController : ControllerBase
                 _db.GradeMappings.Add(new GradeMapping
                 {
                     GradeCode = code,
-                    GradeNumericCode = numCode,
+                    EsgCode = esg,
                     GradeName = row.GradeName.Trim(),
                     RankOrder = row.RankOrder,
                     DefaultFormType = row.DefaultFormType ?? "KPI_FORM",
@@ -329,13 +329,13 @@ public class OrganizationController : ControllerBase
             EventType = "BULK_GRADE_MAPPINGS_IMPORTED",
             ActorUserId = "PMW_ADMIN",
             ActorRole = "PmwAdmin",
-            ActionDescription = $"Bulk imported/updated {importedCount} Grade Mappings with 2-digit codes into SQL Server database.",
+            ActionDescription = $"Bulk imported/updated {importedCount} Grade Mappings with 2-digit ESG codes into SQL Server database.",
             Timestamp = DateTime.UtcNow
         };
         _db.AuditEvents.Add(audit);
 
         await _db.SaveChangesAsync();
-        return Ok(new { message = $"Successfully imported {importedCount} grade mappings into database.", count = importedCount });
+        return Ok(new { message = $"Successfully imported {importedCount} grade mappings with ESG codes into database.", count = importedCount });
     }
 
     [HttpDelete("grades/{id}")]
@@ -369,7 +369,7 @@ public class OrganizationController : ControllerBase
         if (grade == null) return NotFound();
 
         grade.GradeCode = dto.GradeCode.Trim().ToUpperInvariant();
-        grade.GradeNumericCode = FormatGradeNumericCode(dto.GradeNumericCode, dto.RankOrder) ?? grade.GradeNumericCode;
+        grade.EsgCode = FormatEsgCode(dto.EsgCode ?? dto.GradeNumericCode, dto.RankOrder) ?? grade.EsgCode;
         grade.GradeName = dto.GradeName.Trim();
         grade.RankOrder = dto.RankOrder;
         grade.DefaultFormType = dto.DefaultFormType ?? grade.DefaultFormType;
@@ -382,7 +382,7 @@ public class OrganizationController : ControllerBase
             ActorRole = "PmwAdmin",
             TargetEntityId = grade.Id.ToString(),
             TargetEntityType = nameof(GradeMapping),
-            ActionDescription = $"Updated Grade Mapping: {grade.GradeName} ({grade.GradeCode}) with 2-digit code: {grade.GradeNumericCode}.",
+            ActionDescription = $"Updated Grade Mapping: {grade.GradeName} ({grade.GradeCode}) with ESG code: {grade.EsgCode}.",
             Timestamp = DateTime.UtcNow
         };
         _db.AuditEvents.Add(audit);
@@ -395,6 +395,7 @@ public class OrganizationController : ControllerBase
 }
 
 public record CreateGroupDto(string GroupCode, string GroupName, string? RpsaCode, string? HeadOfGroupSapId, string ActorUserId = "PMW_ADMIN");
-public record CreateGradeDto(string GradeCode, string GradeName, string? GradeNumericCode, int RankOrder, string DefaultFormType, string ActorUserId = "PMW_ADMIN");
+public record CreateGradeDto(string GradeCode, string GradeName, string? EsgCode, int RankOrder, string DefaultFormType, string ActorUserId = "PMW_ADMIN", string? GradeNumericCode = null);
 public record UpdateGroupDto(string GroupCode, string GroupName, string? RpsaCode, string? HeadOfGroupSapId, bool IsActive = true, string ActorUserId = "PMW_ADMIN");
-public record UpdateGradeDto(string GradeCode, string GradeName, string? GradeNumericCode, int RankOrder, string DefaultFormType, bool IsActive = true, string ActorUserId = "PMW_ADMIN");
+public record UpdateGradeDto(string GradeCode, string GradeName, string? EsgCode, int RankOrder, string DefaultFormType, bool IsActive = true, string ActorUserId = "PMW_ADMIN", string? GradeNumericCode = null);
+
