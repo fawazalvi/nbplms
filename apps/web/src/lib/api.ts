@@ -33,6 +33,7 @@ export const api = {
 
   getGradeMappings: () => fetchApi<any[]>('/Organization/grades'),
   createGradeMapping: (data: any) => fetchApi<any>('/Organization/grades', { method: 'POST', body: JSON.stringify(data) }),
+  updateGradeMapping: (id: string, data: any) => fetchApi<any>(`/Organization/grades/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   importGradeMappings: (rows: any[]) => fetchApi<any>('/Organization/grades/import', { method: 'POST', body: JSON.stringify(rows) }),
   deleteGradeMapping: (id: string) => fetchApi<any>(`/Organization/grades/${id}`, { method: 'DELETE' }),
 

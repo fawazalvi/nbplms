@@ -15,6 +15,7 @@ public class GradeMapping
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public required string GradeCode { get; set; }
+    public string? GradeNumericCode { get; set; } // 2-digit code e.g. "01", "02" with zero padding
     public required string GradeName { get; set; }
     public int RankOrder { get; set; }
     public required string DefaultFormType { get; set; } // "KPI_FORM", "BALANCED_SCORECARD"

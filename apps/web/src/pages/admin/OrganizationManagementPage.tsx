@@ -24,12 +24,15 @@ export const OrganizationManagementPage: React.FC = () => {
   const [groupHeadSapId, setGroupHeadSapId] = useState('');
   const [groupIsActive, setGroupIsActive] = useState(true);
 
-  // Grade Form Modal State
+  // Grade Form Modal State (used for both create and edit)
   const [showGradeModal, setShowGradeModal] = useState(false);
+  const [editingGrade, setEditingGrade] = useState<any | null>(null);
   const [gradeCode, setGradeCode] = useState('');
+  const [gradeNumericCode, setGradeNumericCode] = useState('');
   const [gradeName, setGradeName] = useState('');
   const [rankOrder, setRankOrder] = useState(1);
   const [defaultFormType, setDefaultFormType] = useState('KPI_FORM');
+  const [gradeIsActive, setGradeIsActive] = useState(true);
 
   // Bulk Import Modal State
   const [showImportModal, setShowImportModal] = useState(false);
@@ -43,6 +46,12 @@ export const OrganizationManagementPage: React.FC = () => {
     if (!val) return '';
     const digits = val.replace(/\D/g, '').slice(0, 4);
     return digits ? digits.padStart(4, '0') : '';
+  };
+
+  const format2Digit = (val: string, fallbackRank: number = 1) => {
+    if (!val) return fallbackRank.toString().padStart(2, '0');
+    const digits = val.replace(/\D/g, '').slice(0, 2);
+    return digits ? digits.padStart(2, '0') : fallbackRank.toString().padStart(2, '0');
   };
 
   const loadData = async () => {
@@ -157,27 +166,69 @@ export const OrganizationManagementPage: React.FC = () => {
   };
 
   // ─── Grade CRUD ──────────────────────────────────────────────────────
-  const handleCreateGrade = async () => {
+  const openCreateGradeModal = () => {
+    setEditingGrade(null);
+    setGradeCode('');
+    setGradeNumericCode('');
+    setGradeName('');
+    setRankOrder((grades.length || 0) + 1);
+    setDefaultFormType('KPI_FORM');
+    setGradeIsActive(true);
+    setShowGradeModal(true);
+  };
+
+  const openEditGradeModal = (g: any) => {
+    setEditingGrade(g);
+    setGradeCode(g.gradeCode || '');
+    setGradeNumericCode(g.gradeNumericCode || format2Digit('', g.rankOrder || 1));
+    setGradeName(g.gradeName || '');
+    setRankOrder(g.rankOrder || 1);
+    setDefaultFormType(g.defaultFormType || 'KPI_FORM');
+    setGradeIsActive(g.isActive !== false);
+    setShowGradeModal(true);
+  };
+
+  const handleSaveGrade = async () => {
     if (!gradeCode || !gradeName) return;
     setErrorMessage(null);
     try {
-      await api.createGradeMapping({ gradeCode, gradeName, rankOrder: Number(rankOrder), defaultFormType, actorUserId: 'PMW_ADMIN' });
-      setMessage(`Grade ${gradeName} mapped successfully.`);
+      const formattedNumCode = format2Digit(gradeNumericCode, Number(rankOrder) || 1);
+      if (editingGrade) {
+        await api.updateGradeMapping(editingGrade.id, {
+          gradeCode,
+          gradeNumericCode: formattedNumCode,
+          gradeName,
+          rankOrder: Number(rankOrder),
+          defaultFormType,
+          isActive: gradeIsActive,
+          actorUserId: 'PMW_ADMIN'
+        });
+        setMessage(`Grade Mapping "${gradeName}" (${gradeCode}) [Code: ${formattedNumCode}] updated successfully.`);
+      } else {
+        await api.createGradeMapping({
+          gradeCode,
+          gradeNumericCode: formattedNumCode,
+          gradeName,
+          rankOrder: Number(rankOrder),
+          defaultFormType,
+          actorUserId: 'PMW_ADMIN'
+        });
+        setMessage(`Grade Mapping "${gradeName}" (${gradeCode}) [Code: ${formattedNumCode}] created successfully.`);
+      }
       setShowGradeModal(false);
-      setGradeCode('');
-      setGradeName('');
+      setEditingGrade(null);
       loadData();
     } catch (e: any) {
       setErrorMessage(e.message || String(e));
     }
   };
 
-  const handleDeleteGrade = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this grade mapping?')) return;
+  const handleDeleteGrade = async (id: string, name: string) => {
+    if (!confirm(`Are you sure you want to delete the grade mapping for "${name}"?`)) return;
     setErrorMessage(null);
     try {
       await api.deleteGradeMapping(id);
-      setMessage('Grade mapping deleted.');
+      setMessage(`Grade mapping "${name}" deleted.`);
       loadData();
     } catch (e: any) {
       setErrorMessage(e.message || String(e));
@@ -201,16 +252,16 @@ export const OrganizationManagementPage: React.FC = () => {
         "CMP,Compliance Group,0008,10009";
       filename = "NBP_Reporting_Groups_Sample_Import.csv";
     } else {
-      content = "GradeCode,GradeName,RankOrder,DefaultFormType\n" +
-        "OG_III,OG III,1,KPI_FORM\n" +
-        "OG_II,OG II,2,KPI_FORM\n" +
-        "OG_I,OG I,3,KPI_FORM\n" +
-        "AVP,AVP,4,KPI_FORM\n" +
-        "VP,VP,5,BALANCED_SCORECARD\n" +
-        "SVP,SVP,6,BALANCED_SCORECARD\n" +
-        "EVP,EVP,7,BALANCED_SCORECARD\n" +
-        "SEVP,SEVP,8,BALANCED_SCORECARD\n" +
-        "PRESIDENT_CEO,President/CEO,9,BALANCED_SCORECARD";
+      content = "GradeCode,GradeNumericCode,GradeName,RankOrder,DefaultFormType\n" +
+        "OG_III,01,OG III,1,KPI_FORM\n" +
+        "OG_II,02,OG II,2,KPI_FORM\n" +
+        "OG_I,03,OG I,3,KPI_FORM\n" +
+        "AVP,04,AVP,4,KPI_FORM\n" +
+        "VP,05,VP,5,BALANCED_SCORECARD\n" +
+        "SVP,06,SVP,6,BALANCED_SCORECARD\n" +
+        "EVP,07,EVP,7,BALANCED_SCORECARD\n" +
+        "SEVP,08,SEVP,8,BALANCED_SCORECARD\n" +
+        "PRESIDENT_CEO,09,President/CEO,9,BALANCED_SCORECARD";
       filename = "NBP_Grade_Hierarchy_Sample_Import.csv";
     }
 
@@ -249,12 +300,37 @@ export const OrganizationManagementPage: React.FC = () => {
           headOfGroupSapId: headSap || ''
         });
       } else {
-        rows.push({
-          gradeCode: cols[0] || '',
-          gradeName: cols[1] || '',
-          rankOrder: Number(cols[2]) || 1,
-          defaultFormType: cols[3] || 'KPI_FORM'
-        });
+        // Grades CSV: GradeCode, GradeNumericCode (optional), GradeName, RankOrder, DefaultFormType
+        if (cols.length >= 5) {
+          rows.push({
+            gradeCode: cols[0] || '',
+            gradeNumericCode: format2Digit(cols[1], Number(cols[3]) || 1),
+            gradeName: cols[2] || '',
+            rankOrder: Number(cols[3]) || 1,
+            defaultFormType: cols[4] || 'KPI_FORM'
+          });
+        } else {
+          // 4 columns: check if col[1] is 2-digit numeric code
+          const isCol1Numeric = /^\d+$/.test(cols[1].trim());
+          if (isCol1Numeric && cols.length >= 4) {
+            rows.push({
+              gradeCode: cols[0] || '',
+              gradeNumericCode: format2Digit(cols[1], Number(cols[2]) || 1),
+              gradeName: cols[0] || '',
+              rankOrder: Number(cols[2]) || 1,
+              defaultFormType: cols[3] || 'KPI_FORM'
+            });
+          } else {
+            const rank = Number(cols[2]) || 1;
+            rows.push({
+              gradeCode: cols[0] || '',
+              gradeNumericCode: format2Digit('', rank),
+              gradeName: cols[1] || '',
+              rankOrder: rank,
+              defaultFormType: cols[3] || 'KPI_FORM'
+            });
+          }
+        }
       }
     }
     setParsedRows(rows);
@@ -433,60 +509,50 @@ export const OrganizationManagementPage: React.FC = () => {
       {/* ═══════════════ GROUPS TAB ═══════════════ */}
       {activeSubTab === 'groups' ? (
         <div className="space-y-4">
-          {/* Summary Stats Row */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-sm">
-              <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">Total Groups</p>
-              <p className="text-2xl font-black text-slate-900 mt-1">{groups.length}</p>
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+            <div className="relative flex-1 max-w-sm">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+              <Input
+                placeholder="Search by code, group name, or RPSA..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9 text-xs"
+              />
             </div>
-            <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-sm">
-              <p className="text-[11px] font-semibold text-emerald-600 uppercase tracking-wide">Active</p>
-              <p className="text-2xl font-black text-emerald-700 mt-1">{activeGroupCount}</p>
-            </div>
-            <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-sm">
-              <p className="text-[11px] font-semibold text-amber-600 uppercase tracking-wide">Inactive</p>
-              <p className="text-2xl font-black text-amber-600 mt-1">{inactiveGroupCount}</p>
-            </div>
-            <div className="p-4 rounded-xl bg-white border border-slate-200 shadow-sm">
-              <p className="text-[11px] font-semibold text-blue-600 uppercase tracking-wide">Total Employees</p>
-              <p className="text-2xl font-black text-blue-700 mt-1">{totalEmployees}</p>
+            <div className="text-xs text-slate-500 font-medium">
+              Showing {filteredGroups.length} of {groups.length} reporting groups
             </div>
           </div>
 
-          {/* Search Bar */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-            <Input
-              placeholder="Search by group code, RPSA code, group name, or head SAP ID..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 h-10 text-sm"
-            />
-          </div>
-
-          {/* Groups Table */}
           <Card>
-            <CardHeader>
-              <CardTitle className="text-base font-bold text-slate-900">Bank Reporting Groups</CardTitle>
-              <CardDescription className="text-xs">Database-driven NBP organizational groups with 4-digit RPSA codes</CardDescription>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-base font-bold text-slate-900">Configured Reporting Groups</CardTitle>
+                  <CardDescription className="text-xs">
+                    Organizational units linked to Group Performance Managers and Appraisal Cycle rosters.
+                  </CardDescription>
+                </div>
+                <Badge variant="nbp" className="text-xs">{groups.length} Total Groups</Badge>
+              </div>
             </CardHeader>
             <CardContent>
               {loading ? (
-                <div className="p-8 text-center text-xs text-slate-500">Loading reporting groups...</div>
+                <div className="p-8 text-center text-xs text-slate-500">Loading reporting groups from database...</div>
               ) : filteredGroups.length === 0 ? (
                 <div className="p-8 text-center text-xs text-slate-400">
-                  {searchQuery ? 'No groups match your search.' : 'No reporting groups found. Click "Add Group" to create one.'}
+                  {searchQuery ? 'No reporting groups match your search.' : 'No reporting groups configured.'}
                 </div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs text-left">
                     <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase">
                       <tr>
-                        <th className="p-3">Group Code</th>
-                        <th className="p-3">RPSA Code</th>
-                        <th className="p-3">Group Name</th>
-                        <th className="p-3">Head of Group (SAP ID)</th>
-                        <th className="p-3 text-center">Employees</th>
+                        <th className="p-3">Code</th>
+                        <th className="p-3">RPSA (4-Digit)</th>
+                        <th className="p-3">Reporting Group Name</th>
+                        <th className="p-3">Head of Group</th>
+                        <th className="p-3 text-center">Staff Count</th>
                         <th className="p-3 text-center">Status</th>
                         <th className="p-3 text-right">Actions</th>
                       </tr>
@@ -575,7 +641,8 @@ export const OrganizationManagementPage: React.FC = () => {
                 <table className="w-full text-xs text-left">
                   <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase">
                     <tr>
-                      <th className="p-3">Rank Order</th>
+                      <th className="p-3">Rank</th>
+                      <th className="p-3">2-Digit Code</th>
                       <th className="p-3">Grade Code</th>
                       <th className="p-3">Display Name</th>
                       <th className="p-3">Form Rule Assigned</th>
@@ -585,12 +652,17 @@ export const OrganizationManagementPage: React.FC = () => {
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {grades.map((g) => (
-                      <tr key={g.id} className="hover:bg-slate-50">
+                      <tr key={g.id} className={`hover:bg-slate-50 transition-colors ${g.isActive === false ? 'opacity-60' : ''}`}>
                         <td className="p-3 font-mono font-bold text-slate-900">#{g.rankOrder}</td>
                         <td className="p-3">
-                          <Badge variant="secondary" className="font-mono">{g.gradeCode}</Badge>
+                          <span className="font-mono text-xs font-black px-2.5 py-0.5 rounded-md bg-emerald-50 text-emerald-900 border border-emerald-200/80">
+                            {format2Digit(g.gradeNumericCode, g.rankOrder)}
+                          </span>
                         </td>
-                        <td className="p-3 font-semibold text-slate-900">{g.gradeName}</td>
+                        <td className="p-3">
+                          <Badge variant="secondary" className="font-mono font-bold">{g.gradeCode}</Badge>
+                        </td>
+                        <td className="p-3 font-bold text-slate-900 text-sm">{g.gradeName}</td>
                         <td className="p-3">
                           <Badge variant={g.defaultFormType === 'BALANCED_SCORECARD' ? 'warning' : 'nbp'}>
                             {g.defaultFormType === 'BALANCED_SCORECARD' ? 'Balanced Scorecard (4-P)' : 'KPI Form (70/30)'}
@@ -600,9 +672,14 @@ export const OrganizationManagementPage: React.FC = () => {
                           <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 text-[10px] font-bold">Active</Badge>
                         </td>
                         <td className="p-3 text-right">
-                          <Button variant="ghost" size="icon" onClick={() => handleDeleteGrade(g.id)}>
-                            <Trash2 className="h-4 w-4 text-slate-400 hover:text-red-600" />
-                          </Button>
+                          <div className="flex items-center justify-end space-x-1">
+                            <Button variant="ghost" size="icon" onClick={() => openEditGradeModal(g)} title="Edit Grade">
+                              <Pencil className="h-4 w-4 text-slate-500 hover:text-emerald-700" />
+                            </Button>
+                            <Button variant="ghost" size="icon" onClick={() => handleDeleteGrade(g.id, g.gradeName)} title="Delete Grade">
+                              <Trash2 className="h-4 w-4 text-slate-400 hover:text-red-600" />
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -720,42 +797,69 @@ export const OrganizationManagementPage: React.FC = () => {
         </div>
       )}
 
-      {/* Create Grade Modal */}
+      {/* Create / Edit Grade Modal */}
       {showGradeModal && (
         <div className="fixed inset-0 z-[100] bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
           <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-200 my-auto">
             <div className="bg-gradient-to-r from-slate-950 via-emerald-950 to-teal-950 p-5 text-white flex items-center justify-between">
               <div className="flex items-center space-x-3">
                 <div className="h-10 w-10 rounded-xl bg-emerald-700/40 p-2 flex items-center justify-center border border-emerald-500/30">
-                  <Layers className="h-5 w-5 text-emerald-400" />
+                  {editingGrade ? <Pencil className="h-5 w-5 text-emerald-400" /> : <Layers className="h-5 w-5 text-emerald-400" />}
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-white leading-tight">Add Grade Rank Mapping</h3>
-                  <p className="text-[11px] text-slate-300">Grade Rank & Form Type Assignment</p>
+                  <h3 className="text-base font-bold text-white leading-tight">
+                    {editingGrade ? 'Edit Grade Mapping' : 'Add Grade Rank Mapping'}
+                  </h3>
+                  <p className="text-[11px] text-slate-300">Grade Rank & Form Type Assignment with 2-Digit Code</p>
                 </div>
               </div>
-              <button onClick={() => setShowGradeModal(false)} className="text-slate-300 hover:text-white">
+              <button onClick={() => { setShowGradeModal(false); setEditingGrade(null); }} className="text-slate-300 hover:text-white">
                 <X className="h-5 w-5" />
               </button>
             </div>
 
             <div className="p-6 space-y-3 text-xs">
-              <div>
-                <label className="font-bold text-slate-700">Grade Code</label>
-                <Input value={gradeCode} onChange={(e) => setGradeCode(e.target.value)} placeholder="AVP" />
-              </div>
-              <div>
-                <label className="font-bold text-slate-700">Grade Display Name</label>
-                <Input value={gradeName} onChange={(e) => setGradeName(e.target.value)} placeholder="Assistant Vice President" />
-              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="font-bold text-slate-700">Rank Order</label>
+                  <label className="font-bold text-slate-700 block mb-1">Grade Code *</label>
+                  <Input
+                    value={gradeCode}
+                    onChange={(e) => setGradeCode(e.target.value)}
+                    placeholder="AVP"
+                    disabled={!!editingGrade}
+                    className={editingGrade ? 'bg-slate-100 text-slate-500' : ''}
+                  />
+                  {editingGrade && <p className="text-[10px] text-slate-400 mt-1">Code is immutable</p>}
+                </div>
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">2-Digit Code *</label>
+                  <Input
+                    value={gradeNumericCode}
+                    onChange={(e) => setGradeNumericCode(e.target.value)}
+                    onBlur={() => {
+                      if (gradeNumericCode) setGradeNumericCode(format2Digit(gradeNumericCode, Number(rankOrder) || 1));
+                    }}
+                    placeholder="04"
+                    maxLength={2}
+                    className="font-mono font-bold text-xs"
+                  />
+                  <p className="text-[10px] text-slate-400 mt-1">2 digits with zeros</p>
+                </div>
+              </div>
+
+              <div>
+                <label className="font-bold text-slate-700 block mb-1">Grade Display Name *</label>
+                <Input value={gradeName} onChange={(e) => setGradeName(e.target.value)} placeholder="Assistant Vice President" />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="font-bold text-slate-700 block mb-1">Rank Order</label>
                   <Input type="number" value={rankOrder} onChange={(e) => setRankOrder(Number(e.target.value))} />
                 </div>
                 <div>
-                  <label className="font-bold text-slate-700">Default Form Type</label>
-                  <select value={defaultFormType} onChange={(e) => setDefaultFormType(e.target.value)} className="w-full h-9 px-3 bg-slate-50 border rounded-lg">
+                  <label className="font-bold text-slate-700 block mb-1">Default Form Type</label>
+                  <select value={defaultFormType} onChange={(e) => setDefaultFormType(e.target.value)} className="w-full h-9 px-3 bg-slate-50 border rounded-lg font-medium">
                     <option value="KPI_FORM">KPI Form (70/30)</option>
                     <option value="BALANCED_SCORECARD">Balanced Scorecard (4-P)</option>
                   </select>
@@ -764,8 +868,10 @@ export const OrganizationManagementPage: React.FC = () => {
             </div>
 
             <div className="p-4 bg-slate-50 border-t flex items-center justify-between">
-              <Button variant="secondary" size="sm" onClick={() => setShowGradeModal(false)}>Cancel</Button>
-              <Button variant="nbp" size="sm" onClick={handleCreateGrade}>Save Grade Rank</Button>
+              <Button variant="secondary" size="sm" onClick={() => { setShowGradeModal(false); setEditingGrade(null); }}>Cancel</Button>
+              <Button variant="nbp" size="sm" onClick={handleSaveGrade} disabled={!gradeCode || !gradeName}>
+                {editingGrade ? 'Save Changes' : 'Save Grade Rank'}
+              </Button>
             </div>
           </div>
         </div>
@@ -784,7 +890,9 @@ export const OrganizationManagementPage: React.FC = () => {
                   <h3 className="text-base font-bold text-white leading-tight">
                     Upload Bulk {importType === 'groups' ? 'Reporting Groups' : 'Grade Mappings'} CSV
                   </h3>
-                  <p className="text-[11px] text-slate-300">CSV Bulk Import & Data Commit Wizard with 4-Digit RPSA Codes</p>
+                  <p className="text-[11px] text-slate-300">
+                    {importType === 'groups' ? 'CSV Bulk Import with 4-Digit RPSA Codes' : 'CSV Bulk Import with 2-Digit Numeric Grade Codes'}
+                  </p>
                 </div>
               </div>
               <button onClick={() => setShowImportModal(false)} className="p-1 text-slate-300 hover:text-white">
@@ -797,7 +905,7 @@ export const OrganizationManagementPage: React.FC = () => {
                 <div className="flex items-center space-x-2 text-emerald-900 font-semibold">
                   <FileText className="h-4 w-4 text-emerald-700 shrink-0" />
                   <span>
-                    {importType === 'groups' ? 'Standard Format: GroupCode, GroupName, RPSA (4-Digit), HeadOfGroupSapId' : 'Standard Format: GradeCode, GradeName, RankOrder, DefaultFormType'}
+                    {importType === 'groups' ? 'Format: GroupCode, GroupName, RPSA (4-Digit), HeadOfGroupSapId' : 'Format: GradeCode, 2-Digit Code, GradeName, RankOrder, DefaultFormType'}
                   </span>
                 </div>
                 <Button variant="outline" size="sm" onClick={handleDownloadSampleCsv} className="h-8 text-xs font-bold border-emerald-300">
@@ -837,7 +945,7 @@ export const OrganizationManagementPage: React.FC = () => {
                     setCsvText(e.target.value);
                     parseCsv(e.target.value);
                   }}
-                  placeholder={importType === 'groups' ? "GroupCode,GroupName,RPSA,HeadOfGroupSapId\nCBG,Commercial Banking Group,0001,10002" : "GradeCode,GradeName,RankOrder,DefaultFormType\nOG_III,OG III,1,KPI_FORM"}
+                  placeholder={importType === 'groups' ? "GroupCode,GroupName,RPSA,HeadOfGroupSapId\nCBG,Commercial Banking Group,0001,10002" : "GradeCode,GradeNumericCode,GradeName,RankOrder,DefaultFormType\nOG_III,01,OG III,1,KPI_FORM"}
                   className="w-full p-2 text-xs font-mono bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-700"
                 />
               </div>
@@ -863,7 +971,8 @@ export const OrganizationManagementPage: React.FC = () => {
                         ) : (
                           <tr>
                             <th className="p-2">Rank</th>
-                            <th className="p-2">Code</th>
+                            <th className="p-2">2-Digit Code</th>
+                            <th className="p-2">Grade Code</th>
                             <th className="p-2">Name</th>
                             <th className="p-2">Default Form</th>
                           </tr>
@@ -886,6 +995,11 @@ export const OrganizationManagementPage: React.FC = () => {
                             ) : (
                               <>
                                 <td className="p-2 font-bold">#{r.rankOrder}</td>
+                                <td className="p-2 font-mono font-bold text-emerald-800">
+                                  <span className="bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                                    {r.gradeNumericCode || format2Digit('', r.rankOrder)}
+                                  </span>
+                                </td>
                                 <td className="p-2 font-mono font-bold">{r.gradeCode}</td>
                                 <td className="p-2 font-semibold">{r.gradeName}</td>
                                 <td className="p-2 text-emerald-700 font-bold">{r.defaultFormType}</td>

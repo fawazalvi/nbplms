@@ -110,6 +110,23 @@ public class DbSeederService
                 UPDATE ReportingGroups SET RpsaCode = '0007' WHERE GroupCode = 'HRG' AND (RpsaCode IS NULL OR RpsaCode = '');
                 UPDATE ReportingGroups SET RpsaCode = '0008' WHERE GroupCode = 'CMP' AND (RpsaCode IS NULL OR RpsaCode = '');
 
+                IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'GradeMappings' AND COLUMN_NAME = 'GradeNumericCode')
+                BEGIN
+                    ALTER TABLE GradeMappings ADD GradeNumericCode NVARCHAR(10) NULL;
+                END
+
+                EXEC('
+                    UPDATE GradeMappings SET GradeNumericCode = ''01'' WHERE GradeCode = ''OG_III'' AND (GradeNumericCode IS NULL OR GradeNumericCode = '''');
+                    UPDATE GradeMappings SET GradeNumericCode = ''02'' WHERE GradeCode = ''OG_II'' AND (GradeNumericCode IS NULL OR GradeNumericCode = '''');
+                    UPDATE GradeMappings SET GradeNumericCode = ''03'' WHERE GradeCode = ''OG_I'' AND (GradeNumericCode IS NULL OR GradeNumericCode = '''');
+                    UPDATE GradeMappings SET GradeNumericCode = ''04'' WHERE GradeCode = ''AVP'' AND (GradeNumericCode IS NULL OR GradeNumericCode = '''');
+                    UPDATE GradeMappings SET GradeNumericCode = ''05'' WHERE GradeCode = ''VP'' AND (GradeNumericCode IS NULL OR GradeNumericCode = '''');
+                    UPDATE GradeMappings SET GradeNumericCode = ''06'' WHERE GradeCode = ''SVP'' AND (GradeNumericCode IS NULL OR GradeNumericCode = '''');
+                    UPDATE GradeMappings SET GradeNumericCode = ''07'' WHERE GradeCode = ''EVP'' AND (GradeNumericCode IS NULL OR GradeNumericCode = '''');
+                    UPDATE GradeMappings SET GradeNumericCode = ''08'' WHERE GradeCode = ''SEVP'' AND (GradeNumericCode IS NULL OR GradeNumericCode = '''');
+                    UPDATE GradeMappings SET GradeNumericCode = ''09'' WHERE (GradeCode = ''PRESIDENT'' OR GradeCode = ''PRESIDENT_CEO'') AND (GradeNumericCode IS NULL OR GradeNumericCode = '''');
+                ');
+
                 IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'EmployeeCycles' AND COLUMN_NAME = 'SnapshotGrade')
                 BEGIN
                     ALTER TABLE EmployeeCycles ADD SnapshotGrade NVARCHAR(50) NULL;
@@ -243,15 +260,15 @@ public class DbSeederService
         // 3. Grade Mappings
         var grades = new List<GradeMapping>
         {
-            new GradeMapping { GradeCode = "OG_III", GradeName = "OG III", RankOrder = 1, DefaultFormType = "KPI_FORM" },
-            new GradeMapping { GradeCode = "OG_II", GradeName = "OG II", RankOrder = 2, DefaultFormType = "KPI_FORM" },
-            new GradeMapping { GradeCode = "OG_I", GradeName = "OG I", RankOrder = 3, DefaultFormType = "KPI_FORM" },
-            new GradeMapping { GradeCode = "AVP", GradeName = "AVP", RankOrder = 4, DefaultFormType = "KPI_FORM" },
-            new GradeMapping { GradeCode = "VP", GradeName = "VP", RankOrder = 5, DefaultFormType = "BALANCED_SCORECARD" },
-            new GradeMapping { GradeCode = "SVP", GradeName = "SVP", RankOrder = 6, DefaultFormType = "BALANCED_SCORECARD" },
-            new GradeMapping { GradeCode = "EVP", GradeName = "EVP", RankOrder = 7, DefaultFormType = "BALANCED_SCORECARD" },
-            new GradeMapping { GradeCode = "SEVP", GradeName = "SEVP", RankOrder = 8, DefaultFormType = "BALANCED_SCORECARD" },
-            new GradeMapping { GradeCode = "PRESIDENT", GradeName = "President/CEO", RankOrder = 9, DefaultFormType = "BALANCED_SCORECARD" },
+            new GradeMapping { GradeCode = "OG_III", GradeName = "OG III", GradeNumericCode = "01", RankOrder = 1, DefaultFormType = "KPI_FORM" },
+            new GradeMapping { GradeCode = "OG_II", GradeName = "OG II", GradeNumericCode = "02", RankOrder = 2, DefaultFormType = "KPI_FORM" },
+            new GradeMapping { GradeCode = "OG_I", GradeName = "OG I", GradeNumericCode = "03", RankOrder = 3, DefaultFormType = "KPI_FORM" },
+            new GradeMapping { GradeCode = "AVP", GradeName = "AVP", GradeNumericCode = "04", RankOrder = 4, DefaultFormType = "KPI_FORM" },
+            new GradeMapping { GradeCode = "VP", GradeName = "VP", GradeNumericCode = "05", RankOrder = 5, DefaultFormType = "BALANCED_SCORECARD" },
+            new GradeMapping { GradeCode = "SVP", GradeName = "SVP", GradeNumericCode = "06", RankOrder = 6, DefaultFormType = "BALANCED_SCORECARD" },
+            new GradeMapping { GradeCode = "EVP", GradeName = "EVP", GradeNumericCode = "07", RankOrder = 7, DefaultFormType = "BALANCED_SCORECARD" },
+            new GradeMapping { GradeCode = "SEVP", GradeName = "SEVP", GradeNumericCode = "08", RankOrder = 8, DefaultFormType = "BALANCED_SCORECARD" },
+            new GradeMapping { GradeCode = "PRESIDENT", GradeName = "President/CEO", GradeNumericCode = "09", RankOrder = 9, DefaultFormType = "BALANCED_SCORECARD" },
         };
         _db.GradeMappings.AddRange(grades);
 
