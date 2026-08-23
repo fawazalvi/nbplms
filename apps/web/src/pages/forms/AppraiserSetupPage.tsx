@@ -238,14 +238,15 @@ export const AppraiserSetupPage: React.FC<AppraiserSetupPageProps> = ({
                   <span className="font-bold text-emerald-950">{firstAppraiserInfo.fullName}</span>
                   <Badge variant="nbp" className="text-[10px] font-mono">{firstAppraiserInfo.sapId}</Badge>
                 </div>
-                <div className="text-slate-600 flex items-center space-x-2 text-[11px]">
+                <div className="text-slate-700 font-medium flex items-center space-x-2 text-[11px]">
                   <span>{firstAppraiserInfo.grade}</span>
                   <span>•</span>
                   <span>{firstAppraiserInfo.designation}</span>
                 </div>
-                {firstAppraiserInfo.reportingGroup && (
-                  <div className="text-slate-500 text-[10px] truncate">{firstAppraiserInfo.reportingGroup}</div>
-                )}
+                <div className="text-slate-600 text-[10px] pt-0.5 space-y-0.5">
+                  <div>🏢 Group: <strong>{firstAppraiserInfo.reportingGroup || 'Commercial Banking Group'}</strong></div>
+                  <div>📍 Place of Posting: <strong>{firstAppraiserInfo.location || 'Head Office, Karachi'}</strong></div>
+                </div>
               </div>
             )}
           </CardContent>
@@ -290,14 +291,15 @@ export const AppraiserSetupPage: React.FC<AppraiserSetupPageProps> = ({
                   <span className="font-bold text-teal-950">{secondAppraiserInfo.fullName}</span>
                   <Badge variant="outline" className="text-[10px] font-mono text-teal-900 border-teal-400 bg-teal-100">{secondAppraiserInfo.sapId}</Badge>
                 </div>
-                <div className="text-slate-600 flex items-center space-x-2 text-[11px]">
+                <div className="text-slate-700 font-medium flex items-center space-x-2 text-[11px]">
                   <span>{secondAppraiserInfo.grade}</span>
                   <span>•</span>
                   <span>{secondAppraiserInfo.designation}</span>
                 </div>
-                {secondAppraiserInfo.reportingGroup && (
-                  <div className="text-slate-500 text-[10px] truncate">{secondAppraiserInfo.reportingGroup}</div>
-                )}
+                <div className="text-slate-600 text-[10px] pt-0.5 space-y-0.5">
+                  <div>🏢 Group: <strong>{secondAppraiserInfo.reportingGroup || 'Commercial Banking Group'}</strong></div>
+                  <div>📍 Place of Posting: <strong>{secondAppraiserInfo.location || 'Head Office, Karachi'}</strong></div>
+                </div>
               </div>
             )}
           </CardContent>
@@ -340,6 +342,9 @@ export const AppraiserSetupPage: React.FC<AppraiserSetupPageProps> = ({
                 <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1 text-xs">
                   <div className="font-bold text-slate-900">{coAppraiserInfo.fullName} ({coAppraiserInfo.sapId})</div>
                   <div className="text-slate-600 text-[11px]">{coAppraiserInfo.grade} — {coAppraiserInfo.designation}</div>
+                  <div className="text-slate-500 text-[10px]">
+                    🏢 {coAppraiserInfo.reportingGroup} | 📍 {coAppraiserInfo.location}
+                  </div>
                 </div>
               ) : (
                 <div className="p-3.5 bg-slate-50/60 border border-dashed border-slate-200 rounded-xl flex items-center text-xs text-slate-400">

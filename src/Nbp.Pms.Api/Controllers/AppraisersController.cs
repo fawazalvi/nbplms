@@ -28,36 +28,86 @@ public class AppraisersController : ControllerBase
         var appraiser = await _db.Employees.FirstOrDefaultAsync(e => e.SapId == appraiserSapId || e.Email == appraiserSapId);
         var appraiserId = appraiser?.Id ?? Guid.Empty;
 
-        var reviews = await _db.EmployeeCycles
+        var rawReviews = await _db.EmployeeCycles
             .Include(ec => ec.Employee)
             .Include(ec => ec.Cycle)
             .Include(ec => ec.FirstAppraiser)
             .Include(ec => ec.SecondAppraiser)
-            .Where(ec => (appraiserId != Guid.Empty && (ec.FirstAppraiserId == appraiserId || ec.SecondAppraiserId == appraiserId)) || 
+            .Include(ec => ec.CoAppraiser)
+            .Where(ec => (appraiserId != Guid.Empty && (ec.FirstAppraiserId == appraiserId || ec.SecondAppraiserId == appraiserId || ec.CoAppraiserId == appraiserId)) || 
                          ec.PendingFirstAppraiserSapId == appraiserSapId || 
                          ec.PendingSecondAppraiserSapId == appraiserSapId ||
+                         ec.PendingCoAppraiserSapId == appraiserSapId ||
                          (ec.FirstAppraiser != null && ec.FirstAppraiser.SapId == appraiserSapId) ||
-                         (ec.SecondAppraiser != null && ec.SecondAppraiser.SapId == appraiserSapId))
-            .Select(ec => new
+                         (ec.SecondAppraiser != null && ec.SecondAppraiser.SapId == appraiserSapId) ||
+                         (ec.CoAppraiser != null && ec.CoAppraiser.SapId == appraiserSapId))
+            .ToListAsync();
+
+        var allEmployees = await _db.Employees.ToListAsync();
+        var empLookup = allEmployees.ToDictionary(e => e.SapId, StringComparer.OrdinalIgnoreCase);
+
+        var reviews = rawReviews.Select(ec =>
+        {
+            var emp = ec.Employee;
+
+            // Resolve First Appraiser
+            var faSap = ec.PendingFirstAppraiserSapId ?? ec.FirstAppraiser?.SapId;
+            var fa = (faSap != null && empLookup.TryGetValue(faSap, out var fVal)) ? fVal : ec.FirstAppraiser;
+
+            // Resolve Second Appraiser
+            var saSap = ec.PendingSecondAppraiserSapId ?? ec.SecondAppraiser?.SapId;
+            var sa = (saSap != null && empLookup.TryGetValue(saSap, out var sVal)) ? sVal : ec.SecondAppraiser;
+
+            // Resolve Co-Appraiser
+            var caSap = ec.PendingCoAppraiserSapId ?? ec.CoAppraiser?.SapId;
+            var ca = (caSap != null && empLookup.TryGetValue(caSap, out var cVal)) ? cVal : ec.CoAppraiser;
+
+            return new
             {
                 ec.Id,
                 ec.EmployeeId,
-                EmployeeName = ec.Employee!.FullName,
-                SapId = ec.Employee.SapId,
-                Grade = ec.Employee.Grade,
-                Group = ec.Employee.ReportingGroup,
+                EmployeeName = emp?.FullName ?? "N/A",
+                SapId = emp?.SapId ?? "N/A",
+                Grade = ec.SnapshotGrade ?? emp?.Grade ?? "N/A",
+                Designation = ec.SnapshotDesignation ?? emp?.Designation ?? "N/A",
+                Location = ec.SnapshotLocation ?? emp?.Location ?? "N/A",
+                Group = ec.SnapshotReportingGroup ?? emp?.ReportingGroup ?? "N/A",
+                Division = emp?.Division,
+                RegionBranch = emp?.RegionBranch,
                 ec.CurrentStatus,
                 FormType = ec.AssignedFormType.ToString(),
-                FirstAppraiserName = ec.FirstAppraiser != null ? ec.FirstAppraiser.FullName : null,
-                FirstAppraiserSapId = ec.FirstAppraiser != null ? ec.FirstAppraiser.SapId : null,
-                SecondAppraiserName = ec.SecondAppraiser != null ? ec.SecondAppraiser.FullName : null,
-                SecondAppraiserSapId = ec.SecondAppraiser != null ? ec.SecondAppraiser.SapId : null,
+
+                // First Appraiser Detailed Info
+                FirstAppraiserName = fa?.FullName ?? (ec.PendingFirstAppraiserSapId != null ? $"SAP: {ec.PendingFirstAppraiserSapId}" : null),
+                FirstAppraiserSapId = fa?.SapId ?? ec.PendingFirstAppraiserSapId,
+                FirstAppraiserGrade = fa?.Grade,
+                FirstAppraiserDesignation = fa?.Designation,
+                FirstAppraiserLocation = fa?.Location,
+                FirstAppraiserGroup = fa?.ReportingGroup,
+
+                // Second Appraiser Detailed Info
+                SecondAppraiserName = sa?.FullName ?? (ec.PendingSecondAppraiserSapId != null ? $"SAP: {ec.PendingSecondAppraiserSapId}" : null),
+                SecondAppraiserSapId = sa?.SapId ?? ec.PendingSecondAppraiserSapId,
+                SecondAppraiserGrade = sa?.Grade,
+                SecondAppraiserDesignation = sa?.Designation,
+                SecondAppraiserLocation = sa?.Location,
+                SecondAppraiserGroup = sa?.ReportingGroup,
+
+                // Co-Appraiser Detailed Info
+                CoAppraiserName = ca?.FullName ?? (ec.PendingCoAppraiserSapId != null ? $"SAP: {ec.PendingCoAppraiserSapId}" : null),
+                CoAppraiserSapId = ca?.SapId ?? ec.PendingCoAppraiserSapId,
+                CoAppraiserGrade = ca?.Grade,
+                CoAppraiserDesignation = ca?.Designation,
+                CoAppraiserLocation = ca?.Location,
+                CoAppraiserGroup = ca?.ReportingGroup,
+
                 ec.AppraiserValidationStatus,
                 ec.PendingFirstAppraiserSapId,
                 ec.PendingSecondAppraiserSapId,
+                ec.PendingCoAppraiserSapId,
                 ec.AppraiserRejectionReason
-            })
-            .ToListAsync();
+            };
+        }).ToList();
 
         return Ok(reviews);
     }

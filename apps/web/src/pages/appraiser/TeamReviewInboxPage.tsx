@@ -239,27 +239,95 @@ export const TeamReviewInboxPage: React.FC = () => {
             ) : (
               <div className="space-y-4">
                 {pendingConfirmations.map((r) => (
-                  <div key={r.id} className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                    <div>
-                      <div className="flex items-center space-x-2">
-                        <Badge variant="secondary" className="font-mono text-[10px]">{r.sapId}</Badge>
-                        <h4 className="font-bold text-slate-900 text-sm">{r.employeeName}</h4>
-                        <Badge variant="secondary">{r.grade}</Badge>
+                  <div key={r.id} className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs hover:shadow-sm transition-all space-y-4">
+                    {/* Employee Profile Header */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-2">
+                      <div className="flex items-center space-x-3">
+                        <div className="h-10 w-10 rounded-xl bg-emerald-100 text-emerald-900 flex items-center justify-center font-black text-sm">
+                          {r.employeeName.charAt(0)}
+                        </div>
+                        <div>
+                          <div className="flex items-center space-x-2">
+                            <h4 className="font-bold text-slate-900 text-sm">{r.employeeName}</h4>
+                            <Badge variant="secondary" className="font-mono text-[10px]">{r.sapId}</Badge>
+                            <Badge variant="nbp" className="text-[10px]">{r.grade}</Badge>
+                          </div>
+                          <p className="text-xs text-slate-600 mt-0.5">
+                            {r.designation} • <strong className="text-slate-800">{r.group}</strong>
+                          </p>
+                        </div>
                       </div>
-                      <div className="mt-2 text-xs space-y-0.5 text-slate-600">
-                        <p>Requested 1st Appraiser SAP ID: <strong className="text-slate-900 font-mono">{r.pendingFirstAppraiserSapId || r.firstAppraiserSapId}</strong></p>
-                        <p>Requested 2nd Appraiser / Supervisor SAP ID: <strong className="text-slate-900 font-mono">{r.pendingSecondAppraiserSapId || r.secondAppraiserSapId}</strong></p>
+
+                      <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-slate-500">
+                        <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-medium">
+                          📍 Place of Posting: <strong>{r.location || 'Head Office, Karachi'}</strong>
+                        </span>
+                        {r.regionBranch && (
+                          <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-medium">
+                            🏢 {r.regionBranch}
+                          </span>
+                        )}
                       </div>
                     </div>
 
-                    <div className="flex items-center space-x-2">
+                    {/* Requested Appraisers Hierarchy Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                      {/* First Appraiser Box */}
+                      <div className="p-3 bg-emerald-50/60 border border-emerald-200 rounded-xl space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-800">
+                            Requested 1st Appraiser
+                          </span>
+                          <Badge variant="outline" className="font-mono text-[10px] text-emerald-900 bg-white border-emerald-300">
+                            {r.firstAppraiserSapId || r.pendingFirstAppraiserSapId}
+                          </Badge>
+                        </div>
+                        <div className="font-bold text-slate-900 text-xs">
+                          {r.firstAppraiserName || 'Designated Evaluator'}
+                        </div>
+                        <div className="text-slate-600 text-[11px] flex flex-wrap gap-x-2">
+                          {r.firstAppraiserGrade && <span>Grade: <strong>{r.firstAppraiserGrade}</strong></span>}
+                          {r.firstAppraiserDesignation && <span>• {r.firstAppraiserDesignation}</span>}
+                        </div>
+                        <div className="text-slate-500 text-[10px] pt-0.5 flex flex-wrap gap-x-2">
+                          {r.firstAppraiserGroup && <span>Group: <strong>{r.firstAppraiserGroup}</strong></span>}
+                          {r.firstAppraiserLocation && <span>• Posting: <strong>{r.firstAppraiserLocation}</strong></span>}
+                        </div>
+                      </div>
+
+                      {/* Second Appraiser / Supervisor Box */}
+                      <div className="p-3 bg-teal-50/60 border border-teal-200 rounded-xl space-y-1">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-extrabold uppercase tracking-wider text-teal-800">
+                            Requested 2nd Appraiser (Supervisor)
+                          </span>
+                          <Badge variant="outline" className="font-mono text-[10px] text-teal-900 bg-white border-teal-300">
+                            {r.secondAppraiserSapId || r.pendingSecondAppraiserSapId}
+                          </Badge>
+                        </div>
+                        <div className="font-bold text-slate-900 text-xs">
+                          {r.secondAppraiserName || 'Designated Supervisor'}
+                        </div>
+                        <div className="text-slate-600 text-[11px] flex flex-wrap gap-x-2">
+                          {r.secondAppraiserGrade && <span>Grade: <strong>{r.secondAppraiserGrade}</strong></span>}
+                          {r.secondAppraiserDesignation && <span>• {r.secondAppraiserDesignation}</span>}
+                        </div>
+                        <div className="text-slate-500 text-[10px] pt-0.5 flex flex-wrap gap-x-2">
+                          {r.secondAppraiserGroup && <span>Group: <strong>{r.secondAppraiserGroup}</strong></span>}
+                          {r.secondAppraiserLocation && <span>• Posting: <strong>{r.secondAppraiserLocation}</strong></span>}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Action Bar */}
+                    <div className="flex items-center justify-end space-x-2 pt-2 border-t border-slate-100">
                       <Button variant="outline" size="sm" onClick={() => handleOpenReject(r)} className="text-xs border-red-200 text-red-700 hover:bg-red-50">
                         <XCircle className="h-4 w-4 mr-1 text-red-600" />
                         Reject Mapping
                       </Button>
-                      <Button variant="nbp" size="sm" onClick={() => handleOpenConfirm(r)} className="text-xs font-bold">
+                      <Button variant="nbp" size="sm" onClick={() => handleOpenConfirm(r)} className="text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white">
                         <CheckCircle2 className="h-4 w-4 mr-1" />
-                        Confirm & Validate Line
+                        Confirm & Validate Reporting Line
                       </Button>
                     </div>
                   </div>
@@ -281,7 +349,7 @@ export const TeamReviewInboxPage: React.FC = () => {
                 </div>
                 <div>
                   <h3 className="text-base font-bold text-white leading-tight">Confirm & Validate Reporting Line</h3>
-                  <p className="text-[11px] text-slate-300">Confirm or modify details for {selectedReview.employeeName}</p>
+                  <p className="text-[11px] text-slate-300">Employee: {selectedReview.employeeName} ({selectedReview.sapId})</p>
                 </div>
               </div>
               <button onClick={() => setShowConfirmModal(false)} className="text-slate-300 hover:text-white">
@@ -290,17 +358,31 @@ export const TeamReviewInboxPage: React.FC = () => {
             </div>
 
             <div className="p-6 space-y-4 text-xs">
-              <p className="text-slate-600">
-                You can confirm the reporting line requested by <strong>{selectedReview.employeeName}</strong> or update the Supervisor SAP ID if required before validating.
-              </p>
+              {/* Employee Summary Card */}
+              <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-900">{selectedReview.employeeName}</span>
+                  <Badge variant="nbp" className="font-mono text-[10px]">{selectedReview.sapId}</Badge>
+                </div>
+                <div className="text-slate-600 text-[11px]">
+                  {selectedReview.grade} — {selectedReview.designation} | Group: <strong>{selectedReview.group}</strong>
+                </div>
+                <div className="text-slate-500 text-[10px]">
+                  📍 Place of Posting: <strong>{selectedReview.location || 'Head Office, Karachi'}</strong>
+                </div>
+              </div>
 
-              <div className="space-y-3">
+              <div className="space-y-3 pt-2">
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">First Appraiser SAP ID</label>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    First Appraiser SAP ID:
+                  </label>
                   <Input value={editFirstSap} onChange={(e) => setEditFirstSap(e.target.value)} />
                 </div>
                 <div>
-                  <label className="font-bold text-slate-700 block mb-1">Second Appraiser / Supervisor SAP ID</label>
+                  <label className="font-bold text-slate-700 block mb-1">
+                    Second Appraiser / Supervisor SAP ID:
+                  </label>
                   <Input value={editSecondSap} onChange={(e) => setEditSecondSap(e.target.value)} />
                 </div>
               </div>
@@ -308,7 +390,7 @@ export const TeamReviewInboxPage: React.FC = () => {
 
             <div className="p-4 bg-slate-50 border-t flex items-center justify-between">
               <Button variant="secondary" size="sm" onClick={() => setShowConfirmModal(false)}>Cancel</Button>
-              <Button variant="nbp" size="sm" onClick={handleConfirmMapping} disabled={confirming}>
+              <Button variant="nbp" size="sm" onClick={handleConfirmMapping} disabled={confirming} className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold">
                 {confirming ? 'Validating...' : 'Confirm & Validate Reporting Line'}
               </Button>
             </div>
