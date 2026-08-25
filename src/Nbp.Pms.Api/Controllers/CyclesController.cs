@@ -501,6 +501,7 @@ public class CyclesController : ControllerBase
     /// <summary>
     /// Updates the frozen cycle historical snapshot attributes for an enrolled employee in a specific appraisal cycle.
     /// </summary>
+    [HttpPut("{cycleId}/employees/{employeeCycleId}")]
     [HttpPut("{cycleId}/employees/{employeeCycleId}/snapshot")]
     public async Task<IActionResult> UpdateCycleEmployeeSnapshot(
         Guid cycleId,
@@ -552,10 +553,19 @@ public class CyclesController : ControllerBase
             if (sa != null) empCycle.SecondAppraiserId = sa.Id;
         }
 
-        // Recalculate Assigned Form Type based on updated snapshot grade / MRT
+        // Recalculate or override Assigned Form Type based on updated snapshot grade / MRT / explicit DTO
         string effectiveGrade = empCycle.SnapshotGrade ?? empCycle.Employee!.Grade;
         bool effectiveMrt = empCycle.SnapshotIsMrtOrMrc ?? empCycle.Employee!.IsMrtOrMrc;
-        empCycle.AssignedFormType = EmployeeImportService.DetermineFormType(effectiveGrade, effectiveMrt);
+
+        if (!string.IsNullOrWhiteSpace(dto.AssignedFormType))
+        {
+            empCycle.AssignedFormType = ParseFormType(dto.AssignedFormType, effectiveGrade, effectiveMrt);
+        }
+        else
+        {
+            empCycle.AssignedFormType = EmployeeImportService.DetermineFormType(effectiveGrade, effectiveMrt);
+        }
+
         empCycle.UpdatedAt = DateTime.UtcNow;
 
         _db.AuditEvents.Add(new AuditEvent
@@ -1688,6 +1698,7 @@ public record UpdateCycleEmployeeSnapshotDto(
     bool? SnapshotIsMrtOrMrc,
     string? FirstAppraiserSapId,
     string? SecondAppraiserSapId,
+    string? AssignedFormType = null,
     string? ActorUserId = "PMW_ADMIN"
 );
 

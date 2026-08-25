@@ -295,16 +295,36 @@ export const CycleSnapshotManagerPage: React.FC<CycleSnapshotManagerPageProps> =
     if (onSelectCycle) onSelectCycle(id);
   };
 
+  const matchFormType = (actual: any, filter: string) => {
+    if (filter === 'ALL') return true;
+    const s = String(actual || '').toLowerCase();
+    const f = filter.toLowerCase();
+    if (f.includes('kpi')) return s === '1' || s.includes('kpi');
+    if (f.includes('risk')) return s === '3' || s.includes('risk');
+    if (f.includes('bsc') || f.includes('scorecard')) return s === '2' || s.includes('bsc') || s.includes('scorecard');
+    return true;
+  };
+
+  const formatFormLabel = (formType: any, isMrt?: boolean) => {
+    const s = String(formType || '').toLowerCase();
+    if (s === '3' || s.includes('risk') || isMrt) {
+      return { label: '5-P Risk BSC', variant: 'danger' as const };
+    }
+    if (s === '2' || s.includes('bsc') || s.includes('scorecard')) {
+      return { label: 'Balanced Scorecard', variant: 'nbp' as const };
+    }
+    return { label: 'KPI Form (70/30)', variant: 'default' as const };
+  };
+
   // Filtered Employees List
   const filteredEmployees = cycleEmployees.filter((ec) => {
     const emp = ec.employee || {};
     const rpsa = ec.snapshotReportingGroup || emp.reportingGroup || '';
     const esg = ec.snapshotGrade || emp.grade || '';
-    const formType = (ec.assignedFormType || '').toString();
 
     if (selectedGroupFilter !== 'ALL' && rpsa !== selectedGroupFilter) return false;
     if (selectedGradeFilter !== 'ALL' && esg !== selectedGradeFilter) return false;
-    if (selectedFormTypeFilter !== 'ALL' && formType !== selectedFormTypeFilter) return false;
+    if (!matchFormType(ec.assignedFormType, selectedFormTypeFilter)) return false;
 
     if (searchTerm) {
       const q = searchTerm.toLowerCase();
@@ -476,7 +496,8 @@ export const CycleSnapshotManagerPage: React.FC<CycleSnapshotManagerPageProps> =
         snapshotRegionBranch: editingEmpCycle.snapshotRegionBranch,
         snapshotIsMrtOrMrc: editingEmpCycle.snapshotIsMrtOrMrc,
         firstAppraiserSapId: editingEmpCycle.firstAppraiserSapId,
-        secondAppraiserSapId: editingEmpCycle.secondAppraiserSapId
+        secondAppraiserSapId: editingEmpCycle.secondAppraiserSapId,
+        assignedFormType: editingEmpCycle.assignedFormType,
       });
       setMessage('Employee snapshot updated successfully.');
       setShowEditEmployeeModal(false);
@@ -1003,9 +1024,8 @@ export const CycleSnapshotManagerPage: React.FC<CycleSnapshotManagerPageProps> =
                     const isSelected = selectedEmployeeIds.includes(ec.id);
                     const gradeCode = ec.snapshotGrade || emp.grade;
                     const groupCode = ec.snapshotReportingGroup || emp.reportingGroup;
-                    const isKpi = (ec.assignedFormType || '').toString().includes('KPI');
-                    const isRisk = (ec.assignedFormType || '').toString().includes('RISK') || ec.snapshotIsMrtOrMrc;
                     const valStatus = ec.appraiserValidationStatus;
+                    const formDisplay = formatFormLabel(ec.assignedFormType, ec.snapshotIsMrtOrMrc);
 
                     return (
                       <tr
@@ -1034,10 +1054,10 @@ export const CycleSnapshotManagerPage: React.FC<CycleSnapshotManagerPageProps> =
                         </td>
                         <td className="p-3">
                           <Badge
-                            variant={isRisk ? 'danger' : isKpi ? 'default' : 'nbp'}
+                            variant={formDisplay.variant}
                             className="text-[10px] font-bold"
                           >
-                            {isRisk ? '5-P Risk BSC' : isKpi ? 'KPI (70/30)' : 'Balanced Scorecard'}
+                            {formDisplay.label}
                           </Badge>
                         </td>
                         <td className="p-3 font-mono text-slate-700">
@@ -1092,6 +1112,12 @@ export const CycleSnapshotManagerPage: React.FC<CycleSnapshotManagerPageProps> =
                             variant="outline"
                             size="sm"
                             onClick={() => {
+                              const formTypeStr = ec.assignedFormType === 2 || ec.assignedFormType === 'BalancedScorecard' || ec.assignedFormType === 'BALANCED_SCORECARD'
+                                ? 'BalancedScorecard'
+                                : ec.assignedFormType === 3 || ec.assignedFormType === 'RiskAdjustedBsc' || ec.assignedFormType === 'RISK_ADJUSTED_BSC'
+                                ? 'RiskAdjustedBsc'
+                                : 'KpiForm';
+
                               setEditingEmpCycle({
                                 id: ec.id,
                                 sapId: emp.sapId,
@@ -1102,6 +1128,7 @@ export const CycleSnapshotManagerPage: React.FC<CycleSnapshotManagerPageProps> =
                                 snapshotLocation: ec.snapshotLocation || emp.location,
                                 snapshotRegionBranch: ec.snapshotRegionBranch || emp.regionBranch,
                                 snapshotIsMrtOrMrc: ec.snapshotIsMrtOrMrc ?? emp.isMrtOrMrc ?? false,
+                                assignedFormType: formTypeStr,
                                 firstAppraiserSapId: ec.firstAppraiser?.sapId || '',
                                 secondAppraiserSapId: ec.secondAppraiser?.sapId || ''
                               });
@@ -2081,7 +2108,18 @@ export const CycleSnapshotManagerPage: React.FC<CycleSnapshotManagerPageProps> =
                   <label className="text-[11px] font-bold text-slate-700 block mb-1">Snapshot Grade (ESG)</label>
                   <select
                     value={editingEmpCycle.snapshotGrade}
-                    onChange={(e) => setEditingEmpCycle({ ...editingEmpCycle, snapshotGrade: e.target.value })}
+                    onChange={(e) => {
+                      const newGrade = e.target.value;
+                      const isVpPlus = ['01', '02', '03', '04', '05', 'VP', 'SVP', 'EVP', 'SEVP', 'PRESIDENT', 'CEO'].includes(newGrade);
+                      const newForm = editingEmpCycle.snapshotIsMrtOrMrc ? 'RiskAdjustedBsc' : isVpPlus ? 'BalancedScorecard' : 'KpiForm';
+                      const newDesig = newGrade === '05' ? 'Vice President' : newGrade === '06' ? 'Assistant Vice President' : editingEmpCycle.snapshotDesignation;
+                      setEditingEmpCycle({
+                        ...editingEmpCycle,
+                        snapshotGrade: newGrade,
+                        assignedFormType: newForm,
+                        snapshotDesignation: newDesig
+                      });
+                    }}
                     className="w-full h-8 px-2 bg-slate-50 border border-slate-300 text-slate-900 rounded text-xs font-bold"
                   >
                     {snapshotGrades.map((g) => (
@@ -2101,6 +2139,19 @@ export const CycleSnapshotManagerPage: React.FC<CycleSnapshotManagerPageProps> =
                     ))}
                   </select>
                 </div>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-slate-700 block mb-1">Assigned Form Type (Template)</label>
+                <select
+                  value={editingEmpCycle.assignedFormType || 'KpiForm'}
+                  onChange={(e) => setEditingEmpCycle({ ...editingEmpCycle, assignedFormType: e.target.value })}
+                  className="w-full h-8 px-2 bg-emerald-50 border border-emerald-300 text-emerald-950 rounded text-xs font-bold"
+                >
+                  <option value="KpiForm">KPI Form (70% Objectives + 30% Behavioural Traits — AVP & Below)</option>
+                  <option value="BalancedScorecard">Balanced Scorecard (4 Perspectives — VP & Above)</option>
+                  <option value="RiskAdjustedBsc">Risk-Adjusted BSC (5 Perspectives — MRT/MRC)</option>
+                </select>
               </div>
 
               <div>

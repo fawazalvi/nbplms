@@ -359,8 +359,140 @@ public class AppraisersController : ControllerBase
         await _db.SaveChangesAsync();
         return Ok(new { message = "Reporting line hierarchy reset successfully.", employeeCycle = empCycle });
     }
+
+    /// <summary>
+    /// Appraiser evaluates employee objectives and behavioural traits, calculates score, and saves or submits the appraisal.
+    /// </summary>
+    [HttpPost("{id}/evaluate")]
+    public async Task<IActionResult> EvaluateAppraisal(Guid id, [FromBody] SaveAppraiserEvaluationDto dto)
+    {
+        var empCycle = await _db.EmployeeCycles
+            .Include(ec => ec.Employee)
+            .Include(ec => ec.Cycle)
+            .FirstOrDefaultAsync(ec => ec.Id == id);
+
+        if (empCycle == null) return NotFound(new { message = "Appraisal record not found." });
+
+        var objectives = await _db.Objectives.Where(o => o.EmployeeCycleId == id).ToListAsync();
+        var traits = await _db.BehaviourTraits.Where(t => t.EmployeeCycleId == id).ToListAsync();
+
+        // Update Objectives
+        if (dto.Objectives != null)
+        {
+            foreach (var objDto in dto.Objectives)
+            {
+                var obj = objectives.FirstOrDefault(o => o.Id == objDto.Id);
+                if (obj != null)
+                {
+                    if (dto.Role == "SecondAppraiser")
+                    {
+                        if (objDto.SecondAppraiserRating.HasValue) obj.SecondAppraiserRating = objDto.SecondAppraiserRating.Value;
+                        if (!string.IsNullOrWhiteSpace(objDto.SecondAppraiserComments))
+                            obj.EncryptedConfidentialComments = objDto.SecondAppraiserComments;
+                    }
+                    else
+                    {
+                        if (objDto.FirstAppraiserRating.HasValue) obj.FirstAppraiserRating = objDto.FirstAppraiserRating.Value;
+                        if (!string.IsNullOrWhiteSpace(objDto.FirstAppraiserComments))
+                            obj.EncryptedConfidentialComments = objDto.FirstAppraiserComments;
+                    }
+                    obj.UpdatedAt = DateTime.UtcNow;
+                }
+            }
+        }
+
+        // Update Traits
+        if (dto.Traits != null)
+        {
+            foreach (var traitDto in dto.Traits)
+            {
+                var trait = traits.FirstOrDefault(t => t.Id == traitDto.Id);
+                if (trait != null)
+                {
+                    if (dto.Role == "SecondAppraiser")
+                    {
+                        if (traitDto.SecondAppraiserRating.HasValue) trait.FirstAppraiserRating = traitDto.SecondAppraiserRating.Value;
+                        if (!string.IsNullOrWhiteSpace(traitDto.SecondAppraiserComments))
+                            trait.EncryptedConfidentialComments = traitDto.SecondAppraiserComments;
+                    }
+                    else
+                    {
+                        if (traitDto.FirstAppraiserRating.HasValue) trait.FirstAppraiserRating = traitDto.FirstAppraiserRating.Value;
+                        if (!string.IsNullOrWhiteSpace(traitDto.FirstAppraiserComments))
+                            trait.EncryptedConfidentialComments = traitDto.FirstAppraiserComments;
+                    }
+                }
+            }
+        }
+
+        // Calculate and save composite score
+        var calculatedScore = _calcService.CalculateAndEncryptScore(id, objectives, traits);
+        var existingScore = await _db.Scores.FirstOrDefaultAsync(s => s.EmployeeCycleId == id);
+        if (existingScore != null)
+        {
+            existingScore.ObjectiveTotalScore = calculatedScore.ObjectiveTotalScore;
+            existingScore.TraitTotalScore = calculatedScore.TraitTotalScore;
+            existingScore.FinalCompositeScore = calculatedScore.FinalCompositeScore;
+            existingScore.FinalRatingLevel = calculatedScore.FinalRatingLevel;
+            existingScore.EncryptedObjectiveScore = calculatedScore.EncryptedObjectiveScore;
+            existingScore.EncryptedTraitScore = calculatedScore.EncryptedTraitScore;
+            existingScore.EncryptedFinalScore = calculatedScore.EncryptedFinalScore;
+            existingScore.EncryptedAppraiserComments = calculatedScore.EncryptedAppraiserComments;
+            existingScore.CalculatedAt = DateTime.UtcNow;
+        }
+        else
+        {
+            _db.Scores.Add(calculatedScore);
+        }
+
+        empCycle.UpdatedAt = DateTime.UtcNow;
+
+        if (dto.Submit)
+        {
+            var targetStatus = dto.Role == "SecondAppraiser" ? WorkflowStatus.Published : WorkflowStatus.SecondAppraiserReview;
+            var transitionResult = _workflowEngine.Transition(empCycle, targetStatus, dto.ActorSapId, dto.Role);
+            if (transitionResult.Success && transitionResult.AuditLog != null)
+            {
+                _db.AuditEvents.Add(transitionResult.AuditLog);
+            }
+        }
+
+        var audit = new AuditEvent
+        {
+            EventType = dto.Submit ? "APPRAISAL_EVALUATION_SUBMITTED" : "APPRAISAL_EVALUATION_DRAFT_SAVED",
+            ActorUserId = dto.ActorSapId,
+            ActorRole = dto.Role,
+            TargetEntityId = empCycle.Id.ToString(),
+            TargetEntityType = nameof(EmployeeCycle),
+            ActionDescription = $"Appraiser {dto.ActorSapId} {(dto.Submit ? "submitted" : "saved draft")} evaluation for employee {empCycle.Employee?.FullName} (SAP ID: {empCycle.Employee?.SapId}). Final Score: {calculatedScore.FinalCompositeScore:F2}, Rating: {calculatedScore.FinalRatingLevel}.",
+            Timestamp = DateTime.UtcNow
+        };
+        _db.AuditEvents.Add(audit);
+
+        await _db.SaveChangesAsync();
+
+        return Ok(new
+        {
+            message = dto.Submit ? "Appraisal evaluation submitted successfully to next review stage." : "Appraisal evaluation draft saved successfully.",
+            score = calculatedScore,
+            currentStatus = empCycle.CurrentStatus.ToString(),
+            employeeCycle = empCycle
+        });
+    }
 }
 
 public record ConfirmAppraiserDto(string FirstAppraiserSapId, string SecondAppraiserSapId, string? CoAppraiserSapId, string ActorSapId = "10004");
 public record RejectAppraiserDto(string RejectionReason, string ActorSapId = "10004");
 public record AdminAppraiserActionDto(string ActorSapId = "admin");
+public record SaveAppraiserEvaluationDto(
+    List<ObjectiveRatingDto>? Objectives,
+    List<TraitRatingDto>? Traits,
+    string? FirstAppraiserComments,
+    string? SecondAppraiserComments,
+    string ActorSapId = "10004",
+    string Role = "FirstAppraiser",
+    bool Submit = false
+);
+public record ObjectiveRatingDto(Guid Id, int? FirstAppraiserRating, string? FirstAppraiserComments, int? SecondAppraiserRating, string? SecondAppraiserComments);
+public record TraitRatingDto(Guid Id, int? FirstAppraiserRating, string? FirstAppraiserComments, int? SecondAppraiserRating, string? SecondAppraiserComments);
+

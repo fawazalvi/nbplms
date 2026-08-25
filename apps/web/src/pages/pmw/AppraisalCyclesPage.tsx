@@ -88,6 +88,7 @@ export const AppraisalCyclesPage: React.FC<AppraisalCyclesPageProps> = ({ userRo
   const [editSnapshotFirstSap, setEditSnapshotFirstSap] = useState('');
   const [editSnapshotSecondSap, setEditSnapshotSecondSap] = useState('');
   const [editSnapshotIsMrt, setEditSnapshotIsMrt] = useState(false);
+  const [editSnapshotFormType, setEditSnapshotFormType] = useState('KpiForm');
   const [savingSnapshot, setSavingSnapshot] = useState(false);
 
   const loadCycles = async () => {
@@ -410,6 +411,12 @@ export const AppraisalCyclesPage: React.FC<AppraisalCyclesPageProps> = ({ userRo
     setEditSnapshotIsMrt(item.snapshotIsMrtOrMrc || false);
     setEditSnapshotFirstSap(item.firstAppraiserSapId || '');
     setEditSnapshotSecondSap(item.secondAppraiserSapId || '');
+    const formTypeStr = item.assignedFormType === 2 || item.assignedFormType === 'BalancedScorecard' || item.assignedFormType === 'BALANCED_SCORECARD'
+      ? 'BalancedScorecard'
+      : item.assignedFormType === 3 || item.assignedFormType === 'RiskAdjustedBsc' || item.assignedFormType === 'RISK_ADJUSTED_BSC'
+      ? 'RiskAdjustedBsc'
+      : 'KpiForm';
+    setEditSnapshotFormType(formTypeStr);
     setShowEditSnapshotModal(true);
   };
 
@@ -426,6 +433,7 @@ export const AppraisalCyclesPage: React.FC<AppraisalCyclesPageProps> = ({ userRo
         snapshotIsMrtOrMrc: editSnapshotIsMrt,
         firstAppraiserSapId: editSnapshotFirstSap || null,
         secondAppraiserSapId: editSnapshotSecondSap || null,
+        assignedFormType: editSnapshotFormType,
         actorUserId: 'PMW_ADMIN'
       });
       setMessage(`Cycle historical snapshot updated for ${editingSnapshotItem.fullName}.`);
@@ -886,8 +894,21 @@ export const AppraisalCyclesPage: React.FC<AppraisalCyclesPageProps> = ({ userRo
                             <div className="text-[10px] text-slate-400">{emp.snapshotLocation}</div>
                           </td>
                           <td className="p-3">
-                            <Badge variant="nbp" className="text-[10px] font-bold">
-                              {emp.assignedFormType === 'KpiForm' ? 'KPI Form (70/30)' : emp.assignedFormType === 'BalancedScorecard' ? '4-P BSC' : '5-P Risk BSC'}
+                            <Badge
+                              variant={
+                                String(emp.assignedFormType || '').toLowerCase().includes('risk') || emp.snapshotIsMrtOrMrc
+                                  ? 'danger'
+                                  : String(emp.assignedFormType || '').toLowerCase().includes('scorecard') || String(emp.assignedFormType || '').toLowerCase().includes('bsc')
+                                  ? 'nbp'
+                                  : 'default'
+                              }
+                              className="text-[10px] font-bold"
+                            >
+                              {String(emp.assignedFormType || '').toLowerCase().includes('risk') || emp.snapshotIsMrtOrMrc
+                                ? '5-P Risk BSC'
+                                : String(emp.assignedFormType || '').toLowerCase().includes('scorecard') || String(emp.assignedFormType || '').toLowerCase().includes('bsc')
+                                ? 'Balanced Scorecard (4-P)'
+                                : 'KPI Form (70/30)'}
                             </Badge>
                           </td>
                           <td className="p-3 text-[11px]">
@@ -1134,8 +1155,15 @@ export const AppraisalCyclesPage: React.FC<AppraisalCyclesPageProps> = ({ userRo
                     <label className="font-bold text-slate-700">Snapshot Grade (ESG) *</label>
                     <select
                       value={editSnapshotGrade}
-                      onChange={(e) => setEditSnapshotGrade(e.target.value)}
-                      className="w-full h-9 px-3 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-800"
+                      onChange={(e) => {
+                        const newGrade = e.target.value;
+                        const isVpPlus = ['01', '02', '03', '04', '05', 'VP', 'SVP', 'EVP', 'SEVP', 'PRESIDENT', 'CEO'].includes(newGrade);
+                        setEditSnapshotGrade(newGrade);
+                        if (!editSnapshotIsMrt) {
+                          setEditSnapshotFormType(isVpPlus ? 'BalancedScorecard' : 'KpiForm');
+                        }
+                      }}
+                      className="w-full h-9 px-3 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800"
                     >
                       {grades.map(g => (
                         <option key={g.id} value={g.esgCode || g.gradeCode}>
@@ -1184,6 +1212,19 @@ export const AppraisalCyclesPage: React.FC<AppraisalCyclesPageProps> = ({ userRo
                       )}
                     </select>
                   </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="font-bold text-slate-700">Assigned Form Type (Template) *</label>
+                  <select
+                    value={editSnapshotFormType}
+                    onChange={(e) => setEditSnapshotFormType(e.target.value)}
+                    className="w-full h-9 px-3 bg-emerald-50 border border-emerald-300 rounded-lg text-xs font-bold text-emerald-950"
+                  >
+                    <option value="KpiForm">KPI Form (70% Objectives + 30% Behavioural Traits — AVP & Below)</option>
+                    <option value="BalancedScorecard">Balanced Scorecard (4 Perspectives — VP & Above)</option>
+                    <option value="RiskAdjustedBsc">Risk-Adjusted BSC (5 Perspectives — MRT/MRC)</option>
+                  </select>
                 </div>
 
                 <div className="space-y-1.5">

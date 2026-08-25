@@ -136,7 +136,13 @@ export const api = {
     fetchApi<any>(`/Cycles/${cycleId}/employees/bulk-assign-appraisers`, { method: 'POST', body: JSON.stringify(data) }),
 
   // My Appraisal Form, Objectives & Appraiser Self-Service Updates
-  getMyAppraisal: (sapId: string = '84920') => fetchApi<any>(`/Appraisals/my-cycle?sapId=${sapId}`),
+  getMyCycles: (sapId: string = '84920') => fetchApi<any[]>(`/Appraisals/my-cycles?sapId=${encodeURIComponent(sapId)}`),
+  getMyAppraisal: (sapId: string = '84920', cycleId?: string, employeeCycleId?: string) => {
+    const params = new URLSearchParams({ sapId });
+    if (cycleId) params.append('cycleId', cycleId);
+    if (employeeCycleId) params.append('employeeCycleId', employeeCycleId);
+    return fetchApi<any>(`/Appraisals/my-cycle?${params.toString()}`);
+  },
   getFormAuditHistory: (employeeCycleId: string) => fetchApi<any[]>(`/Appraisals/${employeeCycleId}/audit-history`),
   requestAppraiserUpdate: (employeeCycleId: string, data: { firstAppraiserSapId: string; secondAppraiserSapId: string; coAppraiserSapId?: string }) =>
     fetchApi<any>(`/Appraisals/${employeeCycleId}/request-appraiser-update`, { method: 'POST', body: JSON.stringify(data) }),
@@ -147,10 +153,18 @@ export const api = {
     }),
   submitSelfAssessment: (employeeCycleId: string, sapId: string = '84920') =>
     fetchApi<any>(`/Appraisals/${employeeCycleId}/submit?actorUserId=${sapId}&role=Employee`, { method: 'POST' }),
+  getAppraisalHistory: (sapId: string = '84920') => fetchApi<any[]>(`/Appraisals/history?sapId=${encodeURIComponent(sapId)}`),
+  agreeAppraisal: (employeeCycleId: string, actorUserId: string = '84920') =>
+    fetchApi<any>(`/Appraisals/${employeeCycleId}/agree?actorUserId=${encodeURIComponent(actorUserId)}`, { method: 'POST' }),
   recordDisagreement: (employeeCycleId: string, sapId: string, reason: string) =>
     fetchApi<any>(`/Appraisals/${employeeCycleId}/disagree`, {
       method: 'POST',
       body: JSON.stringify({ sapId, reason }),
+    }),
+  resolveAppraisalDisagreement: (employeeCycleId: string, data: { actorUserId: string; resolutionNotes: string }) =>
+    fetchApi<any>(`/Appraisals/${employeeCycleId}/resolve-disagreement`, {
+      method: 'POST',
+      body: JSON.stringify(data),
     }),
 
   // Appraiser Team Reviews & Mapping Confirmations
@@ -164,6 +178,8 @@ export const api = {
     fetchApi<any>(`/Appraisers/${employeeCycleId}/unlock-appraiser-line`, { method: 'POST', body: JSON.stringify({ actorSapId }) }),
   resetAppraiserLine: (employeeCycleId: string, actorSapId: string = 'admin') =>
     fetchApi<any>(`/Appraisers/${employeeCycleId}/reset-appraiser-line`, { method: 'POST', body: JSON.stringify({ actorSapId }) }),
+  evaluateAppraisal: (employeeCycleId: string, data: any) =>
+    fetchApi<any>(`/Appraisers/${employeeCycleId}/evaluate`, { method: 'POST', body: JSON.stringify(data) }),
 
   // Development Review
   getDevelopmentReview: (employeeCycleId: string) =>

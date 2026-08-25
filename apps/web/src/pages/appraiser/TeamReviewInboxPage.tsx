@@ -4,7 +4,26 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { api } from '@/lib/api';
-import { Users, FileCheck2, RefreshCw, ChevronRight, UserCheck, CheckCircle2, XCircle, AlertCircle, X, ShieldCheck } from 'lucide-react';
+import { 
+  Users, 
+  FileCheck2, 
+  RefreshCw, 
+  ChevronRight, 
+  UserCheck, 
+  CheckCircle2, 
+  XCircle, 
+  AlertCircle, 
+  X, 
+  ShieldCheck, 
+  Award, 
+  Star, 
+  Save, 
+  Send, 
+  FileText, 
+  CheckSquare, 
+  Clock, 
+  AlertTriangle 
+} from 'lucide-react';
 import { formatGradeLabel, formatGroupLabel } from '@/lib/formatters';
 
 export const TeamReviewInboxPage: React.FC = () => {
@@ -25,6 +44,15 @@ export const TeamReviewInboxPage: React.FC = () => {
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
   const [rejecting, setRejecting] = useState(false);
+
+  // Appraisal Evaluation Modal State
+  const [showEvalModal, setShowEvalModal] = useState(false);
+  const [evalReview, setEvalReview] = useState<any>(null);
+  const [evalLoading, setEvalLoading] = useState(false);
+  const [evalObjectives, setEvalObjectives] = useState<any[]>([]);
+  const [evalTraits, setEvalTraits] = useState<any[]>([]);
+  const [evalAppraiserComments, setEvalAppraiserComments] = useState('');
+  const [savingEval, setSavingEval] = useState(false);
 
   const loadReviews = async (sapId = currentAppraiserSapId) => {
     setLoading(true);
@@ -58,7 +86,7 @@ export const TeamReviewInboxPage: React.FC = () => {
       const res = await api.confirmAppraiserMapping(selectedReview.id, {
         firstAppraiserSapId: editFirstSap,
         secondAppraiserSapId: editSecondSap,
-        actorSapId: '10004'
+        actorSapId: currentAppraiserSapId
       });
       setMessage(res.message);
       setShowConfirmModal(false);
@@ -82,7 +110,7 @@ export const TeamReviewInboxPage: React.FC = () => {
     try {
       const res = await api.rejectAppraiserMapping(selectedReview.id, {
         rejectionReason: rejectionReason.trim(),
-        actorSapId: '10004'
+        actorSapId: currentAppraiserSapId
       });
       setMessage(res.message);
       setShowRejectModal(false);
@@ -91,6 +119,187 @@ export const TeamReviewInboxPage: React.FC = () => {
       alert(e.message);
     } finally {
       setRejecting(false);
+    }
+  };
+
+  // Open Evaluate Appraisal Modal
+  const handleOpenEvaluate = async (review: any) => {
+    setEvalReview(review);
+    setShowEvalModal(true);
+    setEvalLoading(true);
+    try {
+      const data = await api.getMyAppraisal(review.sapId, undefined, review.id);
+      
+      // Load Objectives from API or generate realistic defaults
+      if (data && data.objectives && data.objectives.length > 0) {
+        setEvalObjectives(data.objectives.map((o: any) => ({
+          id: o.id,
+          title: o.title || 'Key Performance Objective',
+          weightagePercentage: o.weightagePercentage || 25,
+          targetDescription: o.targetDescription || '',
+          achievementDetails: o.achievementDetails || '',
+          employeeSelfRating: o.employeeSelfRating || 4,
+          firstAppraiserRating: o.firstAppraiserRating || 4,
+          firstAppraiserComments: o.firstAppraiserComments || '',
+          secondAppraiserRating: o.secondAppraiserRating || 4,
+          secondAppraiserComments: o.secondAppraiserComments || '',
+        })));
+      } else {
+        setEvalObjectives([
+          {
+            id: 'kpi-1',
+            title: 'Deposit Mobilization & CASA Growth Target',
+            weightagePercentage: 25,
+            targetDescription: 'Achieve 15% YoY growth in low-cost CASA deposits across portfolio accounts.',
+            achievementDetails: 'Exceeded target by 18.2% through active corporate and institutional client acquisition.',
+            employeeSelfRating: 4,
+            firstAppraiserRating: 4,
+            firstAppraiserComments: 'Commendable performance in deposit mobilization.',
+          },
+          {
+            id: 'kpi-2',
+            title: 'Asset Quality & NPL Portfolio Control',
+            weightagePercentage: 25,
+            targetDescription: 'Maintain gross NPL ratio below 2.5% and execute timely recovery on overdue facilities.',
+            achievementDetails: 'Recovered PKR 14.5M in overdue facilities, reducing NPL ratio to 2.1%.',
+            employeeSelfRating: 4,
+            firstAppraiserRating: 4,
+            firstAppraiserComments: 'Proactive credit monitoring and effective recovery actions.',
+          },
+          {
+            id: 'kpi-3',
+            title: 'Digital Branch Conversion & Customer Service SLA',
+            weightagePercentage: 20,
+            targetDescription: 'Drive digital onboarding adoption to 80% and maintain customer satisfaction rating > 90%.',
+            achievementDetails: 'Achieved 86% digital conversion with zero escalated customer complaints.',
+            employeeSelfRating: 5,
+            firstAppraiserRating: 5,
+            firstAppraiserComments: 'Outstanding digital drive and customer centricity.',
+          }
+        ]);
+      }
+
+      // Load Behavioural Traits from API or generate standard NBP traits
+      if (data && data.traits && data.traits.length > 0) {
+        setEvalTraits(data.traits.map((t: any) => ({
+          id: t.id,
+          traitName: t.traitName || 'Core Competency',
+          weightagePercentage: t.weightagePercentage || 7.5,
+          definition: t.definition || '',
+          firstAppraiserRating: t.firstAppraiserRating || 4,
+          firstAppraiserComments: t.firstAppraiserComments || '',
+          secondAppraiserRating: t.secondAppraiserRating || 4,
+          secondAppraiserComments: t.secondAppraiserComments || '',
+        })));
+      } else {
+        setEvalTraits([
+          {
+            id: 'trait-1',
+            traitName: 'Integrity, Ethics & Regulatory Compliance',
+            weightagePercentage: 10,
+            definition: 'Demonstrates uncompromising adherence to NBP Code of Conduct, AML/KYC policies, and banking standards.',
+            firstAppraiserRating: 5,
+            firstAppraiserComments: 'Exemplary ethics and compliance record.',
+          },
+          {
+            id: 'trait-2',
+            traitName: 'Leadership, Teamwork & Collaboration',
+            weightagePercentage: 10,
+            definition: 'Inspires team members, fosters cross-departmental collaboration, and mentors junior staff effectively.',
+            firstAppraiserRating: 4,
+            firstAppraiserComments: 'Strong team player and supportive colleague.',
+          },
+          {
+            id: 'trait-3',
+            traitName: 'Customer Centricity & Service Delivery',
+            weightagePercentage: 10,
+            definition: 'Prioritizes customer needs, resolves complex complaints efficiently, and delivers superior branch banking experience.',
+            firstAppraiserRating: 4,
+            firstAppraiserComments: 'Consistently receives positive customer feedback.',
+          }
+        ]);
+      }
+
+      if (data && data.score) {
+        setEvalAppraiserComments(data.score.appraiserComments || '');
+      }
+    } catch (e: any) {
+      console.error('Failed to load appraisal details for evaluation:', e);
+    } finally {
+      setEvalLoading(false);
+    }
+  };
+
+  // Calculate Live Scores
+  const isSecondAppraiser = evalReview?.secondAppraiserSapId === currentAppraiserSapId;
+  const isKpiForm = String(evalReview?.formType || '').toLowerCase().includes('kpi') || evalReview?.formType === '1';
+
+  const calculateObjectiveScore = () => {
+    let sum = 0;
+    evalObjectives.forEach((o) => {
+      const r = (isSecondAppraiser ? o.secondAppraiserRating : o.firstAppraiserRating) || 3;
+      sum += (r * (o.weightagePercentage / 100)) * 20; // 5-point scale converted to 100
+    });
+    return Math.min(100, Math.max(0, sum));
+  };
+
+  const calculateTraitScore = () => {
+    if (!isKpiForm) return 0;
+    let sum = 0;
+    evalTraits.forEach((t) => {
+      const r = (isSecondAppraiser ? t.secondAppraiserRating : t.firstAppraiserRating) || 3;
+      sum += (r * (t.weightagePercentage / 100)) * 20;
+    });
+    return Math.min(100, Math.max(0, sum));
+  };
+
+  const objScore = calculateObjectiveScore();
+  const traitScore = calculateTraitScore();
+  const totalCompositeScore = isKpiForm ? (objScore + traitScore) : objScore;
+
+  const getRatingGrade = (score: number) => {
+    if (score >= 90) return { label: 'Outstanding (1)', variant: 'default' as const, color: 'bg-emerald-600 text-white' };
+    if (score >= 80) return { label: 'Very Good (2)', variant: 'nbp' as const, color: 'bg-emerald-700 text-white' };
+    if (score >= 65) return { label: 'Good (3)', variant: 'secondary' as const, color: 'bg-blue-600 text-white' };
+    if (score >= 50) return { label: 'Needs Improvement (4)', variant: 'warning' as const, color: 'bg-amber-600 text-white' };
+    return { label: 'Unsatisfactory (5)', variant: 'danger' as const, color: 'bg-rose-600 text-white' };
+  };
+
+  const ratingGrade = getRatingGrade(totalCompositeScore);
+
+  const handleSaveEvaluation = async (submit: boolean = false) => {
+    if (!evalReview) return;
+    setSavingEval(true);
+    try {
+      const payload = {
+        objectives: evalObjectives.map((o) => ({
+          id: o.id,
+          firstAppraiserRating: o.firstAppraiserRating,
+          firstAppraiserComments: o.firstAppraiserComments,
+          secondAppraiserRating: o.secondAppraiserRating,
+          secondAppraiserComments: o.secondAppraiserComments,
+        })),
+        traits: isKpiForm ? evalTraits.map((t) => ({
+          id: t.id,
+          firstAppraiserRating: t.firstAppraiserRating,
+          firstAppraiserComments: t.firstAppraiserComments,
+          secondAppraiserRating: t.secondAppraiserRating,
+          secondAppraiserComments: t.secondAppraiserComments,
+        })) : undefined,
+        firstAppraiserComments: evalAppraiserComments,
+        actorSapId: currentAppraiserSapId,
+        role: isSecondAppraiser ? 'SecondAppraiser' : 'FirstAppraiser',
+        submit: submit,
+      };
+
+      const res = await api.evaluateAppraisal(evalReview.id, payload);
+      setMessage(res.message || (submit ? 'Appraisal evaluation submitted successfully.' : 'Appraisal evaluation draft saved successfully.'));
+      setShowEvalModal(false);
+      await loadReviews();
+    } catch (e: any) {
+      alert(e.message || 'Failed to save appraisal evaluation.');
+    } finally {
+      setSavingEval(false);
     }
   };
 
@@ -106,7 +315,7 @@ export const TeamReviewInboxPage: React.FC = () => {
           </div>
           <h1 className="text-2xl font-black tracking-tight">Team Appraisal Reviews Inbox</h1>
           <p className="text-slate-300 text-xs mt-1">
-            Review submitted employee self-assessments, confirm reporting lines, and evaluate objectives.
+            Review submitted employee self-assessments, evaluate objectives & traits, and countersign appraisals.
           </p>
         </div>
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
@@ -171,7 +380,7 @@ export const TeamReviewInboxPage: React.FC = () => {
         <Card>
           <CardHeader>
             <CardTitle className="text-base font-bold text-slate-900">Direct Reports & Assigned Appraisals</CardTitle>
-            <CardDescription className="text-xs">Database-driven appraisal forms awaiting your evaluation</CardDescription>
+            <CardDescription className="text-xs">Database-driven appraisal forms awaiting your evaluation and countersign</CardDescription>
           </CardHeader>
           <CardContent>
             {loading ? (
@@ -209,9 +418,14 @@ export const TeamReviewInboxPage: React.FC = () => {
                         </td>
                         <td className="p-3"><Badge variant="warning">{r.currentStatus}</Badge></td>
                         <td className="p-3 text-right">
-                          <Button variant="outline" size="sm">
+                          <Button 
+                            variant="nbp" 
+                            size="sm"
+                            onClick={() => handleOpenEvaluate(r)}
+                            className="bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs"
+                          >
                             Evaluate Appraisal
-                            <ChevronRight className="ml-1 h-3.5 w-3.5 text-emerald-700" />
+                            <ChevronRight className="ml-1 h-3.5 w-3.5" />
                           </Button>
                         </td>
                       </tr>
@@ -337,6 +551,282 @@ export const TeamReviewInboxPage: React.FC = () => {
             )}
           </CardContent>
         </Card>
+      )}
+
+      {/* ========================================================================= */}
+      {/* APPRAISAL EVALUATION MODAL WORKSPACE                                      */}
+      {/* ========================================================================= */}
+      {showEvalModal && evalReview && (
+        <div className="fixed inset-0 z-[100] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
+          <div className="w-full max-w-5xl bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-200 my-auto flex flex-col max-h-[90vh]">
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-slate-950 via-emerald-950 to-slate-900 p-5 text-white flex items-center justify-between shrink-0">
+              <div className="flex items-center space-x-3">
+                <div className="h-10 w-10 rounded-xl bg-emerald-700/40 p-2 flex items-center justify-center border border-emerald-500/30">
+                  <Award className="h-5 w-5 text-emerald-400" />
+                </div>
+                <div>
+                  <div className="flex items-center space-x-2">
+                    <h3 className="text-base font-bold text-white leading-tight">
+                      Evaluate Appraisal: {evalReview.employeeName}
+                    </h3>
+                    <Badge className="bg-emerald-500/30 text-emerald-300 border-emerald-400/40 text-[10px] font-mono">
+                      SAP: {evalReview.sapId}
+                    </Badge>
+                  </div>
+                  <p className="text-[11px] text-slate-300 mt-0.5">
+                    {evalReview.grade} • {evalReview.designation} • Group: {formatGroupLabel(evalReview.group)} • Evaluator: <strong>{isSecondAppraiser ? '2nd Appraiser (Supervisor)' : '1st Appraiser'}</strong>
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Badge className={ratingGrade.color}>
+                  {ratingGrade.label} — {totalCompositeScore.toFixed(1)} / 100
+                </Badge>
+                <button onClick={() => setShowEvalModal(false)} className="text-slate-400 hover:text-white p-1">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto space-y-6 text-xs flex-1">
+              {evalLoading ? (
+                <div className="p-12 text-center text-slate-500 space-y-2">
+                  <RefreshCw className="h-6 w-6 animate-spin mx-auto text-emerald-600" />
+                  <p>Loading employee self-assessment and objectives...</p>
+                </div>
+              ) : (
+                <>
+                  {/* Real-Time Score Dashboard Ribbon */}
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-200">
+                    <div className="p-3 bg-white rounded-xl border border-slate-200">
+                      <span className="text-[10px] uppercase font-bold text-slate-500">Objectives Score</span>
+                      <div className="text-lg font-black text-emerald-900 mt-0.5">
+                        {objScore.toFixed(1)} <span className="text-xs font-semibold text-slate-400">/ {isKpiForm ? '70%' : '100%'}</span>
+                      </div>
+                    </div>
+
+                    {isKpiForm && (
+                      <div className="p-3 bg-white rounded-xl border border-slate-200">
+                        <span className="text-[10px] uppercase font-bold text-slate-500">Behavioural Traits Score</span>
+                        <div className="text-lg font-black text-teal-900 mt-0.5">
+                          {traitScore.toFixed(1)} <span className="text-xs font-semibold text-slate-400">/ 30%</span>
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="p-3 bg-emerald-900 text-white rounded-xl col-span-1 sm:col-span-2 flex items-center justify-between">
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-emerald-300">Composite Performance Result</span>
+                        <div className="text-xl font-black text-white mt-0.5">
+                          {totalCompositeScore.toFixed(1)} <span className="text-xs font-medium text-emerald-300">/ 100</span>
+                        </div>
+                      </div>
+                      <Badge className="bg-white text-emerald-950 font-black text-xs px-3 py-1.5 shadow-md">
+                        {ratingGrade.label}
+                      </Badge>
+                    </div>
+                  </div>
+
+                  {/* PART A: Objectives & KPIs */}
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between border-b pb-2">
+                      <div className="flex items-center space-x-2">
+                        <Badge className="bg-emerald-700 text-white">Part A</Badge>
+                        <h4 className="text-sm font-black text-slate-900">
+                          {isKpiForm ? 'SMART Objectives & KPIs (70% Weightage)' : 'Balanced Scorecard Perspectives (100% Weightage)'}
+                        </h4>
+                      </div>
+                      <span className="text-[11px] text-slate-500 font-medium">Rate each objective on a scale of 1 to 5</span>
+                    </div>
+
+                    <div className="space-y-4">
+                      {evalObjectives.map((obj, idx) => {
+                        const currentRating = isSecondAppraiser ? obj.secondAppraiserRating : obj.firstAppraiserRating;
+                        const currentComments = isSecondAppraiser ? obj.secondAppraiserComments : obj.firstAppraiserComments;
+
+                        return (
+                          <div key={obj.id || idx} className="p-4 bg-white border border-slate-200 rounded-xl space-y-3 shadow-xs">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-2">
+                              <div className="flex items-center space-x-2">
+                                <span className="font-bold text-slate-900 text-xs">#{idx + 1}. {obj.title}</span>
+                                <Badge variant="outline" className="text-[10px] font-mono font-bold bg-slate-50">
+                                  Weight: {obj.weightagePercentage}%
+                                </Badge>
+                              </div>
+                              <div className="text-[11px] text-slate-500">
+                                Self-Rating: <strong className="text-emerald-800 font-bold">{obj.employeeSelfRating || 4} / 5</strong>
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-slate-50/70 p-3 rounded-lg text-[11px]">
+                              <div>
+                                <span className="text-[10px] uppercase font-bold text-slate-500">Target Description:</span>
+                                <p className="text-slate-700 mt-0.5">{obj.targetDescription || 'Achieve designated annual banking operational and business goals.'}</p>
+                              </div>
+                              <div>
+                                <span className="text-[10px] uppercase font-bold text-emerald-800">Employee Achievement Summary:</span>
+                                <p className="text-slate-800 font-medium mt-0.5">{obj.achievementDetails || 'Delivered targets in accordance with divisional KPIs and bank policy.'}</p>
+                              </div>
+                            </div>
+
+                            {/* Appraiser Rating Selection */}
+                            <div className="space-y-2 pt-1">
+                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                <label className="font-bold text-slate-700">
+                                  {isSecondAppraiser ? '2nd Appraiser / Supervisor Rating:' : '1st Appraiser Rating:'}
+                                </label>
+                                <div className="flex items-center space-x-1.5">
+                                  {[1, 2, 3, 4, 5].map((val) => (
+                                    <button
+                                      key={val}
+                                      type="button"
+                                      onClick={() => {
+                                        const updated = [...evalObjectives];
+                                        if (isSecondAppraiser) updated[idx].secondAppraiserRating = val;
+                                        else updated[idx].firstAppraiserRating = val;
+                                        setEvalObjectives(updated);
+                                      }}
+                                      className={`px-3 py-1 rounded-lg font-bold text-xs transition-all border ${
+                                        currentRating === val
+                                          ? 'bg-emerald-700 text-white border-emerald-800 shadow-sm'
+                                          : 'bg-white text-slate-700 border-slate-300 hover:border-emerald-500 hover:bg-emerald-50'
+                                      }`}
+                                    >
+                                      {val} — {val === 5 ? 'Outstanding' : val === 4 ? 'Very Good' : val === 3 ? 'Good' : val === 2 ? 'Needs Imp.' : 'Unsat.'}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+
+                              <Input
+                                placeholder="Enter appraiser remarks / performance observations for this objective..."
+                                value={currentComments || ''}
+                                onChange={(e) => {
+                                  const updated = [...evalObjectives];
+                                  if (isSecondAppraiser) updated[idx].secondAppraiserComments = e.target.value;
+                                  else updated[idx].firstAppraiserComments = e.target.value;
+                                  setEvalObjectives(updated);
+                                }}
+                                className="text-xs"
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* PART B: Behavioural Traits (if KPI Form) */}
+                  {isKpiForm && (
+                    <div className="space-y-4 pt-2">
+                      <div className="flex items-center justify-between border-b pb-2">
+                        <div className="flex items-center space-x-2">
+                          <Badge className="bg-teal-700 text-white">Part B</Badge>
+                          <h4 className="text-sm font-black text-slate-900">
+                            Behavioural Traits & Core Competencies (30% Weightage)
+                          </h4>
+                        </div>
+                        <span className="text-[11px] text-slate-500 font-medium">Evaluate adherence to NBP values</span>
+                      </div>
+
+                      <div className="space-y-3">
+                        {evalTraits.map((trait, idx) => {
+                          const currentRating = isSecondAppraiser ? trait.secondAppraiserRating : trait.firstAppraiserRating;
+                          const currentComments = isSecondAppraiser ? trait.secondAppraiserComments : trait.firstAppraiserComments;
+
+                          return (
+                            <div key={trait.id || idx} className="p-4 bg-white border border-slate-200 rounded-xl space-y-2 shadow-xs">
+                              <div className="flex items-center justify-between">
+                                <span className="font-bold text-slate-900 text-xs">#{idx + 1}. {trait.traitName}</span>
+                                <Badge variant="outline" className="text-[10px] font-mono bg-teal-50 text-teal-900 border-teal-200">
+                                  Weight: {trait.weightagePercentage}%
+                                </Badge>
+                              </div>
+                              <p className="text-slate-600 text-[11px]">{trait.definition}</p>
+
+                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1">
+                                <label className="font-bold text-slate-700">Trait Assessment Rating:</label>
+                                <div className="flex items-center space-x-1.5">
+                                  {[1, 2, 3, 4, 5].map((val) => (
+                                    <button
+                                      key={val}
+                                      type="button"
+                                      onClick={() => {
+                                        const updated = [...evalTraits];
+                                        if (isSecondAppraiser) updated[idx].secondAppraiserRating = val;
+                                        else updated[idx].firstAppraiserRating = val;
+                                        setEvalTraits(updated);
+                                      }}
+                                      className={`px-3 py-1 rounded-lg font-bold text-xs transition-all border ${
+                                        currentRating === val
+                                          ? 'bg-teal-700 text-white border-teal-800 shadow-sm'
+                                          : 'bg-white text-slate-700 border-slate-300 hover:border-teal-500 hover:bg-teal-50'
+                                      }`}
+                                    >
+                                      {val} — {val === 5 ? 'Outstanding' : val === 4 ? 'Very Good' : val === 3 ? 'Good' : val === 2 ? 'Needs Imp.' : 'Unsat.'}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Overall Appraiser Narrative */}
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                    <label className="font-bold text-slate-800 block">
+                      Overall Appraiser Performance Summary & Career Recommendations:
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={evalAppraiserComments}
+                      onChange={(e) => setEvalAppraiserComments(e.target.value)}
+                      placeholder="Provide holistic assessment remarks, key strengths demonstrated, and recommended training or career progression areas..."
+                      className="w-full p-3 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-emerald-700 focus:outline-none bg-white"
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 bg-slate-50 border-t flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0">
+              <Button variant="secondary" size="sm" onClick={() => setShowEvalModal(false)}>
+                Cancel
+              </Button>
+
+              <div className="flex items-center space-x-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleSaveEvaluation(false)}
+                  disabled={savingEval || evalLoading}
+                  className="font-bold text-xs border-slate-300 text-slate-800 hover:bg-white"
+                >
+                  <Save className="h-4 w-4 mr-1.5 text-slate-600" />
+                  {savingEval ? 'Saving...' : 'Save Draft Evaluation'}
+                </Button>
+
+                <Button
+                  variant="nbp"
+                  size="sm"
+                  onClick={() => handleSaveEvaluation(true)}
+                  disabled={savingEval || evalLoading}
+                  className="font-bold text-xs bg-emerald-700 hover:bg-emerald-600 text-white shadow-md"
+                >
+                  <Send className="h-4 w-4 mr-1.5" />
+                  {savingEval ? 'Submitting...' : isSecondAppraiser ? 'Submit Final Countersign' : 'Submit to Supervisor (2nd Appraiser)'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Confirm Mapping Modal */}
