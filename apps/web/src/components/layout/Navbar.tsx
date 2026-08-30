@@ -45,22 +45,24 @@ export const Navbar: React.FC<NavbarProps> = ({ userRole, currentUser, onRoleCha
 
         <div className="flex items-center space-x-3">
           {/* Active Role Selector */}
-          <div className="flex items-center space-x-2 bg-slate-100/80 p-1.5 rounded-lg border border-slate-200">
-            <ShieldCheck className="h-4 w-4 text-emerald-700" />
-            <span className="text-xs font-semibold text-slate-600">Role:</span>
-            <select
-              value={userRole}
-              onChange={(e) => onRoleChange(e.target.value)}
-              className="bg-transparent text-xs font-bold text-slate-800 focus:outline-none cursor-pointer pr-2"
-            >
-              <option value="EndUser">End User (Staff & Appraiser)</option>
-              <option value="GroupPerformanceManager">Group Perf. Manager (GPM)</option>
-              <option value="PmwAdmin">PMW Admin</option>
-              <option value="PmwSuperAdmin">PMW Super Admin</option>
-              <option value="Auditor">Auditor</option>
-              <option value="SystemSupport">System Support</option>
-            </select>
-          </div>
+          {(!currentUser?.roles || currentUser.roles.length > 1 || ['PmwSuperAdmin', 'PmwAdmin', 'SystemSupport'].some(r => currentUser.roles?.includes(r))) && (
+            <div className="flex items-center space-x-2 bg-slate-100/80 p-1.5 rounded-lg border border-slate-200">
+              <ShieldCheck className="h-4 w-4 text-emerald-700" />
+              <span className="text-xs font-semibold text-slate-600">Role:</span>
+              <select
+                value={userRole}
+                onChange={(e) => onRoleChange(e.target.value)}
+                className="bg-transparent text-xs font-bold text-slate-800 focus:outline-none cursor-pointer pr-2"
+              >
+                <option value="EndUser">End User (Staff & Appraiser)</option>
+                <option value="GroupPerformanceManager">Group Perf. Manager (GPM)</option>
+                <option value="PmwAdmin">PMW Admin</option>
+                <option value="PmwSuperAdmin">PMW Super Admin</option>
+                <option value="Auditor">Auditor</option>
+                <option value="SystemSupport">System Support</option>
+              </select>
+            </div>
+          )}
 
           <button className="relative p-2 text-slate-600 hover:text-emerald-800 hover:bg-slate-100 rounded-lg transition-colors">
             <Bell className="h-5 w-5" />

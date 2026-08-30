@@ -447,13 +447,40 @@ public class AppraisersController : ControllerBase
 
         empCycle.UpdatedAt = DateTime.UtcNow;
 
+        WorkflowStatus? prevStatus = null;
+        WorkflowStatus? newStatus = null;
+
         if (dto.Submit)
         {
-            var targetStatus = dto.Role == "SecondAppraiser" ? WorkflowStatus.Published : WorkflowStatus.SecondAppraiserReview;
-            var transitionResult = _workflowEngine.Transition(empCycle, targetStatus, dto.ActorSapId, dto.Role);
-            if (transitionResult.Success && transitionResult.AuditLog != null)
+            WorkflowStatus targetStatus;
+            
+            if (dto.Role == "FirstAppraiser")
             {
-                _db.AuditEvents.Add(transitionResult.AuditLog);
+                // If there is a CoAppraiser, forward to them. Otherwise skip to SecondAppraiser.
+                targetStatus = empCycle.CoAppraiserId.HasValue ? WorkflowStatus.CoAppraiserReview : WorkflowStatus.SecondAppraiserReview;
+            }
+            else if (dto.Role == "CoAppraiser")
+            {
+                targetStatus = WorkflowStatus.SecondAppraiserReview;
+            }
+            else // SecondAppraiser
+            {
+                targetStatus = WorkflowStatus.GroupPerformanceManagerReview;
+            }
+            
+            var transitionResult = _workflowEngine.Transition(empCycle, targetStatus, dto.ActorSapId, dto.Role);
+            if (transitionResult.Success)
+            {
+                prevStatus = transitionResult.PreviousStatus;
+                newStatus = transitionResult.NewStatus;
+                if (transitionResult.AuditLog != null)
+                {
+                    _db.AuditEvents.Add(transitionResult.AuditLog);
+                }
+            }
+            else
+            {
+                return BadRequest(new { message = transitionResult.Message });
             }
         }
 
@@ -470,6 +497,11 @@ public class AppraisersController : ControllerBase
         _db.AuditEvents.Add(audit);
 
         await _db.SaveChangesAsync();
+
+        if (dto.Submit && prevStatus.HasValue && newStatus.HasValue)
+        {
+            await _workflowEngine.DispatchNotificationsAsync(empCycle, prevStatus.Value, newStatus.Value);
+        }
 
         return Ok(new
         {

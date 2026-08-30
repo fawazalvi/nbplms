@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Nbp.Pms.Application.Interfaces;
 using Nbp.Pms.Application.Services;
 using Nbp.Pms.Contracts.Enums;
 using Nbp.Pms.Domain.Entities;
@@ -13,11 +14,13 @@ public class AppraisalsController : ControllerBase
 {
     private readonly PmsDbContext _db;
     private readonly WorkflowEngine _workflowEngine;
+    private readonly IEmailService _emailService;
 
-    public AppraisalsController(PmsDbContext db, WorkflowEngine workflowEngine)
+    public AppraisalsController(PmsDbContext db, WorkflowEngine workflowEngine, IEmailService emailService)
     {
         _db = db;
         _workflowEngine = workflowEngine;
+        _emailService = emailService;
     }
 
     [HttpGet("my-cycles")]
@@ -103,7 +106,7 @@ public class AppraisalsController : ControllerBase
             empCycle.CoAppraiser = await _db.Employees.FirstOrDefaultAsync(e => e.SapId == empCycle.PendingCoAppraiserSapId);
         }
 
-        var objectives = await _db.Objectives.Where(o => o.EmployeeCycleId == empCycle.Id).ToListAsync();
+        var objectives = await _db.Objectives.Include(o => o.Perspective).Where(o => o.EmployeeCycleId == empCycle.Id).ToListAsync();
         var traits = await _db.BehaviourTraits.Where(t => t.EmployeeCycleId == empCycle.Id).ToListAsync();
         var score = await _db.Scores.FirstOrDefaultAsync(s => s.EmployeeCycleId == empCycle.Id);
         var developmentReview = await _db.DevelopmentReviews.FirstOrDefaultAsync(d => d.EmployeeCycleId == empCycle.Id);
@@ -236,6 +239,8 @@ public class AppraisalsController : ControllerBase
         if (result.AuditLog != null) _db.AuditEvents.Add(result.AuditLog);
         await _db.SaveChangesAsync();
 
+        await _workflowEngine.DispatchNotificationsAsync(empCycle, result.PreviousStatus, result.NewStatus);
+
         return Ok(new { message = "Self assessment submitted successfully.", currentStatus = empCycle.CurrentStatus });
     }
 
@@ -311,6 +316,8 @@ public class AppraisalsController : ControllerBase
         if (result.AuditLog != null) _db.AuditEvents.Add(result.AuditLog);
         await _db.SaveChangesAsync();
 
+        await _workflowEngine.DispatchNotificationsAsync(empCycle, result.PreviousStatus, result.NewStatus);
+
         return Ok(new { message = "Appraisal acknowledged and agreed successfully. Form is now permanently locked.", currentStatus = empCycle.CurrentStatus });
     }
 
@@ -338,7 +345,63 @@ public class AppraisalsController : ControllerBase
         if (result.AuditLog != null) _db.AuditEvents.Add(result.AuditLog);
         await _db.SaveChangesAsync();
 
+        await _workflowEngine.DispatchNotificationsAsync(empCycle, result.PreviousStatus, result.NewStatus);
+
         return Ok(new { message = "Disagreement resolved successfully. Form is now finalized.", currentStatus = empCycle.CurrentStatus });
+    }
+
+    /// <summary>
+    /// Manually triggers a test notification email for this appraisal form/evaluation so employee or appraiser can verify email delivery in real-time.
+    /// </summary>
+    [HttpPost("{id}/test-notification")]
+    public async Task<IActionResult> TestAppraisalNotification(Guid id, [FromQuery] string stage = "SelfAssessment", [FromQuery] string? recipientEmail = null)
+    {
+        var empCycle = await _db.EmployeeCycles
+            .Include(ec => ec.Employee)
+            .Include(ec => ec.FirstAppraiser)
+            .Include(ec => ec.SecondAppraiser)
+            .Include(ec => ec.CoAppraiser)
+            .FirstOrDefaultAsync(ec => ec.Id == id);
+
+        if (empCycle == null) return NotFound(new { message = "Appraisal record not found." });
+
+        WorkflowStatus fromStatus;
+        WorkflowStatus toStatus;
+
+        if (stage.Equals("FirstAppraiserAssessment", StringComparison.OrdinalIgnoreCase) || stage.Equals("AppraiserEvaluation", StringComparison.OrdinalIgnoreCase))
+        {
+            fromStatus = WorkflowStatus.FirstAppraiserAssessment;
+            toStatus = empCycle.CoAppraiserId.HasValue ? WorkflowStatus.CoAppraiserReview : WorkflowStatus.SecondAppraiserReview;
+        }
+        else if (stage.Equals("SecondAppraiserReview", StringComparison.OrdinalIgnoreCase))
+        {
+            fromStatus = WorkflowStatus.SecondAppraiserReview;
+            toStatus = WorkflowStatus.GroupPerformanceManagerReview;
+        }
+        else
+        {
+            fromStatus = WorkflowStatus.ObjectiveDraft;
+            toStatus = WorkflowStatus.FirstAppraiserAssessment;
+        }
+
+        if (!string.IsNullOrWhiteSpace(recipientEmail))
+        {
+            var sent = await _workflowEngine.SendDirectNotificationAsync(empCycle, fromStatus, toStatus, recipientEmail.Trim(), empCycle.Employee?.FullName);
+            if (sent)
+            {
+                return Ok(new { success = true, message = $"Test notification email sent successfully to {recipientEmail}!" });
+            }
+            return BadRequest(new { success = false, message = $"Failed to send test email to {recipientEmail}. Check server logs." });
+        }
+
+        await _workflowEngine.DispatchNotificationsAsync(empCycle, fromStatus, toStatus);
+
+        return Ok(new { 
+            success = true, 
+            message = $"Workflow notification triggered successfully for {fromStatus} -> {toStatus}.",
+            employee = empCycle.Employee?.FullName,
+            stage = toStatus.ToString()
+        });
     }
 }
 

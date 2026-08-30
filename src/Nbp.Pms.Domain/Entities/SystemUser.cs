@@ -18,6 +18,8 @@ public class SystemUser
     public int FailedLoginAttempts { get; set; } = 0;
     public DateTime? LastLoginAt { get; set; }
     public bool MustChangePassword { get; set; } = true;
+    public string? PasswordResetToken { get; set; }
+    public DateTime? PasswordResetTokenExpiry { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }

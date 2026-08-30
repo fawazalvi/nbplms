@@ -68,6 +68,36 @@ public class DbSeederService
                     );
                 END
 
+                IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'WorkflowNotificationConfigs')
+                BEGIN
+                    CREATE TABLE WorkflowNotificationConfigs (
+                        Id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY,
+                        TransitionKey NVARCHAR(255) NOT NULL,
+                        IsEnabled BIT NOT NULL DEFAULT 1,
+                        NotifyRoles NVARCHAR(1000) NOT NULL
+                    );
+                END
+
+                IF NOT EXISTS (SELECT TOP 1 1 FROM WorkflowNotificationConfigs)
+                BEGIN
+                    INSERT INTO WorkflowNotificationConfigs (Id, TransitionKey, IsEnabled, NotifyRoles)
+                    VALUES 
+                    (NEWID(), 'AnnualReviewSelfAssessment->FirstAppraiserAssessment', 1, 'Employee,FirstAppraiser'),
+                    (NEWID(), 'ObjectiveDraft->FirstAppraiserAssessment', 1, 'Employee,FirstAppraiser'),
+                    (NEWID(), 'FirstAppraiserAssessment->SecondAppraiserReview', 1, 'Employee,FirstAppraiser,SecondAppraiser'),
+                    (NEWID(), 'FirstAppraiserAssessment->CoAppraiserReview', 1, 'Employee,FirstAppraiser,CoAppraiser'),
+                    (NEWID(), 'CoAppraiserReview->SecondAppraiserReview', 1, 'Employee,CoAppraiser,SecondAppraiser'),
+                    (NEWID(), 'SecondAppraiserReview->GroupPerformanceManagerReview', 1, 'Employee,SecondAppraiser,GroupPerformanceManager'),
+                    (NEWID(), 'GroupPerformanceManagerReview->PmwFinalization', 1, 'Employee,GroupPerformanceManager,PmwAdmin'),
+                    (NEWID(), 'PmwFinalization->Published', 1, 'Employee,FirstAppraiser,SecondAppraiser');
+                END
+
+                IF NOT EXISTS (SELECT 1 FROM WorkflowNotificationConfigs WHERE TransitionKey = 'ObjectiveDraft->FirstAppraiserAssessment')
+                BEGIN
+                    INSERT INTO WorkflowNotificationConfigs (Id, TransitionKey, IsEnabled, NotifyRoles)
+                    VALUES (NEWID(), 'ObjectiveDraft->FirstAppraiserAssessment', 1, 'Employee,FirstAppraiser');
+                END
+
                 IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'BellCurvePolicies' AND COLUMN_NAME = 'UpdatedAt')
                 BEGIN
                     ALTER TABLE BellCurvePolicies ADD UpdatedAt DATETIME2 NULL;
@@ -139,8 +169,11 @@ public class DbSeederService
                     UPDATE Employees SET Grade = ''05'' WHERE Grade = ''VP'';
                     UPDATE Employees SET Grade = ''06'' WHERE Grade IN (''AVP'', ''Assistant Vice President'');
                     UPDATE Employees SET Grade = ''07'' WHERE Grade IN (''OG I'', ''OG_I'', ''Officer Grade I'', ''Officer Grade 1'');
-                    UPDATE Employees SET Grade = ''08'' WHERE Grade IN (''OG II'', ''OG_II'', ''Officer Grade II'', ''Officer Grade 2'');
-                    UPDATE Employees SET Grade = ''09'' WHERE Grade IN (''OG III'', ''OG_III'', ''Officer Grade III'', ''Officer Grade 3'');
+                    UPDATE Employees SET Grade = ''08'' WHERE Grade IN (''OG_II'', ''OG-II'', ''OG - II'', ''Officer Grade II'');
+                    UPDATE Employees SET Grade = ''09'' WHERE Grade IN (''OG_III'', ''OG-III'', ''OG - III'', ''Officer Grade III'');
+                    
+                    -- Ensure mock emails exist for testing
+                    UPDATE Employees SET Email = SapId + ''@nbp.com.pk'' WHERE Email IS NULL OR Email = '''';
 
                     UPDATE Employees SET ReportingGroup = ''0001'' WHERE ReportingGroup LIKE ''%Commercial%'' OR ReportingGroup = ''CBG'' OR ReportingGroup = ''Executive Office'';
                     UPDATE Employees SET ReportingGroup = ''0002'' WHERE ReportingGroup LIKE ''%Consumer%'' OR ReportingGroup = ''RBG'' OR ReportingGroup LIKE ''%Retail%'';
@@ -256,7 +289,7 @@ public class DbSeederService
         if (await _db.BellCurvePolicies.AnyAsync()) _db.BellCurvePolicies.RemoveRange(_db.BellCurvePolicies);
         if (await _db.EmployeeCycles.AnyAsync()) _db.EmployeeCycles.RemoveRange(_db.EmployeeCycles);
         if (await _db.AppraisalCycles.AnyAsync()) _db.AppraisalCycles.RemoveRange(_db.AppraisalCycles);
-        if (await _db.EmailConfigurations.AnyAsync()) _db.EmailConfigurations.RemoveRange(_db.EmailConfigurations);
+        // Note: EmailConfigurations and WorkflowNotificationConfigs are preserved so user SMTP credentials and notification routing are not lost during resets
         if (await _db.SystemUsers.AnyAsync()) _db.SystemUsers.RemoveRange(_db.SystemUsers);
         if (await _db.Employees.AnyAsync()) _db.Employees.RemoveRange(_db.Employees);
         if (await _db.KeyVersions.AnyAsync()) _db.KeyVersions.RemoveRange(_db.KeyVersions);
@@ -335,7 +368,8 @@ public class DbSeederService
             Division = "Executive",
             WingDepartment = "President Office",
             RegionBranch = "Head Office",
-            IsMrtOrMrc = true
+            IsMrtOrMrc = true,
+            Email = "pres@nbp.com.pk"
         };
 
         var sevp = new Employee
@@ -350,7 +384,8 @@ public class DbSeederService
             WingDepartment = "Group Chief Office",
             RegionBranch = "Head Office",
             IsMrtOrMrc = true,
-            FirstAppraiser = pres
+            FirstAppraiser = pres,
+            Email = "10002@nbp.com.pk"
         };
 
         var svp = new Employee
@@ -364,7 +399,8 @@ public class DbSeederService
             Division = "Corporate & Commercial",
             WingDepartment = "Commercial Division",
             RegionBranch = "Head Office",
-            FirstAppraiser = sevp
+            FirstAppraiser = sevp,
+            Email = "10003@nbp.com.pk"
         };
 
         var vp = new Employee
@@ -378,7 +414,8 @@ public class DbSeederService
             Division = "Commercial Banking",
             WingDepartment = "Regional Office",
             RegionBranch = "Karachi Central",
-            FirstAppraiser = svp
+            FirstAppraiser = svp,
+            Email = "10004@nbp.com.pk"
         };
 
         var avp = new Employee
@@ -393,7 +430,8 @@ public class DbSeederService
             WingDepartment = "Commercial Branch",
             RegionBranch = "Karachi Central",
             FirstAppraiser = vp,
-            SecondAppraiser = svp
+            SecondAppraiser = svp,
+            Email = "84920@nbp.com.pk"
         };
 
         var og1 = new Employee
@@ -408,7 +446,8 @@ public class DbSeederService
             WingDepartment = "Commercial Branch",
             RegionBranch = "Karachi Central",
             FirstAppraiser = avp,
-            SecondAppraiser = vp
+            SecondAppraiser = vp,
+            Email = "91204@nbp.com.pk"
         };
 
         var og2 = new Employee
@@ -422,7 +461,8 @@ public class DbSeederService
             Division = "Retail Operations",
             WingDepartment = "Branch Operations",
             RegionBranch = "Lahore Main",
-            FirstAppraiser = vp
+            FirstAppraiser = vp,
+            Email = "88392@nbp.com.pk"
         };
 
         var mrtAvp = new Employee
@@ -763,26 +803,29 @@ public class DbSeederService
         // SystemUsers and Portal Accounts are seeded by EnsureDefaultUsersAsync() below
 
         // 8. Email Configuration (Default Dev / SMTP setup)
-        var defaultEmailConfig = new EmailConfiguration
+        if (!await _db.EmailConfigurations.AnyAsync())
         {
-            ProviderType = "MailHog",
-            Host = "mailhog",
-            Port = 1025,
-            EncryptionType = "None",
-            RequireAuthentication = false,
-            Username = null,
-            Password = null,
-            SenderEmail = "pms-notifications@nbp.com.pk",
-            SenderDisplayName = "NBP Performance Management System",
-            ReplyToEmail = "hr-support@nbp.com.pk",
-            IsActive = true,
-            LastTestedAt = DateTime.UtcNow,
-            LastTestStatus = "Success",
-            LastTestError = null,
-            UpdatedAt = DateTime.UtcNow,
-            UpdatedByUserId = "SYSTEM_ADMIN"
-        };
-        _db.EmailConfigurations.Add(defaultEmailConfig);
+            var defaultEmailConfig = new EmailConfiguration
+            {
+                ProviderType = "MailHog",
+                Host = "mailhog",
+                Port = 1025,
+                EncryptionType = "None",
+                RequireAuthentication = false,
+                Username = null,
+                Password = null,
+                SenderEmail = "pms-notifications@nbp.com.pk",
+                SenderDisplayName = "NBP Performance Management System",
+                ReplyToEmail = "hr-support@nbp.com.pk",
+                IsActive = true,
+                LastTestedAt = DateTime.UtcNow,
+                LastTestStatus = "Success",
+                LastTestError = null,
+                UpdatedAt = DateTime.UtcNow,
+                UpdatedByUserId = "SYSTEM_ADMIN"
+            };
+            _db.EmailConfigurations.Add(defaultEmailConfig);
+        }
 
         // 9. Audit Event
         var audit1 = new AuditEvent

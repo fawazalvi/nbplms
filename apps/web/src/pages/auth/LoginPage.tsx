@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Lock, User, KeyRound, AlertCircle } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Lock, User, KeyRound, AlertCircle, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/card';
@@ -91,9 +92,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
                   <Lock className="h-3.5 w-3.5 text-emerald-700" />
                   <span>Password</span>
                 </label>
-                <a href="#forgot" className="text-[11px] font-semibold text-emerald-700 hover:underline">
+                <Link to="/forgot-password" className="text-[11px] font-semibold text-emerald-700 hover:underline">
                   Forgot?
-                </a>
+                </Link>
               </div>
               <Input
                 type="password"
@@ -121,10 +122,17 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLoginSuccess }) => {
               )}
             </Button>
 
-            <div className="text-center pt-2">
-              <p className="text-[11px] text-slate-400">
-                Protected by NBP Enterprise Auth & AES-256-GCM Envelope Encryption
-              </p>
+            <div className="text-center pt-2 space-y-3">
+              <Link to="/forgot-password" className="text-sm font-bold text-emerald-700 hover:text-emerald-800 hover:underline block">
+                First Time Setup / Sign Up
+              </Link>
+              <div className="mt-2 p-3 rounded-lg bg-emerald-50 border border-emerald-100 flex items-center justify-center space-x-2">
+                <Sparkles className="h-4 w-4 text-emerald-600" />
+                <p className="text-[10px] text-emerald-800 font-medium">
+                  Designed by <strong className="font-bold">HR Digital Transformation Team</strong><br/>
+                  SPB&DTW, SP&RD, HRMG
+                </p>
+              </div>
             </div>
           </CardFooter>
         </form>

@@ -1,9 +1,10 @@
 using Microsoft.EntityFrameworkCore;
+using Nbp.Pms.Application.Interfaces;
 using Nbp.Pms.Domain.Entities;
 
 namespace Nbp.Pms.Infrastructure.Persistence;
 
-public class PmsDbContext : DbContext
+public class PmsDbContext : DbContext, IPmsDbContext
 {
     public PmsDbContext(DbContextOptions<PmsDbContext> options) : base(options) { }
 
@@ -27,6 +28,7 @@ public class PmsDbContext : DbContext
     public DbSet<AppraisalFormAuditLog> AppraisalFormAuditLogs => Set<AppraisalFormAuditLog>();
     public DbSet<SystemUser> SystemUsers => Set<SystemUser>();
     public DbSet<EmailConfiguration> EmailConfigurations => Set<EmailConfiguration>();
+    public DbSet<WorkflowNotificationConfig> WorkflowNotificationConfigs => Set<WorkflowNotificationConfig>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

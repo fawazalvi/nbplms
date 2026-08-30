@@ -50,6 +50,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentRole, activeTab, onTabC
             title: 'System Administration',
             items: [
               { id: 'dashboard', label: 'System Admin Center', icon: LayoutDashboard },
+              { id: 'workflow-management', label: 'Workflow Engine Console', icon: Settings },
             ]
           },
           {
@@ -95,6 +96,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentRole, activeTab, onTabC
           {
             title: 'Evaluation & Workflows',
             items: [
+              { id: 'workflow-management', label: 'Workflow Engine Console', icon: Settings },
               { id: 'appraiser-setup', label: 'Appraiser Hierarchy Setup', icon: UserCog },
               { id: 'forms', label: 'Form Configurations', icon: FileSpreadsheet },
               { id: 'bellcurve', label: 'Bell Curve Calibration', icon: Scale },
@@ -145,15 +147,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentRole, activeTab, onTabC
             title: 'My Performance & Goals',
             items: [
               { id: 'dashboard', label: 'My Performance Center', icon: LayoutDashboard },
-              { id: 'my-appraisal', label: 'My Appraisal & Objectives', icon: FileCheck },
-              { id: 'my-dev-review', label: 'My Development Feedback', icon: GraduationCap },
             ]
           },
           {
             title: 'Appraisals to Conduct (Team / Peers)',
             items: [
               { id: 'team-reviews', label: 'Team Reviews Inbox', icon: Users },
-              { id: 'dev-reviews', label: 'Team Development Reviews', icon: BarChart3 },
             ]
           },
           {
@@ -224,16 +223,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentRole, activeTab, onTabC
         </div>
       </div>
 
-      {/* Security & Cryptography Badge Card */}
-      <div className="mt-6 rounded-xl bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 p-3.5 text-white space-y-1.5 border border-slate-800 shadow-sm">
-        <div className="flex items-center space-x-1.5 text-amber-400 font-bold text-xs">
-          <Shield className="h-3.5 w-3.5" />
-          <span>Field-Level Encryption</span>
-        </div>
-        <p className="text-[10px] text-slate-300 leading-relaxed">
-          Scores, ratings & appraisal comments are AES-256-GCM encrypted in database.
-        </p>
-      </div>
     </aside>
   );
 };

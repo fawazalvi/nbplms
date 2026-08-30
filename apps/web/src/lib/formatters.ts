@@ -122,3 +122,27 @@ export function formatGroupLabel(group: string | null | undefined): string {
   }
   return clean;
 }
+
+/**
+ * Formats a workflow status code or string into a human-readable badge label.
+ */
+export function formatAppraisalStatus(status: string | number | null | undefined): string {
+  if (!status) return 'Drafting';
+  const s = status.toString();
+
+  if (s === 'ObjectiveDraft' || s === '1') return 'Drafting';
+  if (s === 'ObjectiveApproval' || s === '2') return 'Objective Approval';
+  if (s === 'HalfYearReview' || s === '3') return 'Mid-Year Review';
+  if (s === 'AnnualReviewSelfAssessment' || s === '5') return 'Self-Assessment';
+  if (s.includes('FirstAppraiser') || s === '6') return '1st Appraiser Review';
+  if (s.includes('CoAppraiser') || s === '8') return 'Co-Appraiser Review';
+  if (s.includes('SecondAppraiser') || s === '7') return '2nd Appraiser Review';
+  if (s.includes('GroupPerformance') || s === '9') return 'GPM Review';
+  if (s.includes('PmwFinalization') || s === '10') return 'PMW Finalizing';
+  if (s === 'Published' || s === '11') return 'Published';
+  if (s === 'EmployeeAgreed' || s === '12') return 'Agreed';
+  if (s === 'EmployeeDisagreed' || s === '13') return 'Disagreed';
+  if (s === 'DisagreementGpmReview' || s === '14') return 'Disagreement in Review';
+  
+  return s.replace(/([A-Z])/g, ' $1').trim();
+}

@@ -187,7 +187,7 @@ public class EmployeesController : ControllerBase
                     Username = trimmedSapId,
                     PasswordHash = BCrypt.Net.BCrypt.HashPassword("Nbp@12345!"),
                     FullName = employee.FullName,
-                    Email = employee.Email ?? $"{trimmedSapId}@nbp.com.pk",
+                    Email = !string.IsNullOrWhiteSpace(employee.Email) ? employee.Email : $"{trimmedSapId}@nbp.com.pk",
                     Role = assignedRole,
                     EmployeeId = employee.Id,
                     IsActive = true,

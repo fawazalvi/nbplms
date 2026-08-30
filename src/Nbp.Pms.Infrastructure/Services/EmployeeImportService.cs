@@ -19,7 +19,8 @@ public record EmployeeImportRowDto(
     string? SecondAppraiserSapId,
     bool IsMrtOrMrc = false,
     string? Grade = null,
-    string? ReportingGroup = null
+    string? ReportingGroup = null,
+    string? Email = null
 );
 
 public record ImportResultDto(
@@ -152,7 +153,7 @@ public class EmployeeImportService
                 emp.WingDepartment = row.WingDepartment?.Trim() ?? "General";
                 emp.RegionBranch = row.RegionBranch?.Trim() ?? "Karachi Main";
                 emp.IsMrtOrMrc = row.IsMrtOrMrc;
-                emp.Email = $"{row.SapId.Trim()}@nbp.com.pk";
+                emp.Email = !string.IsNullOrWhiteSpace(row.Email) ? row.Email.Trim() : $"{row.SapId.Trim()}@nbp.com.pk";
             }
             else
             {
@@ -169,7 +170,7 @@ public class EmployeeImportService
                     WingDepartment = row.WingDepartment?.Trim() ?? "General",
                     RegionBranch = row.RegionBranch?.Trim() ?? "Karachi Main",
                     IsMrtOrMrc = row.IsMrtOrMrc,
-                    Email = $"{row.SapId.Trim()}@nbp.com.pk"
+                    Email = !string.IsNullOrWhiteSpace(row.Email) ? row.Email.Trim() : $"{row.SapId.Trim()}@nbp.com.pk"
                 };
                 _db.Employees.Add(emp);
             }

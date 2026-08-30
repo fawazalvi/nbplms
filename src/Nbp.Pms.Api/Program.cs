@@ -44,11 +44,13 @@ builder.Services.AddDbContext<PmsDbContext>(options =>
         options.UseInMemoryDatabase("NbpPmsDb_Fallback");
     }
 });
+builder.Services.AddScoped<IPmsDbContext>(sp => sp.GetRequiredService<PmsDbContext>());
 
 // Register Domain & Infrastructure Services
 var masterKey = builder.Configuration["Encryption:MasterKeyBase64"] ?? "";
 builder.Services.AddSingleton<IEncryptionService>(new AesGcmEncryptionService(masterKey));
 builder.Services.AddScoped<IEmailSender, SmtpEmailSender>();
+builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<EmployeeImportService>();
 builder.Services.AddScoped<WorkflowEngine>();
 builder.Services.AddScoped<FormCalculationService>();
@@ -65,6 +67,7 @@ using (var scope = app.Services.CreateScope())
         var db = scope.ServiceProvider.GetRequiredService<PmsDbContext>();
         db.Database.EnsureCreated();
         var seeder = scope.ServiceProvider.GetRequiredService<DbSeederService>();
+        seeder.MigrateDatabaseSchemaAsync().GetAwaiter().GetResult();
         seeder.EnsureSuperAdminOnlyAsync().GetAwaiter().GetResult();
     }
     catch (Exception ex)

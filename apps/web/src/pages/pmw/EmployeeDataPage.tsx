@@ -366,6 +366,7 @@ export const EmployeeDataPage: React.FC<EmployeeDataPageProps> = ({ userRole = '
       const firstAppraiserSapId = cols[9] || '';
       const secondAppraiserSapId = cols[10] || '';
       const isMrtOrMrc = (cols[11] || '').toLowerCase() === 'true' || (cols[11] || '').toLowerCase() === 'yes' || cols[11] === '1';
+      const email = cols[12] || '';
 
       const isEsgValid = !!matchedGrade;
       const isRpsaValid = !!matchedGroup;
@@ -394,6 +395,7 @@ export const EmployeeDataPage: React.FC<EmployeeDataPageProps> = ({ userRole = '
         firstAppraiserSapId,
         secondAppraiserSapId,
         isMrtOrMrc,
+        email,
         formType,
         isValid: isEsgValid && isRpsaValid && Boolean(sapId && fullName)
       });
@@ -445,7 +447,8 @@ export const EmployeeDataPage: React.FC<EmployeeDataPageProps> = ({ userRole = '
         regionBranch: r.regionBranch,
         firstAppraiserSapId: r.firstAppraiserSapId || null,
         secondAppraiserSapId: r.secondAppraiserSapId || null,
-        isMrtOrMrc: r.isMrtOrMrc
+        isMrtOrMrc: r.isMrtOrMrc,
+        email: r.email || null
       }));
 
       const targetCycle = selectedCycleId !== 'all' ? selectedCycleId : undefined;

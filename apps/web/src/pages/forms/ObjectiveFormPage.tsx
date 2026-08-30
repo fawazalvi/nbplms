@@ -45,7 +45,8 @@ import {
   LayoutGrid,
   ClipboardList,
   BarChart3,
-  Eye
+  Eye,
+  Mail
 } from 'lucide-react';
 
 import { ScoreSelector } from '@/components/appraisal/ScoreSelector';
@@ -138,6 +139,7 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
 
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [testingNotify, setTestingNotify] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [developmentReview, setDevelopmentReview] = useState<any>(null);
@@ -419,6 +421,24 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
       setMessage(res.message || "Self assessment submitted to your evaluators successfully.");
       await loadMyAppraisal(empCycleData.id);
     } catch (e: any) { setErrorMessage(e.message || String(e)); } finally { setSubmitting(false); }
+  };
+
+  const handleTestNotification = async () => {
+    if (!empCycleData?.id) return;
+    const defaultEmail = empCycleData?.employee?.email || "admin@nbp.com.pk";
+    const recipient = prompt("Enter recipient email address to test notification delivery for this self-assessment:", defaultEmail);
+    if (!recipient || !recipient.trim()) return;
+
+    setTestingNotify(true);
+    setErrorMessage(null);
+    try {
+      const res = await api.testAppraisalNotification(empCycleData.id, 'SelfAssessment', recipient.trim());
+      alert(res.message || "Test notification email dispatched successfully!");
+    } catch (e: any) {
+      alert(`Test notification failed: ${e.message || String(e)}`);
+    } finally {
+      setTestingNotify(false);
+    }
   };
 
   const handleAgreeAppraisal = async () => {
@@ -959,6 +979,16 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
                         <span className="font-bold text-slate-800">{totalCompletedCount}/{totalItemCount}</span> items scored • Weighted: <span className="font-bold text-emerald-700">{overallWeightedScore.toFixed(2)}</span>
                       </div>
                       <div className="flex items-center space-x-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleTestNotification}
+                          disabled={testingNotify || submitting}
+                          className="text-xs font-bold border-indigo-200 text-indigo-700 hover:bg-indigo-50 h-8"
+                        >
+                          <Mail className={`h-3.5 w-3.5 mr-1 ${testingNotify ? 'animate-spin' : ''}`} />
+                          {testingNotify ? 'Testing...' : 'Test Email Notification'}
+                        </Button>
                         <Button variant="outline" size="sm" onClick={handleSaveDraft} disabled={saving} className="text-xs font-bold border-slate-300 text-slate-700 hover:bg-slate-50 h-8">
                           <Save className="h-3.5 w-3.5 mr-1" />{saving ? 'Saving...' : 'Save Draft'}
                         </Button>

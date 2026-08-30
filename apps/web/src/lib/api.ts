@@ -46,6 +46,10 @@ export const api = {
   getMe: () => fetchApi<any>('/Auth/me'),
   changePassword: (currentPassword: string, newPassword: string) =>
     fetchApi<any>('/Auth/change-password', { method: 'POST', body: JSON.stringify({ currentPassword, newPassword }) }),
+  forgotPassword: (emailOrSapId: string) =>
+    fetchApi<any>('/Auth/forgot-password', { method: 'POST', body: JSON.stringify({ emailOrSapId }) }),
+  resetPassword: (token: string, newPassword: string) =>
+    fetchApi<any>('/Auth/reset-password', { method: 'POST', body: JSON.stringify({ token, newPassword }) }),
   getAvailableRoles: () => fetchApi<any[]>('/Users/roles'),
 
   // User Management
@@ -135,6 +139,9 @@ export const api = {
   bulkAssignCycleAppraisers: (cycleId: string, data: { employeeCycleIds: string[]; firstAppraiserSapId?: string; secondAppraiserSapId?: string; actorUserId?: string }) =>
     fetchApi<any>(`/Cycles/${cycleId}/employees/bulk-assign-appraisers`, { method: 'POST', body: JSON.stringify(data) }),
 
+  resetAppraisals: (clearObjectives: boolean = false) =>
+    fetchApi<any>(`/Admin/reset-appraisals?clearObjectives=${clearObjectives}`, { method: 'POST' }),
+
   // My Appraisal Form, Objectives & Appraiser Self-Service Updates
   getMyCycles: (sapId: string = '84920') => fetchApi<any[]>(`/Appraisals/my-cycles?sapId=${encodeURIComponent(sapId)}`),
   getMyAppraisal: (sapId: string = '84920', cycleId?: string, employeeCycleId?: string) => {
@@ -153,6 +160,8 @@ export const api = {
     }),
   submitSelfAssessment: (employeeCycleId: string, sapId: string = '84920') =>
     fetchApi<any>(`/Appraisals/${employeeCycleId}/submit?actorUserId=${sapId}&role=Employee`, { method: 'POST' }),
+  testAppraisalNotification: (employeeCycleId: string, stage: string = 'SelfAssessment', recipientEmail?: string) =>
+    fetchApi<any>(`/Appraisals/${employeeCycleId}/test-notification?stage=${encodeURIComponent(stage)}${recipientEmail ? `&recipientEmail=${encodeURIComponent(recipientEmail)}` : ''}`, { method: 'POST' }),
   getAppraisalHistory: (sapId: string = '84920') => fetchApi<any[]>(`/Appraisals/history?sapId=${encodeURIComponent(sapId)}`),
   agreeAppraisal: (employeeCycleId: string, actorUserId: string = '84920') =>
     fetchApi<any>(`/Appraisals/${employeeCycleId}/agree?actorUserId=${encodeURIComponent(actorUserId)}`, { method: 'POST' }),
@@ -219,4 +228,21 @@ export const api = {
     fetchApi<any>('/EmailConfig', { method: 'POST', body: JSON.stringify(data) }),
   testEmailConfig: (data: any) =>
     fetchApi<any>('/EmailConfig/test', { method: 'POST', body: JSON.stringify(data) }),
+
+  // Workflow Management Console
+  getWorkflowDashboard: (cycleId?: string) =>
+    fetchApi<any>(`/Admin/workflow-dashboard${cycleId ? `?cycleId=${cycleId}` : ''}`),
+  forceTransition: (employeeCycleId: string, data: { targetStatus: string; justification: string; actorSapId?: string }) =>
+    fetchApi<any>(`/Admin/force-transition/${employeeCycleId}`, { method: 'POST', body: JSON.stringify(data) }),
+  getWorkflowAudit: (statusFilter?: string, limit?: number) =>
+    fetchApi<any[]>(`/Admin/workflow-audit?${statusFilter ? `statusFilter=${encodeURIComponent(statusFilter)}&` : ''}limit=${limit || 200}`),
+  getWorkflowNotifications: () =>
+    fetchApi<any[]>('/Admin/workflow-notifications'),
+  saveWorkflowNotifications: (configs: any[]) =>
+    fetchApi<any>('/Admin/workflow-notifications', { method: 'POST', body: JSON.stringify(configs) }),
+  testWorkflowNotification: (data: { transitionKey: string; recipientEmail: string; recipientName?: string }) =>
+    fetchApi<any>('/Admin/workflow-notifications/test', { method: 'POST', body: JSON.stringify(data) }),
+  getWorkflowNotificationLogs: (limit: number = 50) =>
+    fetchApi<any[]>(`/Admin/workflow-notifications/logs?limit=${limit}`),
 };
+

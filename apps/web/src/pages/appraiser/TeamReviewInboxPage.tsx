@@ -22,12 +22,18 @@ import {
   FileText, 
   CheckSquare, 
   Clock, 
-  AlertTriangle 
+  AlertTriangle,
+  Mail
 } from 'lucide-react';
-import { formatGradeLabel, formatGroupLabel } from '@/lib/formatters';
+import { formatGradeLabel, formatGroupLabel, formatAppraisalStatus } from '@/lib/formatters';
 
-export const TeamReviewInboxPage: React.FC = () => {
-  const [currentAppraiserSapId, setCurrentAppraiserSapId] = useState('10004');
+interface TeamReviewInboxPageProps {
+  currentUser?: any;
+  userRole?: string;
+}
+
+export const TeamReviewInboxPage: React.FC<TeamReviewInboxPageProps> = ({ currentUser, userRole }) => {
+  const [currentAppraiserSapId, setCurrentAppraiserSapId] = useState(currentUser?.sapId || '10004');
   const [reviews, setReviews] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'appraisals' | 'confirmations'>('appraisals');
@@ -51,8 +57,10 @@ export const TeamReviewInboxPage: React.FC = () => {
   const [evalLoading, setEvalLoading] = useState(false);
   const [evalObjectives, setEvalObjectives] = useState<any[]>([]);
   const [evalTraits, setEvalTraits] = useState<any[]>([]);
+  const [evalDevReview, setEvalDevReview] = useState<any>(null);
   const [evalAppraiserComments, setEvalAppraiserComments] = useState('');
   const [savingEval, setSavingEval] = useState(false);
+  const [testingNotify, setTestingNotify] = useState(false);
 
   const loadReviews = async (sapId = currentAppraiserSapId) => {
     setLoading(true);
@@ -143,40 +151,68 @@ export const TeamReviewInboxPage: React.FC = () => {
           firstAppraiserComments: o.firstAppraiserComments || '',
           secondAppraiserRating: o.secondAppraiserRating || 4,
           secondAppraiserComments: o.secondAppraiserComments || '',
+          perspective: o.perspective?.name || null
         })));
       } else {
-        setEvalObjectives([
+        const mockObjectives = [
           {
-            id: 'kpi-1',
+            id: 1,
             title: 'Deposit Mobilization & CASA Growth Target',
-            weightagePercentage: 25,
-            targetDescription: 'Achieve 15% YoY growth in low-cost CASA deposits across portfolio accounts.',
-            achievementDetails: 'Exceeded target by 18.2% through active corporate and institutional client acquisition.',
-            employeeSelfRating: 4,
+            weightagePercentage: isKpiForm ? 35 : 25,
+            targetDescription: 'Increase core CASA deposit mix by 15% and acquire 50 new NTB SME relationships.',
+            achievementDetails: 'Achieved 18% CASA growth (PKR 1.2B) and onboarded 62 NTB relationships.',
+            employeeSelfRating: 5,
             firstAppraiserRating: 4,
-            firstAppraiserComments: 'Commendable performance in deposit mobilization.',
+            firstAppraiserComments: 'Outstanding deposit growth but NTB activation took longer than expected.',
+            secondAppraiserRating: 4,
+            secondAppraiserComments: '',
+            perspective: 'Financial Perspective'
           },
           {
-            id: 'kpi-2',
-            title: 'Asset Quality & NPL Portfolio Control',
-            weightagePercentage: 25,
-            targetDescription: 'Maintain gross NPL ratio below 2.5% and execute timely recovery on overdue facilities.',
-            achievementDetails: 'Recovered PKR 14.5M in overdue facilities, reducing NPL ratio to 2.1%.',
+            id: 2,
+            title: 'NPL Reduction & Portfolio Quality',
+            weightagePercentage: isKpiForm ? 20 : 25,
+            targetDescription: 'Maintain infection ratio below 3% and ensure 100% CAD compliance.',
+            achievementDetails: 'Infection ratio contained at 2.8%. Zero critical CAD audit observations.',
             employeeSelfRating: 4,
             firstAppraiserRating: 4,
-            firstAppraiserComments: 'Proactive credit monitoring and effective recovery actions.',
+            firstAppraiserComments: 'Good portfolio management.',
+            secondAppraiserRating: 4,
+            secondAppraiserComments: '',
+            perspective: 'Customer Perspective'
           },
           {
-            id: 'kpi-3',
-            title: 'Digital Branch Conversion & Customer Service SLA',
-            weightagePercentage: 20,
-            targetDescription: 'Drive digital onboarding adoption to 80% and maintain customer satisfaction rating > 90%.',
-            achievementDetails: 'Achieved 86% digital conversion with zero escalated customer complaints.',
+            id: 3,
+            title: 'Digital Banking Adoption',
+            weightagePercentage: isKpiForm ? 15 : 25,
+            targetDescription: 'Migrate 40% of branch OTC transactions to NBP Digital/ADC channels.',
+            achievementDetails: 'OTC transactions reduced by 35%. Missed target slightly due to rural demographic.',
+            employeeSelfRating: 3,
+            firstAppraiserRating: 3,
+            firstAppraiserComments: 'Needs more aggressive digital push in Q4.',
+            secondAppraiserRating: 3,
+            secondAppraiserComments: '',
+            perspective: 'Internal Process Perspective'
+          }
+        ];
+
+        if (!isKpiForm) {
+          mockObjectives.push({
+            id: 4,
+            title: 'Team Development & Training',
+            weightagePercentage: 25,
+            targetDescription: 'Ensure 100% staff complete mandatory AML/KYC and mandatory training.',
+            achievementDetails: 'All staff completed training ahead of deadline.',
             employeeSelfRating: 5,
             firstAppraiserRating: 5,
-            firstAppraiserComments: 'Outstanding digital drive and customer centricity.',
-          }
-        ]);
+            firstAppraiserComments: 'Excellent team management.',
+            secondAppraiserRating: 5,
+            secondAppraiserComments: '',
+            perspective: 'Learning & Growth Perspective'
+          });
+        }
+        
+        setEvalObjectives(mockObjectives);
       }
 
       // Load Behavioural Traits from API or generate standard NBP traits
@@ -184,7 +220,7 @@ export const TeamReviewInboxPage: React.FC = () => {
         setEvalTraits(data.traits.map((t: any) => ({
           id: t.id,
           traitName: t.traitName || 'Core Competency',
-          weightagePercentage: t.weightagePercentage || 7.5,
+          weightagePercentage: t.weightagePercentage || 10,
           definition: t.definition || '',
           firstAppraiserRating: t.firstAppraiserRating || 4,
           firstAppraiserComments: t.firstAppraiserComments || '',
@@ -194,7 +230,7 @@ export const TeamReviewInboxPage: React.FC = () => {
       } else {
         setEvalTraits([
           {
-            id: 'trait-1',
+            id: 1,
             traitName: 'Integrity, Ethics & Regulatory Compliance',
             weightagePercentage: 10,
             definition: 'Demonstrates uncompromising adherence to NBP Code of Conduct, AML/KYC policies, and banking standards.',
@@ -202,7 +238,7 @@ export const TeamReviewInboxPage: React.FC = () => {
             firstAppraiserComments: 'Exemplary ethics and compliance record.',
           },
           {
-            id: 'trait-2',
+            id: 2,
             traitName: 'Leadership, Teamwork & Collaboration',
             weightagePercentage: 10,
             definition: 'Inspires team members, fosters cross-departmental collaboration, and mentors junior staff effectively.',
@@ -210,7 +246,7 @@ export const TeamReviewInboxPage: React.FC = () => {
             firstAppraiserComments: 'Strong team player and supportive colleague.',
           },
           {
-            id: 'trait-3',
+            id: 3,
             traitName: 'Customer Centricity & Service Delivery',
             weightagePercentage: 10,
             definition: 'Prioritizes customer needs, resolves complex complaints efficiently, and delivers superior branch banking experience.',
@@ -222,6 +258,18 @@ export const TeamReviewInboxPage: React.FC = () => {
 
       if (data && data.score) {
         setEvalAppraiserComments(data.score.appraiserComments || '');
+      }
+
+      // Load Development Review
+      if (data && data.developmentReview) {
+        setEvalDevReview(data.developmentReview);
+      } else {
+        setEvalDevReview({
+          keyStrengths: 'Strong analytical skills and customer relationship management.',
+          developmentAreas: 'Needs improvement in digital banking product knowledge.',
+          trainingActionPlan: 'Enroll in advanced digital banking certification program.',
+          supervisorComments: ''
+        });
       }
     } catch (e: any) {
       console.error('Failed to load appraisal details for evaluation:', e);
@@ -273,14 +321,18 @@ export const TeamReviewInboxPage: React.FC = () => {
     try {
       const payload = {
         objectives: evalObjectives.map((o) => ({
-          id: o.id,
+          id: typeof o.id === 'number' || (typeof o.id === 'string' && !o.id.includes('-')) 
+            ? `00000000-0000-0000-0000-00000000000${o.id.toString().substring(0, 1)}` 
+            : o.id,
           firstAppraiserRating: o.firstAppraiserRating,
           firstAppraiserComments: o.firstAppraiserComments,
           secondAppraiserRating: o.secondAppraiserRating,
           secondAppraiserComments: o.secondAppraiserComments,
         })),
         traits: isKpiForm ? evalTraits.map((t) => ({
-          id: t.id,
+          id: typeof t.id === 'number' || (typeof t.id === 'string' && !t.id.includes('-')) 
+            ? `00000000-0000-0000-0000-00000000000${t.id.toString().substring(0, 1)}` 
+            : t.id,
           firstAppraiserRating: t.firstAppraiserRating,
           firstAppraiserComments: t.firstAppraiserComments,
           secondAppraiserRating: t.secondAppraiserRating,
@@ -303,6 +355,24 @@ export const TeamReviewInboxPage: React.FC = () => {
     }
   };
 
+  const handleTestNotification = async () => {
+    if (!evalReview) return;
+    const defaultEmail = currentUser?.email || "admin@nbp.com.pk";
+    const recipient = prompt("Enter recipient email address to test notification delivery for this evaluation:", defaultEmail);
+    if (!recipient || !recipient.trim()) return;
+
+    setTestingNotify(true);
+    try {
+      const stage = isSecondAppraiser ? 'SecondAppraiserReview' : 'FirstAppraiserAssessment';
+      const res = await api.testAppraisalNotification(evalReview.id, stage, recipient.trim());
+      alert(res.message || "Test workflow notification dispatched successfully!");
+    } catch (e: any) {
+      alert(`Test notification failed: ${e.message || String(e)}`);
+    } finally {
+      setTestingNotify(false);
+    }
+  };
+
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-12">
       {/* Header Banner */}
@@ -321,16 +391,22 @@ export const TeamReviewInboxPage: React.FC = () => {
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
           <div className="flex items-center space-x-2 bg-white/10 p-1.5 rounded-xl border border-white/20 text-xs">
             <span className="text-slate-300 font-bold">Appraiser Context:</span>
-            <select
-              value={currentAppraiserSapId}
-              onChange={(e) => setCurrentAppraiserSapId(e.target.value)}
-              className="bg-slate-800 text-emerald-300 font-mono font-bold rounded-lg px-2.5 py-1 text-xs focus:outline-none border border-slate-700"
-            >
-              <option value="10004">10004 — Tariq Mahmood (VP)</option>
-              <option value="10003">10003 — Rashid Khan (SVP)</option>
-              <option value="10002">10002 — Khalid Farooq (SEVP)</option>
-              <option value="84920">84920 — Fawaz Ahmed (AVP)</option>
-            </select>
+            {userRole === 'PmwAdmin' || userRole === 'PmwSuperAdmin' ? (
+              <select
+                value={currentAppraiserSapId}
+                onChange={(e) => setCurrentAppraiserSapId(e.target.value)}
+                className="bg-slate-800 text-emerald-300 font-mono font-bold rounded-lg px-2.5 py-1 text-xs focus:outline-none border border-slate-700"
+              >
+                <option value="10004">10004 — Tariq Mahmood (VP)</option>
+                <option value="10003">10003 — Rashid Khan (SVP)</option>
+                <option value="10002">10002 — Khalid Farooq (SEVP)</option>
+                <option value="84920">84920 — Fawaz Ahmed (AVP)</option>
+              </select>
+            ) : (
+              <span className="bg-slate-800 text-emerald-300 font-mono font-bold rounded-lg px-2.5 py-1 text-xs border border-slate-700">
+                {currentAppraiserSapId}
+              </span>
+            )}
           </div>
           <Button variant="secondary" size="sm" onClick={() => loadReviews(currentAppraiserSapId)}>
             <RefreshCw className="h-4 w-4 mr-1" />
@@ -386,52 +462,122 @@ export const TeamReviewInboxPage: React.FC = () => {
             {loading ? (
               <div className="p-8 text-center text-xs text-slate-500">Loading team review records...</div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs text-left">
-                  <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold uppercase">
-                    <tr>
-                      <th className="p-3">SAP ID</th>
-                      <th className="p-3">Employee Name</th>
-                      <th className="p-3">Grade</th>
-                      <th className="p-3">Reporting Group</th>
-                      <th className="p-3">Assigned Form Type</th>
-                      <th className="p-3">Line Validation</th>
-                      <th className="p-3">Current Status</th>
-                      <th className="p-3 text-right">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {reviews.map((r) => (
-                      <tr key={r.id} className="hover:bg-slate-50">
-                        <td className="p-3 font-mono font-bold text-slate-900">{r.sapId}</td>
-                        <td className="p-3 font-bold text-slate-900">{r.employeeName}</td>
-                        <td className="p-3"><Badge variant="secondary" className="font-bold">{formatGradeLabel(r.grade)}</Badge></td>
-                        <td className="p-3 text-slate-700 font-medium">{formatGroupLabel(r.group)}</td>
-                        <td className="p-3"><Badge variant="nbp" className="text-[10px]">{r.formType}</Badge></td>
-                        <td className="p-3">
-                          <Badge
-                            variant={r.appraiserValidationStatus === 'Validated' ? 'success' : r.appraiserValidationStatus === 'PendingConfirmation' ? 'warning' : 'danger'}
-                            className="text-[10px]"
-                          >
-                            {r.appraiserValidationStatus || 'Validated'}
-                          </Badge>
-                        </td>
-                        <td className="p-3"><Badge variant="warning">{r.currentStatus}</Badge></td>
-                        <td className="p-3 text-right">
+              <div className="space-y-4">
+                {reviews.length === 0 ? (
+                  <div className="text-center p-8 text-slate-500 text-sm">No appraisals found in your inbox.</div>
+                ) : (
+                  reviews.map((r) => {
+                    const isFirst = r.firstAppraiserSapId === currentAppraiserSapId;
+                    const isSecond = r.secondAppraiserSapId === currentAppraiserSapId;
+                    const roleBadgeVariant = isFirst ? 'nbp' : isSecond ? 'warning' : 'secondary';
+                    const roleLabel = isFirst ? '1st Appraiser' : isSecond ? '2nd Appraiser' : 'Co-Appraiser';
+                    
+                    return (
+                      <div 
+                        key={r.id} 
+                        className={`group flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-white border rounded-xl shadow-sm hover:shadow-md transition-all duration-200 ${isSecond ? 'border-amber-200 bg-amber-50/20' : 'border-slate-200 hover:border-emerald-200'}`}
+                      >
+                        <div className="flex items-start space-x-4">
+                          <div className={`h-12 w-12 rounded-full flex items-center justify-center font-black text-lg text-white shadow-sm shrink-0 ${isSecond ? 'bg-amber-600' : 'bg-gradient-to-br from-emerald-500 to-emerald-700'}`}>
+                            {r.employeeName.charAt(0)}
+                          </div>
+                          <div className="space-y-1.5">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h4 className="font-black text-slate-900 text-sm">{r.employeeName}</h4>
+                              <Badge variant="outline" className="font-mono text-[10px] bg-slate-50 text-slate-600 border-slate-200 shadow-none">SAP: {r.sapId}</Badge>
+                              <Badge variant={roleBadgeVariant} className="font-bold text-[10px] shadow-sm">{roleLabel}</Badge>
+                            </div>
+                            
+                            <div className="text-xs text-slate-500 flex flex-wrap items-center gap-1.5 font-medium">
+                              <span className="text-slate-700">{formatGradeLabel(r.grade)}</span>
+                              <span className="text-slate-300">•</span>
+                              <span className="text-slate-600">{formatGroupLabel(r.group)}</span>
+                              <span className="text-slate-300">•</span>
+                              <span className="font-bold text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded-md">{r.formType}</span>
+                            </div>
+                            
+                            <div className="flex flex-wrap items-center gap-3 pt-1">
+                              <div className="flex items-center space-x-1.5">
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Status:</span>
+                                <Badge variant="warning" className="text-[10px] font-bold bg-amber-100 text-amber-800 border-amber-200">
+                                  {formatAppraisalStatus(r.currentStatus)}
+                                </Badge>
+                              </div>
+                              <div className="flex items-center space-x-1.5">
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Line Validation:</span>
+                                <Badge
+                                  variant={r.appraiserValidationStatus === 'Validated' ? 'success' : r.appraiserValidationStatus === 'PendingConfirmation' ? 'warning' : 'danger'}
+                                  className="text-[10px]"
+                                >
+                                  {r.appraiserValidationStatus || 'Validated'}
+                                </Badge>
+                              </div>
+                            </div>
+                            
+                            {/* Appraisee vs Appraiser Ratings Display */}
+                            {['AnnualReviewSelfAssessment', 'FirstAppraiserAssessment', 'SecondAppraiserReview', 'CoAppraiserReview', 'GroupPerformanceManagerReview', 'PmwFinalization', 'Published', 'EmployeeAgreed', 'EmployeeDisagreed'].some(s => (r.currentStatus || '').toString().includes(s) || ['5','6','7','8','9','10','11','12','13'].includes((r.currentStatus || '').toString())) && (
+                              <div className="flex flex-wrap items-center gap-4 mt-2 px-3 py-1.5 bg-slate-50/80 border border-slate-100 rounded-lg w-max shadow-[inset_0_1px_2px_rgba(0,0,0,0.02)]">
+                                <div className="flex flex-col">
+                                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">Appraisee Self</span>
+                                  <span className="text-xs font-black text-slate-700">
+                                    {r.employeeSelfScore !== undefined && r.employeeSelfScore !== null && !isNaN(Number(r.employeeSelfScore)) ? (
+                                      <>{Number(r.employeeSelfScore).toFixed(1)} <span className="font-semibold text-slate-400 text-[10px]">/ 100</span></>
+                                    ) : (
+                                      <span className="text-[10px] text-slate-500 font-medium italic">
+                                        {['1','2','3','ObjectiveDraft','ObjectiveApproval','HalfYearReview'].includes((r.currentStatus || '').toString()) ? 'Pending Phase' : 
+                                         ['5','AnnualReviewSelfAssessment'].includes((r.currentStatus || '').toString()) ? 'In Progress' : 'Submitted'}
+                                      </span>
+                                    )}
+                                  </span>
+                                </div>
+                                <div className="w-px h-6 bg-slate-200"></div>
+                                <div className="flex flex-col">
+                                  <span className="text-[9px] font-bold text-emerald-600 uppercase tracking-wide">1st Appraiser</span>
+                                  <span className="text-xs font-black text-emerald-800">
+                                    {r.firstAppraiserScore !== undefined && r.firstAppraiserScore !== null && !isNaN(Number(r.firstAppraiserScore)) ? (
+                                      <>{Number(r.firstAppraiserScore).toFixed(1)} <span className="font-semibold text-emerald-600/50 text-[10px]">/ 100</span></>
+                                    ) : (
+                                      <span className="text-[10px] text-emerald-600/70 font-medium italic">
+                                        {['1','2','3','5','ObjectiveDraft','ObjectiveApproval','HalfYearReview','AnnualReviewSelfAssessment'].includes((r.currentStatus || '').toString()) ? 'Pending' : 
+                                         ['6','FirstAppraiserAssessment'].includes((r.currentStatus || '').toString()) ? 'In Progress' : 'Submitted'}
+                                      </span>
+                                    )}
+                                  </span>
+                                </div>
+                                <div className="w-px h-6 bg-slate-200"></div>
+                                <div className="flex flex-col">
+                                  <span className="text-[9px] font-bold text-amber-600 uppercase tracking-wide">2nd Appraiser</span>
+                                  <span className="text-xs font-black text-amber-800">
+                                    {r.secondAppraiserScore !== undefined && r.secondAppraiserScore !== null && !isNaN(Number(r.secondAppraiserScore)) ? (
+                                      <>{Number(r.secondAppraiserScore).toFixed(1)} <span className="font-semibold text-amber-600/50 text-[10px]">/ 100</span></>
+                                    ) : (
+                                      <span className="text-[10px] text-amber-600/70 font-medium italic">
+                                        {['1','2','3','5','6','8','ObjectiveDraft','ObjectiveApproval','HalfYearReview','AnnualReviewSelfAssessment','FirstAppraiserAssessment','CoAppraiserReview'].includes((r.currentStatus || '').toString()) ? 'Pending' : 
+                                         ['7','SecondAppraiserReview'].includes((r.currentStatus || '').toString()) ? 'In Progress' : 'Submitted'}
+                                      </span>
+                                    )}
+                                  </span>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        
+                        <div className="mt-4 sm:mt-0 shrink-0">
                           <Button 
                             variant="nbp" 
                             size="sm"
                             onClick={() => handleOpenEvaluate(r)}
-                            className="bg-emerald-700 hover:bg-emerald-600 text-white font-bold text-xs"
+                            className={`${isSecond ? 'bg-amber-700 hover:bg-amber-600' : 'bg-emerald-700 hover:bg-emerald-600'} text-white font-bold text-xs shadow-sm w-full sm:w-auto transition-colors`}
                           >
                             Evaluate Appraisal
-                            <ChevronRight className="ml-1 h-3.5 w-3.5" />
+                            <ChevronRight className="ml-1 h-3.5 w-3.5 group-hover:translate-x-1 transition-transform" />
                           </Button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
               </div>
             )}
           </CardContent>
@@ -649,6 +795,13 @@ export const TeamReviewInboxPage: React.FC = () => {
 
                         return (
                           <div key={obj.id || idx} className="p-4 bg-white border border-slate-200 rounded-xl space-y-3 shadow-xs">
+                            {obj.perspective && (
+                              <div className="mb-1">
+                                <span className="inline-block px-2 py-1 bg-slate-100 text-slate-600 font-bold text-[9px] uppercase tracking-wider rounded-md border border-slate-200">
+                                  Perspective: {obj.perspective}
+                                </span>
+                              </div>
+                            )}
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-2">
                               <div className="flex items-center space-x-2">
                                 <span className="font-bold text-slate-900 text-xs">#{idx + 1}. {obj.title}</span>
@@ -671,6 +824,27 @@ export const TeamReviewInboxPage: React.FC = () => {
                                 <p className="text-slate-800 font-medium mt-0.5">{obj.achievementDetails || 'Delivered targets in accordance with divisional KPIs and bank policy.'}</p>
                               </div>
                             </div>
+
+                            {/* 1st Appraiser Context for 2nd Appraiser */}
+                            {isSecondAppraiser && (
+                              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-[11px] mt-3 shadow-sm">
+                                <span className="text-[10px] uppercase font-bold text-amber-800 block mb-1">1st Appraiser Assessment (For Reference)</span>
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                  <p className="text-amber-900 italic font-medium">"{obj.firstAppraiserComments || 'No specific comments provided by 1st Appraiser.'}"</p>
+                                  <Badge className="bg-amber-200 text-amber-900 border-amber-300 font-bold shrink-0">
+                                    Rating: {obj.firstAppraiserRating || 3} / 5
+                                  </Badge>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Rating Distinction Warning */}
+                            {currentRating && obj.employeeSelfRating && currentRating !== obj.employeeSelfRating && (
+                              <div className="flex items-center space-x-1.5 text-rose-600 text-[10px] font-bold mt-2">
+                                <AlertCircle className="h-3.5 w-3.5" />
+                                <span>Note: Your rating ({currentRating}) differs from the Employee's Self-Rating ({obj.employeeSelfRating}). Ensure justification is provided below.</span>
+                              </div>
+                            )}
 
                             {/* Appraiser Rating Selection */}
                             <div className="space-y-2 pt-1">
@@ -747,6 +921,19 @@ export const TeamReviewInboxPage: React.FC = () => {
                               </div>
                               <p className="text-slate-600 text-[11px]">{trait.definition}</p>
 
+                              {/* 1st Appraiser Context for 2nd Appraiser */}
+                              {isSecondAppraiser && (
+                                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-[11px] mt-2 shadow-sm">
+                                  <span className="text-[10px] uppercase font-bold text-amber-800 block mb-1">1st Appraiser Assessment (For Reference)</span>
+                                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                                    <p className="text-amber-900 italic font-medium">"{trait.firstAppraiserComments || 'No specific comments provided by 1st Appraiser.'}"</p>
+                                    <Badge className="bg-amber-200 text-amber-900 border-amber-300 font-bold shrink-0">
+                                      Rating: {trait.firstAppraiserRating || 3} / 5
+                                    </Badge>
+                                  </div>
+                                </div>
+                              )}
+
                               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1">
                                 <label className="font-bold text-slate-700">Trait Assessment Rating:</label>
                                 <div className="flex items-center space-x-1.5">
@@ -778,6 +965,44 @@ export const TeamReviewInboxPage: React.FC = () => {
                     </div>
                   )}
 
+                  {/* PART C: Employee Development Review */}
+                  {evalDevReview && (
+                    <div className="space-y-4 pt-2">
+                      <div className="flex items-center justify-between border-b pb-2">
+                        <div className="flex items-center space-x-2">
+                          <Badge className="bg-blue-700 text-white">Part C</Badge>
+                          <h4 className="text-sm font-black text-slate-900">
+                            Employee Development Review
+                          </h4>
+                        </div>
+                        <span className="text-[11px] text-slate-500 font-medium">Training & Progression Needs</span>
+                      </div>
+
+                      <div className="p-4 bg-white border border-slate-200 rounded-xl space-y-4 shadow-xs text-xs">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <label className="font-bold text-slate-700 block mb-1">Key Strengths:</label>
+                            <div className="p-2.5 bg-slate-50 border border-slate-100 rounded-lg text-slate-600 italic">
+                              {evalDevReview.keyStrengths || 'No key strengths recorded by employee.'}
+                            </div>
+                          </div>
+                          <div>
+                            <label className="font-bold text-slate-700 block mb-1">Areas for Development:</label>
+                            <div className="p-2.5 bg-slate-50 border border-slate-100 rounded-lg text-slate-600 italic">
+                              {evalDevReview.developmentAreas || 'No development areas recorded by employee.'}
+                            </div>
+                          </div>
+                        </div>
+                        <div>
+                          <label className="font-bold text-slate-700 block mb-1">Proposed Training Action Plan:</label>
+                          <div className="p-2.5 bg-slate-50 border border-slate-100 rounded-lg text-slate-600 italic">
+                            {evalDevReview.trainingActionPlan || 'No training plan recorded by employee.'}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Overall Appraiser Narrative */}
                   <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
                     <label className="font-bold text-slate-800 block">
@@ -802,6 +1027,17 @@ export const TeamReviewInboxPage: React.FC = () => {
               </Button>
 
               <div className="flex items-center space-x-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleTestNotification}
+                  disabled={testingNotify || evalLoading}
+                  className="font-bold text-xs border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+                >
+                  <Mail className={`h-4 w-4 mr-1.5 ${testingNotify ? 'animate-spin' : ''}`} />
+                  {testingNotify ? 'Testing...' : 'Test Email Notification'}
+                </Button>
+
                 <Button
                   variant="outline"
                   size="sm"

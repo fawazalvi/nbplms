@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Nbp.Pms.Contracts.DTOs;
 using Nbp.Pms.Domain.Entities;
 using Nbp.Pms.Infrastructure.Persistence;
+using Nbp.Pms.Application.Interfaces;
 
 namespace Nbp.Pms.Api.Controllers;
 
@@ -221,6 +222,90 @@ public class AuthController : ControllerBase
     public IActionResult Logout()
     {
         return Ok(new { message = "Logged out successfully." });
+    }
+
+    [HttpPost("forgot-password")]
+    public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequestDto request, [FromServices] IEmailService emailService)
+    {
+        if (string.IsNullOrWhiteSpace(request.EmailOrSapId))
+            return BadRequest(new { message = "SAP ID or Email is required." });
+
+        var term = request.EmailOrSapId.Trim().ToLower();
+        var user = await _db.SystemUsers.Include(u => u.Employee)
+            .FirstOrDefaultAsync(u => u.Username.ToLower() == term || u.Email!.ToLower() == term);
+
+        if (user == null)
+        {
+            // If user doesn't exist in SystemUsers, maybe they are in Employees (first time setup).
+            var emp = await _db.Employees.FirstOrDefaultAsync(e => e.SapId.ToLower() == term || e.Email!.ToLower() == term);
+            if (emp != null)
+            {
+                // Create the user for first time setup
+                user = new SystemUser
+                {
+                    Username = emp.SapId,
+                    PasswordHash = BCrypt.Net.BCrypt.HashPassword(Guid.NewGuid().ToString()), // dummy password
+                    FullName = emp.FullName,
+                    Email = emp.Email ?? $"{emp.SapId}@nbp.com.pk",
+                    Role = "Employee", // Default role
+                    EmployeeId = emp.Id,
+                    IsActive = true,
+                    MustChangePassword = true,
+                    CreatedAt = DateTime.UtcNow
+                };
+                _db.SystemUsers.Add(user);
+                await _db.SaveChangesAsync();
+            }
+        }
+
+        if (user != null)
+        {
+            string token = Guid.NewGuid().ToString("N");
+            user.PasswordResetToken = token;
+            user.PasswordResetTokenExpiry = DateTime.UtcNow.AddHours(1);
+            await _db.SaveChangesAsync();
+
+            string email = user.Email ?? $"{user.Username}@nbp.com.pk";
+            await emailService.SendPasswordResetEmailAsync(email, user.FullName, user.Username, token);
+        }
+
+        // Always return success to prevent user enumeration
+        return Ok(new { message = "If an account matching that SAP ID exists, a password reset link has been sent to the registered email." });
+    }
+
+    [HttpPost("reset-password")]
+    public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequestDto request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Token) || string.IsNullOrWhiteSpace(request.NewPassword))
+            return BadRequest(new { message = "Token and New Password are required." });
+
+        var user = await _db.SystemUsers.FirstOrDefaultAsync(u => u.PasswordResetToken == request.Token);
+        
+        if (user == null || user.PasswordResetTokenExpiry == null || user.PasswordResetTokenExpiry < DateTime.UtcNow)
+        {
+            return BadRequest(new { message = "Invalid or expired password reset token." });
+        }
+
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
+        user.PasswordResetToken = null;
+        user.PasswordResetTokenExpiry = null;
+        user.MustChangePassword = false;
+        user.UpdatedAt = DateTime.UtcNow;
+
+        _db.AuditEvents.Add(new AuditEvent
+        {
+            EventType = "USER_PASSWORD_RESET",
+            ActorUserId = user.Username,
+            ActorRole = user.Role,
+            TargetEntityId = user.Id.ToString(),
+            TargetEntityType = nameof(SystemUser),
+            ActionDescription = $"Password successfully reset using secure token for {user.FullName} ({user.Username}).",
+            Timestamp = DateTime.UtcNow
+        });
+
+        await _db.SaveChangesAsync();
+
+        return Ok(new { message = "Password has been reset successfully. You can now login." });
     }
 
     private static List<string> GetPermissionsForRole(string role) => role switch
