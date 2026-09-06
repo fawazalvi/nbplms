@@ -193,7 +193,11 @@ public class AppraisersController : ControllerBase
                 ec.PendingFirstAppraiserSapId,
                 ec.PendingSecondAppraiserSapId,
                 ec.PendingCoAppraiserSapId,
-                ec.AppraiserRejectionReason
+                ec.AppraiserRejectionReason,
+                CanConfirmLine = (ec.FirstAppraiser != null && ec.FirstAppraiser.SapId == appraiserSapId) ||
+                                 (ec.SecondAppraiser != null && ec.SecondAppraiser.SapId == appraiserSapId) ||
+                                 (ec.PendingFirstAppraiserSapId == appraiserSapId) ||
+                                 (ec.PendingSecondAppraiserSapId == appraiserSapId)
             };
         }).ToList();
 
@@ -214,12 +218,33 @@ public class AppraisersController : ControllerBase
 
         string firstSap = dto.FirstAppraiserSapId?.Trim() ?? empCycle.PendingFirstAppraiserSapId ?? "";
         string secondSap = dto.SecondAppraiserSapId?.Trim() ?? empCycle.PendingSecondAppraiserSapId ?? "";
+        string? coSap = !string.IsNullOrWhiteSpace(dto.CoAppraiserSapId) 
+            ? dto.CoAppraiserSapId.Trim() 
+            : empCycle.PendingCoAppraiserSapId;
 
         var firstApp = await _db.Employees.FirstOrDefaultAsync(e => e.SapId == firstSap);
         var secondApp = await _db.Employees.FirstOrDefaultAsync(e => e.SapId == secondSap);
+        var coApp = !string.IsNullOrWhiteSpace(coSap) ? await _db.Employees.FirstOrDefaultAsync(e => e.SapId == coSap) : null;
 
         if (firstApp != null) empCycle.FirstAppraiserId = firstApp.Id;
         if (secondApp != null) empCycle.SecondAppraiserId = secondApp.Id;
+        if (coApp != null) 
+        {
+            empCycle.CoAppraiserId = coApp.Id;
+        }
+        else if (string.IsNullOrWhiteSpace(coSap))
+        {
+            empCycle.CoAppraiserId = null;
+        }
+
+        // Synchronize master Employee record so Co-Appraiser persists across all views
+        if (empCycle.Employee != null)
+        {
+            if (firstApp != null) empCycle.Employee.FirstAppraiserId = firstApp.Id;
+            if (secondApp != null) empCycle.Employee.SecondAppraiserId = secondApp.Id;
+            empCycle.Employee.CoAppraiserId = coApp?.Id;
+            empCycle.Employee.UpdatedAt = DateTime.UtcNow;
+        }
 
         empCycle.AppraiserValidationStatus = "Validated";
         empCycle.AppraiserValidatedAt = DateTime.UtcNow;
@@ -237,13 +262,43 @@ public class AppraisersController : ControllerBase
             ActorRole = "FirstAppraiser",
             TargetEntityId = empCycle.Id.ToString(),
             TargetEntityType = nameof(EmployeeCycle),
-            ActionDescription = $"Confirmed Appraiser & Supervisor mapping for employee {empCycle.Employee?.FullName} (SAP ID: {empCycle.Employee?.SapId}). 1st Appraiser: {firstSap}, Supervisor: {secondSap}.",
+            ActionDescription = $"Confirmed Appraiser, Co-Appraiser & Supervisor mapping for employee {empCycle.Employee?.FullName} (SAP ID: {empCycle.Employee?.SapId}). 1st Appraiser: {firstSap}, Co-Appraiser: {coSap ?? "None"}, Supervisor: {secondSap}.",
             Timestamp = DateTime.UtcNow
         };
         _db.AuditEvents.Add(audit);
 
         await _db.SaveChangesAsync();
-        return Ok(new { message = "Appraiser and Supervisor mapping confirmed & validated successfully.", employeeCycle = empCycle });
+
+        empCycle.FirstAppraiser = firstApp;
+        empCycle.SecondAppraiser = secondApp;
+        empCycle.CoAppraiser = coApp;
+
+        return Ok(new 
+        { 
+            message = "Appraiser, Co-Appraiser and Supervisor mapping confirmed & validated successfully.", 
+            employeeCycle = new
+            {
+                empCycle.Id,
+                empCycle.EmployeeId,
+                empCycle.CycleId,
+                empCycle.AssignedFormType,
+                empCycle.CurrentStatus,
+                empCycle.FirstAppraiserId,
+                empCycle.SecondAppraiserId,
+                empCycle.CoAppraiserId,
+                FirstAppraiser = firstApp != null ? new { firstApp.Id, firstApp.SapId, firstApp.FullName, firstApp.Grade, firstApp.Designation, firstApp.ReportingGroup } : null,
+                SecondAppraiser = secondApp != null ? new { secondApp.Id, secondApp.SapId, secondApp.FullName, secondApp.Grade, secondApp.Designation, secondApp.ReportingGroup } : null,
+                CoAppraiser = coApp != null ? new { coApp.Id, coApp.SapId, coApp.FullName, coApp.Grade, coApp.Designation, coApp.ReportingGroup } : null,
+                FirstAppraiserSapId = firstApp?.SapId ?? firstSap,
+                SecondAppraiserSapId = secondApp?.SapId ?? secondSap,
+                CoAppraiserSapId = coApp?.SapId ?? coSap,
+                empCycle.AppraiserValidationStatus,
+                empCycle.AppraiserValidatedAt,
+                empCycle.AppraiserValidatedBySapId,
+                empCycle.CreatedAt,
+                empCycle.UpdatedAt
+            }
+        });
     }
 
     /// <summary>
@@ -373,8 +428,39 @@ public class AppraisersController : ControllerBase
 
         if (empCycle == null) return NotFound(new { message = "Appraisal record not found." });
 
+        // Enforce Non-Re-Review Rule: Once an appraiser's evaluation has been submitted and moved to subsequent stages, re-evaluating is prohibited
+        if (dto.Role == "CoAppraiser" && empCycle.CurrentStatus != WorkflowStatus.CoAppraiserReview)
+        {
+            return BadRequest(new { message = "Co-Appraisal evaluation has already been submitted and cannot be modified or re-reviewed." });
+        }
+        if (dto.Role == "FirstAppraiser" && empCycle.CurrentStatus != WorkflowStatus.FirstAppraiserAssessment)
+        {
+            if (empCycle.CurrentStatus == WorkflowStatus.CoAppraiserReview)
+            {
+                return BadRequest(new { message = "Co-Appraiser review is currently in progress. 1st Appraiser evaluation can only be submitted after the Co-Appraiser completes their review." });
+            }
+            return BadRequest(new { message = "1st Appraiser evaluation has already been submitted and cannot be modified or re-reviewed." });
+        }
+        if (dto.Role == "SecondAppraiser" && empCycle.CurrentStatus != WorkflowStatus.SecondAppraiserReview)
+        {
+            return BadRequest(new { message = "2nd Appraiser countersign is not pending or has already been finalized and cannot be re-reviewed." });
+        }
+
         var objectives = await _db.Objectives.Where(o => o.EmployeeCycleId == id).ToListAsync();
         var traits = await _db.BehaviourTraits.Where(t => t.EmployeeCycleId == id).ToListAsync();
+        if (empCycle.AssignedFormType == FormType.KpiForm && traits.Count == 0)
+        {
+            traits = new List<BehaviourTrait>
+            {
+                new BehaviourTrait { EmployeeCycleId = empCycle.Id, TraitName = "Integrity & Professional Ethics", Definition = "Demonstrates high standards of honesty, fairness, compliance with banking regulations and NBP code of conduct.", WeightagePercentage = 6.0m, FirstAppraiserRating = 4 },
+                new BehaviourTrait { EmployeeCycleId = empCycle.Id, TraitName = "Teamwork & Collaboration", Definition = "Works effectively with colleagues, supports cross-functional goals and promotes positive work atmosphere.", WeightagePercentage = 6.0m, FirstAppraiserRating = 4 },
+                new BehaviourTrait { EmployeeCycleId = empCycle.Id, TraitName = "Job Knowledge & Execution", Definition = "Applies functional skills effectively, delivers high-quality outputs with attention to detail and accuracy.", WeightagePercentage = 6.0m, FirstAppraiserRating = 4 },
+                new BehaviourTrait { EmployeeCycleId = empCycle.Id, TraitName = "Initiative & Innovation", Definition = "Proactively identifies opportunities, proposes solutions and drives continuous improvement.", WeightagePercentage = 6.0m, FirstAppraiserRating = 4 },
+                new BehaviourTrait { EmployeeCycleId = empCycle.Id, TraitName = "Customer Focus & Service Excellence", Definition = "Prioritizes customer needs, resolves issues promptly and maintains high service standards.", WeightagePercentage = 6.0m, FirstAppraiserRating = 4 },
+            };
+            _db.BehaviourTraits.AddRange(traits);
+            await _db.SaveChangesAsync();
+        }
 
         // Update Objectives
         if (dto.Objectives != null)
@@ -384,16 +470,29 @@ public class AppraisersController : ControllerBase
                 var obj = objectives.FirstOrDefault(o => o.Id == objDto.Id);
                 if (obj != null)
                 {
-                    if (dto.Role == "SecondAppraiser")
+                    if (dto.Role == "CoAppraiser")
+                    {
+                        // Co-Appraiser can only evaluate and score objectives flagged by the appraisee
+                        if (obj.RequiresCoAppraiserReview)
+                        {
+                            if (objDto.CoAppraiserRating.HasValue) obj.CoAppraiserRating = objDto.CoAppraiserRating.Value;
+                            else if (objDto.FirstAppraiserRating.HasValue) obj.CoAppraiserRating = objDto.FirstAppraiserRating.Value;
+                            if (objDto.CoAppraiserComments != null)
+                                obj.EncryptedConfidentialComments = objDto.CoAppraiserComments;
+                            else if (objDto.FirstAppraiserComments != null)
+                                obj.EncryptedConfidentialComments = objDto.FirstAppraiserComments;
+                        }
+                    }
+                    else if (dto.Role == "SecondAppraiser")
                     {
                         if (objDto.SecondAppraiserRating.HasValue) obj.SecondAppraiserRating = objDto.SecondAppraiserRating.Value;
-                        if (!string.IsNullOrWhiteSpace(objDto.SecondAppraiserComments))
+                        if (objDto.SecondAppraiserComments != null)
                             obj.EncryptedConfidentialComments = objDto.SecondAppraiserComments;
                     }
                     else
                     {
                         if (objDto.FirstAppraiserRating.HasValue) obj.FirstAppraiserRating = objDto.FirstAppraiserRating.Value;
-                        if (!string.IsNullOrWhiteSpace(objDto.FirstAppraiserComments))
+                        if (objDto.FirstAppraiserComments != null)
                             obj.EncryptedConfidentialComments = objDto.FirstAppraiserComments;
                     }
                     obj.UpdatedAt = DateTime.UtcNow;
@@ -412,21 +511,63 @@ public class AppraisersController : ControllerBase
                     if (dto.Role == "SecondAppraiser")
                     {
                         if (traitDto.SecondAppraiserRating.HasValue) trait.FirstAppraiserRating = traitDto.SecondAppraiserRating.Value;
-                        if (!string.IsNullOrWhiteSpace(traitDto.SecondAppraiserComments))
+                        if (traitDto.SecondAppraiserComments != null)
                             trait.EncryptedConfidentialComments = traitDto.SecondAppraiserComments;
                     }
                     else
                     {
                         if (traitDto.FirstAppraiserRating.HasValue) trait.FirstAppraiserRating = traitDto.FirstAppraiserRating.Value;
-                        if (!string.IsNullOrWhiteSpace(traitDto.FirstAppraiserComments))
+                        if (traitDto.FirstAppraiserComments != null)
                             trait.EncryptedConfidentialComments = traitDto.FirstAppraiserComments;
                     }
                 }
             }
         }
 
+        // Update Development Review (Key Strengths, Development Areas, Training Action Plan, Supervisor Comments)
+        if (dto.DevelopmentReview != null)
+        {
+            var devReview = await _db.DevelopmentReviews.FirstOrDefaultAsync(d => d.EmployeeCycleId == id);
+            if (devReview == null)
+            {
+                devReview = new DevelopmentReview
+                {
+                    EmployeeCycleId = id,
+                    KeyStrengths = dto.DevelopmentReview.KeyStrengths ?? "",
+                    DevelopmentAreas = dto.DevelopmentReview.DevelopmentAreas ?? "",
+                    TrainingActionPlan = dto.DevelopmentReview.TrainingActionPlan ?? "",
+                    SupervisorComments = dto.DevelopmentReview.SupervisorComments,
+                    IsSubmitted = dto.Submit,
+                    SubmittedAt = dto.Submit ? DateTime.UtcNow : null,
+                    SubmittedByUserId = Guid.Empty
+                };
+                _db.DevelopmentReviews.Add(devReview);
+            }
+            else
+            {
+                if (dto.DevelopmentReview.KeyStrengths != null)
+                    devReview.KeyStrengths = dto.DevelopmentReview.KeyStrengths;
+                if (dto.DevelopmentReview.DevelopmentAreas != null)
+                    devReview.DevelopmentAreas = dto.DevelopmentReview.DevelopmentAreas;
+                if (dto.DevelopmentReview.TrainingActionPlan != null)
+                    devReview.TrainingActionPlan = dto.DevelopmentReview.TrainingActionPlan;
+                if (dto.DevelopmentReview.SupervisorComments != null)
+                    devReview.SupervisorComments = dto.DevelopmentReview.SupervisorComments;
+
+                if (dto.Submit)
+                {
+                    devReview.IsSubmitted = true;
+                    devReview.SubmittedAt = DateTime.UtcNow;
+                }
+            }
+        }
+
+        var appraiserComments = !string.IsNullOrWhiteSpace(dto.SecondAppraiserComments)
+            ? dto.SecondAppraiserComments
+            : dto.FirstAppraiserComments;
+
         // Calculate and save composite score
-        var calculatedScore = _calcService.CalculateAndEncryptScore(id, objectives, traits);
+        var calculatedScore = _calcService.CalculateAndEncryptScore(id, objectives, traits, appraiserComments, 1, empCycle.AssignedFormType);
         var existingScore = await _db.Scores.FirstOrDefaultAsync(s => s.EmployeeCycleId == id);
         if (existingScore != null)
         {
@@ -454,18 +595,38 @@ public class AppraisersController : ControllerBase
         {
             WorkflowStatus targetStatus;
             
-            if (dto.Role == "FirstAppraiser")
+            if (dto.Role == "CoAppraiser")
             {
-                // If there is a CoAppraiser, forward to them. Otherwise skip to SecondAppraiser.
-                targetStatus = empCycle.CoAppraiserId.HasValue ? WorkflowStatus.CoAppraiserReview : WorkflowStatus.SecondAppraiserReview;
+                // Sequential Step 1 -> Step 2: Co-Appraiser forwards to 1st Appraiser
+                targetStatus = WorkflowStatus.FirstAppraiserAssessment;
             }
-            else if (dto.Role == "CoAppraiser")
+            else if (dto.Role == "FirstAppraiser")
             {
-                targetStatus = WorkflowStatus.SecondAppraiserReview;
+                // Enforce Sequential Non-Parallel Rule: If Co-Appraiser review is still pending, block 1st Appraiser submission
+                if (empCycle.CurrentStatus == WorkflowStatus.CoAppraiserReview)
+                {
+                    return BadRequest(new { 
+                        message = "Co-Appraiser review is currently in progress. 1st Appraiser evaluation can only be submitted after the Co-Appraiser completes their review." 
+                    });
+                }
+
+                // Sequential Step 2 -> Step 3: 1st Appraiser forwards to 2nd Appraiser / Supervisor
+                if (empCycle.SecondAppraiserId.HasValue || !string.IsNullOrWhiteSpace(empCycle.PendingSecondAppraiserSapId))
+                    targetStatus = WorkflowStatus.SecondAppraiserReview;
+                else
+                    targetStatus = WorkflowStatus.Published; // Sent to Appraisee for Agreement
             }
             else // SecondAppraiser
             {
-                targetStatus = WorkflowStatus.GroupPerformanceManagerReview;
+                // Enforce Sequential Non-Parallel Rule: If 1st Appraiser or Co-Appraiser hasn't evaluated yet, block countersign
+                if (empCycle.CurrentStatus == WorkflowStatus.CoAppraiserReview || empCycle.CurrentStatus == WorkflowStatus.FirstAppraiserAssessment)
+                {
+                    return BadRequest(new { 
+                        message = "This appraisal must be evaluated and submitted by the 1st Appraiser before 2nd Appraiser countersign can proceed." 
+                    });
+                }
+
+                targetStatus = WorkflowStatus.Published; // Countersigned & Published to Appraisee for Agreement
             }
             
             var transitionResult = _workflowEngine.Transition(empCycle, targetStatus, dto.ActorSapId, dto.Role);
@@ -511,20 +672,157 @@ public class AppraisersController : ControllerBase
             employeeCycle = empCycle
         });
     }
+
+    /// <summary>
+    /// Bulk accepts 1st Appraiser ratings for multiple employee appraisals as 2nd Appraiser / Countersigning Officer,
+    /// calculates scores, marks Development Reviews as completed, and transitions workflow to GroupPerformanceManagerReview.
+    /// </summary>
+    [HttpPost("bulk-accept-second-appraiser")]
+    public async Task<IActionResult> BulkAcceptSecondAppraiser([FromBody] BulkAcceptSecondAppraiserDto dto)
+    {
+        if (dto.EmployeeCycleIds == null || dto.EmployeeCycleIds.Count == 0)
+        {
+            return BadRequest(new { message = "No appraisal records selected for bulk acceptance." });
+        }
+
+        int processedCount = 0;
+        var processedEmployees = new List<string>();
+
+        foreach (var cycleId in dto.EmployeeCycleIds)
+        {
+            var empCycle = await _db.EmployeeCycles
+                .Include(ec => ec.Employee)
+                .Include(ec => ec.Cycle)
+                .FirstOrDefaultAsync(ec => ec.Id == cycleId);
+
+            if (empCycle == null) continue;
+
+            // Load objectives and traits
+            var objectives = await _db.Objectives.Where(o => o.EmployeeCycleId == cycleId).ToListAsync();
+            var traits = await _db.BehaviourTraits.Where(t => t.EmployeeCycleId == cycleId).ToListAsync();
+
+            // Set SecondAppraiserRating equal to FirstAppraiserRating (or EmployeeSelfRating as fallback)
+            foreach (var obj in objectives)
+            {
+                var targetRating = obj.FirstAppraiserRating.HasValue && obj.FirstAppraiserRating.Value > 0
+                    ? obj.FirstAppraiserRating.Value
+                    : (obj.EmployeeSelfRating.HasValue && obj.EmployeeSelfRating.Value > 0 ? obj.EmployeeSelfRating.Value : 3);
+                
+                obj.SecondAppraiserRating = targetRating;
+                if (string.IsNullOrWhiteSpace(obj.EncryptedConfidentialComments))
+                {
+                    obj.EncryptedConfidentialComments = "Accepted 1st Appraiser Rating.";
+                }
+                obj.UpdatedAt = DateTime.UtcNow;
+            }
+
+            foreach (var trait in traits)
+            {
+                if (!trait.FirstAppraiserRating.HasValue || trait.FirstAppraiserRating.Value == 0)
+                {
+                    trait.FirstAppraiserRating = 4;
+                }
+            }
+
+            // Update Development Review
+            var devReview = await _db.DevelopmentReviews.FirstOrDefaultAsync(d => d.EmployeeCycleId == cycleId);
+            if (devReview != null)
+            {
+                devReview.IsSubmitted = true;
+                devReview.SubmittedAt = DateTime.UtcNow;
+                if (string.IsNullOrWhiteSpace(devReview.SupervisorComments))
+                {
+                    devReview.SupervisorComments = "Agreed and countersigned in bulk by 2nd Appraiser.";
+                }
+            }
+
+            // Calculate and persist Score
+            var calculatedScore = _calcService.CalculateAndEncryptScore(cycleId, objectives, traits, null, 1, empCycle.AssignedFormType);
+            var existingScore = await _db.Scores.FirstOrDefaultAsync(s => s.EmployeeCycleId == cycleId);
+            if (existingScore != null)
+            {
+                existingScore.ObjectiveTotalScore = calculatedScore.ObjectiveTotalScore;
+                existingScore.TraitTotalScore = calculatedScore.TraitTotalScore;
+                existingScore.FinalCompositeScore = calculatedScore.FinalCompositeScore;
+                existingScore.FinalRatingLevel = calculatedScore.FinalRatingLevel;
+                existingScore.EncryptedObjectiveScore = calculatedScore.EncryptedObjectiveScore;
+                existingScore.EncryptedTraitScore = calculatedScore.EncryptedTraitScore;
+                existingScore.EncryptedFinalScore = calculatedScore.EncryptedFinalScore;
+                existingScore.EncryptedAppraiserComments = calculatedScore.EncryptedAppraiserComments;
+                existingScore.CalculatedAt = DateTime.UtcNow;
+            }
+            else
+            {
+                _db.Scores.Add(calculatedScore);
+            }
+
+            empCycle.UpdatedAt = DateTime.UtcNow;
+
+            // Transition Workflow to Published so employee can review and agree
+            var transitionResult = _workflowEngine.Transition(empCycle, WorkflowStatus.Published, dto.ActorSapId, "SecondAppraiser");
+            if (transitionResult.Success)
+            {
+                if (transitionResult.AuditLog != null)
+                {
+                    _db.AuditEvents.Add(transitionResult.AuditLog);
+                }
+
+                _db.AuditEvents.Add(new AuditEvent
+                {
+                    EventType = "APPRAISAL_EVALUATION_BULK_COUNTERSIGNED",
+                    ActorUserId = dto.ActorSapId,
+                    ActorRole = "SecondAppraiser",
+                    TargetEntityId = empCycle.Id.ToString(),
+                    TargetEntityType = nameof(EmployeeCycle),
+                    ActionDescription = $"2nd Appraiser {dto.ActorSapId} bulk accepted 1st Appraiser ratings and countersigned appraisal for {empCycle.Employee?.FullName} (SAP ID: {empCycle.Employee?.SapId}). Final Score: {calculatedScore.FinalCompositeScore:F2}, Rating: {calculatedScore.FinalRatingLevel}.",
+                    Timestamp = DateTime.UtcNow
+                });
+
+                if (transitionResult.PreviousStatus != transitionResult.NewStatus)
+                {
+                    await _workflowEngine.DispatchNotificationsAsync(empCycle, transitionResult.PreviousStatus, transitionResult.NewStatus);
+                }
+
+                processedCount++;
+                processedEmployees.Add(empCycle.Employee?.FullName ?? empCycle.Id.ToString());
+            }
+        }
+
+        await _db.SaveChangesAsync();
+
+        return Ok(new
+        {
+            success = true,
+            processedCount,
+            processedEmployees,
+            message = $"Successfully countersigned and evaluated {processedCount} appraisal(s) in bulk. Progressed to Group Performance Manager Review."
+        });
+    }
 }
 
+public record BulkAcceptSecondAppraiserDto(List<Guid> EmployeeCycleIds, string ActorSapId = "10004");
 public record ConfirmAppraiserDto(string FirstAppraiserSapId, string SecondAppraiserSapId, string? CoAppraiserSapId, string ActorSapId = "10004");
 public record RejectAppraiserDto(string RejectionReason, string ActorSapId = "10004");
 public record AdminAppraiserActionDto(string ActorSapId = "admin");
+public record SaveDevelopmentReviewDto(string? KeyStrengths, string? DevelopmentAreas, string? TrainingActionPlan, string? SupervisorComments);
 public record SaveAppraiserEvaluationDto(
     List<ObjectiveRatingDto>? Objectives,
     List<TraitRatingDto>? Traits,
+    SaveDevelopmentReviewDto? DevelopmentReview,
     string? FirstAppraiserComments,
     string? SecondAppraiserComments,
     string ActorSapId = "10004",
     string Role = "FirstAppraiser",
     bool Submit = false
 );
-public record ObjectiveRatingDto(Guid Id, int? FirstAppraiserRating, string? FirstAppraiserComments, int? SecondAppraiserRating, string? SecondAppraiserComments);
+public record ObjectiveRatingDto(
+    Guid Id, 
+    int? FirstAppraiserRating, 
+    string? FirstAppraiserComments, 
+    int? SecondAppraiserRating, 
+    string? SecondAppraiserComments,
+    int? CoAppraiserRating = null,
+    string? CoAppraiserComments = null
+);
 public record TraitRatingDto(Guid Id, int? FirstAppraiserRating, string? FirstAppraiserComments, int? SecondAppraiserRating, string? SecondAppraiserComments);
 

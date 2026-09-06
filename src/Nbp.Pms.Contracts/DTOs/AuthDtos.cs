@@ -10,7 +10,8 @@ public record UserDto(
     string SapId,
     List<string> Roles,
     List<string> Permissions,
-    bool MustChangePassword
+    bool MustChangePassword,
+    string? AssignedReportingGroups = null
 );
 
 public record ChangePasswordRequestDto(string CurrentPassword, string NewPassword);

@@ -130,48 +130,49 @@ public class WorkflowEngine
             return true;
         }
 
-        // 5. Submit Self Assessment to First Appraiser Assessment (Supports combined Objective/Achievement submission)
-        if ((from == WorkflowStatus.AnnualReviewSelfAssessment || from == WorkflowStatus.ObjectiveDraft) && to == WorkflowStatus.FirstAppraiserAssessment)
+        // 5. Submit Self Assessment to Co-Appraiser Review or First Appraiser Assessment
+        if ((from == WorkflowStatus.AnnualReviewSelfAssessment || from == WorkflowStatus.ObjectiveDraft) && 
+            (to == WorkflowStatus.CoAppraiserReview || to == WorkflowStatus.FirstAppraiserAssessment))
         {
             if (role != "Employee" && role != "PmwAdmin" && role != "PmwSuperAdmin")
             {
-                errorMessage = "Only the employee can submit the self assessment.";
+                errorMessage = "Only the employee or PMW Admin can submit the self assessment.";
                 return false;
             }
             return true;
         }
 
-        // 6. First Appraiser to Second Appraiser OR CoAppraiser
-        if (from == WorkflowStatus.FirstAppraiserAssessment && (to == WorkflowStatus.SecondAppraiserReview || to == WorkflowStatus.CoAppraiserReview))
+        // 6b. Co-Appraiser review forwarding (Sequential: Co-Appraiser forwards to 1st Appraiser!)
+        if (role == "CoAppraiser" || from == WorkflowStatus.CoAppraiserReview)
         {
-            if (role != "FirstAppraiser" && role != "PmwAdmin" && role != "PmwSuperAdmin")
+            if (to == WorkflowStatus.FirstAppraiserAssessment || to == WorkflowStatus.SecondAppraiserReview)
             {
-                errorMessage = "Only First Appraiser can forward assessment.";
-                return false;
+                return true;
             }
-            return true;
+            errorMessage = "Invalid target stage for Co-Appraiser review. Co-Appraisal must forward to 1st Appraiser.";
+            return false;
         }
 
-        // 6b. CoAppraiser to Second Appraiser
-        if (from == WorkflowStatus.CoAppraiserReview && to == WorkflowStatus.SecondAppraiserReview)
+        // 6. First Appraiser evaluation forwarding (Sequential: 1st Appraiser forwards to 2nd Appraiser or Published)
+        if (role == "FirstAppraiser" || from == WorkflowStatus.FirstAppraiserAssessment)
         {
-            if (role != "CoAppraiser" && role != "PmwAdmin" && role != "PmwSuperAdmin")
+            if (to == WorkflowStatus.SecondAppraiserReview || to == WorkflowStatus.Published || to == WorkflowStatus.GroupPerformanceManagerReview)
             {
-                errorMessage = "Only Co-Appraiser can forward assessment to Second Appraiser.";
-                return false;
+                return true;
             }
-            return true;
+            errorMessage = "Invalid target stage for First Appraiser evaluation.";
+            return false;
         }
 
-        // 7. Second Appraiser to GPM Review
-        if (from == WorkflowStatus.SecondAppraiserReview && to == WorkflowStatus.GroupPerformanceManagerReview)
+        // 7. Second Appraiser evaluation / countersign forwarding
+        if (role == "SecondAppraiser" || from == WorkflowStatus.SecondAppraiserReview)
         {
-            if (role != "SecondAppraiser" && role != "PmwAdmin" && role != "PmwSuperAdmin")
+            if (to == WorkflowStatus.Published || to == WorkflowStatus.GroupPerformanceManagerReview)
             {
-                errorMessage = "Only Second Appraiser can countersign.";
-                return false;
+                return true;
             }
-            return true;
+            errorMessage = "Invalid target stage for Second Appraiser countersign.";
+            return false;
         }
 
         // 8. GPM Review to PMW Finalization
@@ -196,10 +197,10 @@ public class WorkflowEngine
             return true;
         }
 
-        // 10. Publication Acknowledgement: Agree
-        if (from == WorkflowStatus.Published && to == WorkflowStatus.EmployeeAgreed)
+        // 10. Publication / Evaluation Acknowledgement: Agree
+        if ((from == WorkflowStatus.Published || from == WorkflowStatus.SecondAppraiserReview || from == WorkflowStatus.GroupPerformanceManagerReview) && to == WorkflowStatus.EmployeeAgreed)
         {
-            if (role != "Employee")
+            if (role != "Employee" && role != "PmwAdmin" && role != "PmwSuperAdmin")
             {
                 errorMessage = "Only the employee can acknowledge agreement.";
                 return false;
@@ -207,10 +208,10 @@ public class WorkflowEngine
             return true;
         }
 
-        // 11. Publication Acknowledgement: Disagree (Mandatory comments required)
-        if (from == WorkflowStatus.Published && to == WorkflowStatus.EmployeeDisagreed)
+        // 11. Publication / Evaluation Acknowledgement: Disagree (Mandatory comments required)
+        if ((from == WorkflowStatus.Published || from == WorkflowStatus.SecondAppraiserReview || from == WorkflowStatus.GroupPerformanceManagerReview) && to == WorkflowStatus.EmployeeDisagreed)
         {
-            if (role != "Employee")
+            if (role != "Employee" && role != "PmwAdmin" && role != "PmwSuperAdmin")
             {
                 errorMessage = "Only the employee can record disagreement.";
                 return false;
@@ -252,8 +253,16 @@ public class WorkflowEngine
     {
         var transitionKey = $"{previousStatus}->{newStatus}";
         
-        var config = await _db.WorkflowNotificationConfigs
-            .FirstOrDefaultAsync(c => c.TransitionKey == transitionKey);
+        WorkflowNotificationConfig? config = null;
+        try
+        {
+            config = await _db.WorkflowNotificationConfigs
+                .FirstOrDefaultAsync(c => c.TransitionKey == transitionKey);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"[WORKFLOW NOTIFY] Notice: Could not read WorkflowNotificationConfigs ({ex.Message}). Falling back to standard workflow routing.");
+        }
 
         string notifyRolesString;
         if (config != null)
@@ -274,12 +283,14 @@ public class WorkflowEngine
                 "AnnualReviewSelfAssessment->FirstAppraiserAssessment" => "Employee,FirstAppraiser",
                 "FirstAppraiserAssessment->SecondAppraiserReview" => "Employee,FirstAppraiser,SecondAppraiser",
                 "FirstAppraiserAssessment->CoAppraiserReview" => "Employee,FirstAppraiser,CoAppraiser",
+                "FirstAppraiserAssessment->Published" => "Employee,FirstAppraiser,GroupPerformanceManager",
                 "CoAppraiserReview->SecondAppraiserReview" => "Employee,CoAppraiser,SecondAppraiser",
+                "SecondAppraiserReview->Published" => "Employee,FirstAppraiser,SecondAppraiser,GroupPerformanceManager",
                 "SecondAppraiserReview->GroupPerformanceManagerReview" => "Employee,SecondAppraiser,GroupPerformanceManager",
                 "GroupPerformanceManagerReview->PmwFinalization" => "Employee,GroupPerformanceManager,PmwAdmin",
                 "PmwFinalization->Published" => "Employee,FirstAppraiser,SecondAppraiser",
-                "Published->EmployeeAgreed" => "Employee,FirstAppraiser,SecondAppraiser",
-                "Published->EmployeeDisagreed" => "Employee,FirstAppraiser,GroupPerformanceManager",
+                "Published->EmployeeAgreed" => "Employee,FirstAppraiser,SecondAppraiser,GroupPerformanceManager",
+                "Published->EmployeeDisagreed" => "Employee,FirstAppraiser,SecondAppraiser,GroupPerformanceManager",
                 _ => "Employee,FirstAppraiser,SecondAppraiser"
             };
             Console.WriteLine($"[WORKFLOW NOTIFY] Using default notification routing for {transitionKey}: {notifyRolesString}");
@@ -541,6 +552,14 @@ public class WorkflowEngine
                 ActionOwner: "2nd Appraiser (Supervisor)"
             ),
 
+            "SecondAppraiserReview->Published" or "FirstAppraiserAssessment->Published" => (
+                Subject: $"[NBP PMS 2.0] Appraisal Evaluation Completed — Forwarded to Appraisee for Agreement: {employeeName}",
+                StageHeadline: "Appraiser Evaluation Completed — Acknowledgment Required",
+                WhatHappened: "Both First and Second Appraisers have completed their assessments, scoring, and developmental recommendations. The appraisal has been forwarded to the employee for review and agreement.",
+                NextActionText: $"The Appraisee ({employeeName}) is requested to log in to the NBP PMS Portal, inspect the appraisal ratings and performance summary, and record formal agreement or submit disagreement with mandatory justification.",
+                ActionOwner: $"Appraisee ({employeeName})"
+            ),
+
             "SecondAppraiserReview->GroupPerformanceManagerReview" => (
                 Subject: $"[NBP PMS 2.0] Appraisal Countersigned — Under GPM Review: {employeeName}",
                 StageHeadline: "Appraiser Evaluations Completed — Forwarded to Group Management",
@@ -622,17 +641,23 @@ public class WorkflowEngine
         return $@"
         <table style='width: 100%; max-width: 650px; margin: 0 auto; font-family: -apple-system, BlinkMacSystemFont, ""Segoe UI"", Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; border-collapse: collapse; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);'>
           <tr>
-            <td style='background: linear-gradient(135deg, #005a2c 0%, #007a3d 100%); padding: 24px 30px; text-align: left; color: #ffffff;'>
-              <table style='width: 100%; border-collapse: collapse;'>
+            <td bgcolor='#004d25' style='background-color: #004d25; background: #004d25; padding: 24px 30px; text-align: left; color: #ffffff;'>
+              <table style='width: 100%; border-collapse: collapse;' bgcolor='#004d25'>
                 <tr>
-                  <td>
-                    <div style='font-size: 20px; font-weight: 800; letter-spacing: -0.5px; color: #ffffff;'>NATIONAL BANK OF PAKISTAN</div>
-                    <div style='font-size: 12px; font-weight: 600; color: #a7f3d0; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px;'>Performance Management System (PMS 2.0)</div>
+                  <td style='vertical-align: middle;'>
+                    <div style='font-size: 20px; font-weight: 900; letter-spacing: -0.5px; color: #ffffff !important; font-family: -apple-system, BlinkMacSystemFont, ""Segoe UI"", Roboto, Helvetica, Arial, sans-serif;'>NATIONAL BANK OF PAKISTAN</div>
+                    <div style='font-size: 13px; font-weight: 700; color: #fde047 !important; margin-top: 5px; text-transform: uppercase; letter-spacing: 0.5px; font-family: -apple-system, BlinkMacSystemFont, ""Segoe UI"", Roboto, Helvetica, Arial, sans-serif;'>Performance Management System (PMS 2.0)</div>
                   </td>
-                  <td style='text-align: right;'>
-                    <span style='background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); color: #ffffff; font-size: 11px; font-weight: 700; padding: 6px 12px; border-radius: 20px; text-transform: uppercase;'>
-                      Workflow Alert
-                    </span>
+                  <td style='text-align: right; vertical-align: middle;'>
+                    <table style='border-collapse: collapse; display: inline-table; margin-left: auto;'>
+                      <tr>
+                        <td bgcolor='#022c16' style='background-color: #022c16; border: 1.5px solid #34d399; padding: 6px 14px; border-radius: 16px; text-align: center;'>
+                          <span style='color: #ffffff !important; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; font-family: -apple-system, BlinkMacSystemFont, ""Segoe UI"", Roboto, Helvetica, Arial, sans-serif; white-space: nowrap;'>
+                            Workflow Alert
+                          </span>
+                        </td>
+                      </tr>
+                    </table>
                   </td>
                 </tr>
               </table>

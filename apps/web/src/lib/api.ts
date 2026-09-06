@@ -70,6 +70,15 @@ export const api = {
     const query = new URLSearchParams(params as any).toString();
     return fetchApi<any[]>(`/Employees${query ? `?${query}` : ''}`);
   },
+  searchEmployees: (query: string) => fetchApi<any[]>(`/Employees/search?query=${encodeURIComponent(query)}`),
+  getEmployeeBySap: async (sapId: string): Promise<any> => {
+    try {
+      const res = await fetchApi<any[]>(`/Employees/search?query=${encodeURIComponent(sapId)}`);
+      return Array.isArray(res) && res.length > 0 ? res[0] : null;
+    } catch {
+      return null;
+    }
+  },
   getEmployeeById: (id: string) => fetchApi<any>(`/Employees/${id}`),
   createEmployee: (data: any) =>
     fetchApi<any>('/Employees', { method: 'POST', body: JSON.stringify(data) }),
@@ -136,7 +145,7 @@ export const api = {
     fetchApi<any>(`/Cycles/${cycleId}/employees/bulk-unassign`, { method: 'POST', body: JSON.stringify(data) }),
   bulkOverrideCycleFormType: (cycleId: string, data: { employeeCycleIds: string[]; formType: string; actorUserId?: string }) =>
     fetchApi<any>(`/Cycles/${cycleId}/employees/bulk-override-form-type`, { method: 'POST', body: JSON.stringify(data) }),
-  bulkAssignCycleAppraisers: (cycleId: string, data: { employeeCycleIds: string[]; firstAppraiserSapId?: string; secondAppraiserSapId?: string; actorUserId?: string }) =>
+  bulkAssignCycleAppraisers: (cycleId: string, data: { employeeCycleIds: string[]; firstAppraiserSapId?: string; secondAppraiserSapId?: string; coAppraiserSapId?: string; actorUserId?: string }) =>
     fetchApi<any>(`/Cycles/${cycleId}/employees/bulk-assign-appraisers`, { method: 'POST', body: JSON.stringify(data) }),
 
   resetAppraisals: (clearObjectives: boolean = false) =>
@@ -165,10 +174,27 @@ export const api = {
   getAppraisalHistory: (sapId: string = '84920') => fetchApi<any[]>(`/Appraisals/history?sapId=${encodeURIComponent(sapId)}`),
   agreeAppraisal: (employeeCycleId: string, actorUserId: string = '84920') =>
     fetchApi<any>(`/Appraisals/${employeeCycleId}/agree?actorUserId=${encodeURIComponent(actorUserId)}`, { method: 'POST' }),
-  recordDisagreement: (employeeCycleId: string, sapId: string, reason: string) =>
+  recordDisagreement: (
+    employeeCycleId: string,
+    sapId: string,
+    reason: string,
+    attachment?: {
+      fileName?: string;
+      fileData?: string;
+      fileSize?: number;
+      fileType?: string;
+    }
+  ) =>
     fetchApi<any>(`/Appraisals/${employeeCycleId}/disagree`, {
       method: 'POST',
-      body: JSON.stringify({ sapId, reason }),
+      body: JSON.stringify({
+        sapId,
+        reason,
+        attachmentFileName: attachment?.fileName,
+        attachmentFileData: attachment?.fileData,
+        attachmentFileSizeBytes: attachment?.fileSize,
+        attachmentFileType: attachment?.fileType,
+      }),
     }),
   resolveAppraisalDisagreement: (employeeCycleId: string, data: { actorUserId: string; resolutionNotes: string }) =>
     fetchApi<any>(`/Appraisals/${employeeCycleId}/resolve-disagreement`, {
@@ -179,7 +205,7 @@ export const api = {
   // Appraiser Team Reviews & Mapping Confirmations
   getTeamReviews: (appraiserSapId: string = '10004') =>
     fetchApi<any[]>(`/Appraisers/team-reviews?appraiserSapId=${appraiserSapId}`),
-  confirmAppraiserMapping: (employeeCycleId: string, data: { firstAppraiserSapId: string; secondAppraiserSapId: string; actorSapId?: string }) =>
+  confirmAppraiserMapping: (employeeCycleId: string, data: { firstAppraiserSapId: string; secondAppraiserSapId: string; coAppraiserSapId?: string | null; actorSapId?: string }) =>
     fetchApi<any>(`/Appraisers/${employeeCycleId}/confirm-appraiser-mapping`, { method: 'POST', body: JSON.stringify(data) }),
   rejectAppraiserMapping: (employeeCycleId: string, data: { rejectionReason: string; actorSapId?: string }) =>
     fetchApi<any>(`/Appraisers/${employeeCycleId}/reject-appraiser-mapping`, { method: 'POST', body: JSON.stringify(data) }),
@@ -189,6 +215,8 @@ export const api = {
     fetchApi<any>(`/Appraisers/${employeeCycleId}/reset-appraiser-line`, { method: 'POST', body: JSON.stringify({ actorSapId }) }),
   evaluateAppraisal: (employeeCycleId: string, data: any) =>
     fetchApi<any>(`/Appraisers/${employeeCycleId}/evaluate`, { method: 'POST', body: JSON.stringify(data) }),
+  bulkAcceptSecondAppraiser: (employeeCycleIds: string[], actorSapId: string = '10004') =>
+    fetchApi<any>('/Appraisers/bulk-accept-second-appraiser', { method: 'POST', body: JSON.stringify({ employeeCycleIds, actorSapId }) }),
 
   // Development Review
   getDevelopmentReview: (employeeCycleId: string) =>
@@ -206,6 +234,7 @@ export const api = {
 
   // Disagreements
   getDisagreements: () => fetchApi<any[]>('/Disagreements'),
+  getDisagreementAttachment: (id: string) => fetchApi<any>(`/Disagreements/${id}/attachment`),
   resolveDisagreement: (id: string, notes: string, actorUserId: string = 'PMW_ADMIN') =>
     fetchApi<any>(`/Disagreements/${id}/resolve`, {
       method: 'POST',
@@ -217,6 +246,28 @@ export const api = {
     fetchApi<any[]>(`/Reminders/preview?group=${encodeURIComponent(group || '')}&grade=${encodeURIComponent(grade || '')}`),
   sendReminders: (data: { group: string; grade: string; subject: string; messageBody: string; actorUserId: string }) =>
     fetchApi<any>('/Reminders/send', { method: 'POST', body: JSON.stringify(data) }),
+  nudgeSupervisor: (data: {
+    supervisorSapId: string;
+    supervisorEmail?: string;
+    supervisorName?: string;
+    subject: string;
+    messageBody: string;
+    actorUserId?: string;
+    groupCode?: string;
+  }) => fetchApi<{ success: boolean; message: string; recipientEmail?: string; recipientName?: string }>('/Reminders/nudge-supervisor', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
+  nudgeSupervisorsBulk: (data: {
+    supervisorSapIds: string[];
+    subject: string;
+    messageBody: string;
+    actorUserId?: string;
+    groupCode?: string;
+  }) => fetchApi<{ success: boolean; message: string; count: number }>('/Reminders/nudge-supervisors-bulk', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
 
   // Audit Events
   getAuditEvents: (search?: string) =>
@@ -229,11 +280,20 @@ export const api = {
   testEmailConfig: (data: any) =>
     fetchApi<any>('/EmailConfig/test', { method: 'POST', body: JSON.stringify(data) }),
 
-  // Workflow Management Console
-  getWorkflowDashboard: (cycleId?: string) =>
-    fetchApi<any>(`/Admin/workflow-dashboard${cycleId ? `?cycleId=${cycleId}` : ''}`),
+  // Workflow Management Console & PMW Stage Override Mechanisms
+  getWorkflowDashboard: (cycleId?: string, reportingGroup?: string) => {
+    const params = new URLSearchParams();
+    if (cycleId) params.append('cycleId', cycleId);
+    if (reportingGroup) params.append('reportingGroup', reportingGroup);
+    const qs = params.toString();
+    return fetchApi<any>(`/Admin/workflow-dashboard${qs ? `?${qs}` : ''}`);
+  },
   forceTransition: (employeeCycleId: string, data: { targetStatus: string; justification: string; actorSapId?: string }) =>
     fetchApi<any>(`/Admin/force-transition/${employeeCycleId}`, { method: 'POST', body: JSON.stringify(data) }),
+  setWorkflowStage: (data: { employeeCycleId?: string; sapId?: string; cycleId?: string; targetStatus: string | number; justification: string; actorSapId?: string; resetObjectives?: boolean; resetRatings?: boolean }) =>
+    fetchApi<any>('/Admin/set-workflow-stage', { method: 'POST', body: JSON.stringify(data) }),
+  bulkSetWorkflowStage: (data: { employeeCycleIds?: string[]; sapIds?: string[]; targetStatus: string | number; justification: string; actorSapId?: string }) =>
+    fetchApi<any>('/Admin/bulk-set-workflow-stage', { method: 'POST', body: JSON.stringify(data) }),
   getWorkflowAudit: (statusFilter?: string, limit?: number) =>
     fetchApi<any[]>(`/Admin/workflow-audit?${statusFilter ? `statusFilter=${encodeURIComponent(statusFilter)}&` : ''}limit=${limit || 200}`),
   getWorkflowNotifications: () =>

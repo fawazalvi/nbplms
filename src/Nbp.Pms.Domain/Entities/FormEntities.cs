@@ -36,7 +36,9 @@ public class Objective
     public string? AchievementDetails { get; set; }
     public int? EmployeeSelfRating { get; set; }
     public int? FirstAppraiserRating { get; set; }
+    public int? CoAppraiserRating { get; set; }
     public int? SecondAppraiserRating { get; set; }
+    public bool RequiresCoAppraiserReview { get; set; } = false;
     
     // Encrypted fields (AES-256-GCM ciphertext)
     public string? EncryptedConfidentialComments { get; set; }
@@ -102,6 +104,11 @@ public class DisagreementCase
     public string Status { get; set; } = "PendingGpmReview"; // PendingGpmReview, EscalatedPmw, Resolved
     public string? ResolutionNotes { get; set; }
     public Guid? ResolvedByUserId { get; set; }
+
+    public string? AttachmentFileName { get; set; }
+    public string? AttachmentFileData { get; set; }
+    public long? AttachmentFileSizeBytes { get; set; }
+    public string? AttachmentFileType { get; set; }
 
     public DateTime RaisedAt { get; set; } = DateTime.UtcNow;
     public DateTime? ResolvedAt { get; set; }

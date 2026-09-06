@@ -78,10 +78,10 @@ export const BehaviouralTraitItem: React.FC<BehaviouralTraitItemProps> = ({
 
           {/* Interactive Score Selector */}
           <ScoreSelector
-            label="Appraiser Trait Rating"
+            label="Trait Rating"
             value={data.appraiserRating || null}
             onChange={(s) => onChange({ ...data, appraiserRating: s })}
-            readOnly={readOnly || !isAppraiser}
+            readOnly={readOnly}
             mode="segmented"
           />
 

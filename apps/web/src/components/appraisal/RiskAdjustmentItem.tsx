@@ -106,7 +106,7 @@ export const RiskAdjustmentItem: React.FC<RiskAdjustmentItemProps> = ({
               showLabel={false}
               value={data.appraiserRating || null}
               onChange={(s) => onChange({ ...data, appraiserRating: s })}
-              readOnly={readOnly || !isAppraiser}
+              readOnly={readOnly}
               orientation="horizontal"
               mode="horizontal"
             />

@@ -97,18 +97,31 @@ export const SapIdAutocomplete: React.FC<SapIdAutocompleteProps> = ({
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
     setQuery(val);
-    setSelectedEmployee(null);
-    onEmployeeSelected?.(null);
+    onChange(val); // Immediately notify parent state of keystrokes
 
     // Debounce API calls - 300ms
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
+    debounceRef.current = setTimeout(async () => {
       fetchSuggestions(val);
+      if (val && val.trim().length >= 2) {
+        try {
+          const results = await api.getEmployees({ search: val.trim() });
+          const exact = results.find((e: any) => e.sapId?.toLowerCase() === val.trim().toLowerCase());
+          if (exact) {
+            setSelectedEmployee(exact);
+            onEmployeeSelected?.(exact);
+          } else {
+            setSelectedEmployee(null);
+            onEmployeeSelected?.(null);
+          }
+        } catch { /* ignore */ }
+      }
     }, 300);
 
     // If cleared, reset
     if (!val) {
-      onChange('');
+      setSelectedEmployee(null);
+      onEmployeeSelected?.(null);
       setSuggestions([]);
       setShowDropdown(false);
     }

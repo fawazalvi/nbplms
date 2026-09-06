@@ -52,12 +52,12 @@ public class AesGcmEncryptionService : IEncryptionService
 
     public string Decrypt(string ciphertext, int keyVersion = 1)
     {
-        if (string.IsNullOrEmpty(ciphertext)) return ciphertext;
+        if (string.IsNullOrWhiteSpace(ciphertext)) return "";
 
         try
         {
             byte[] payload = Convert.FromBase64String(ciphertext);
-            if (payload.Length < 1 + 12 + 16) return ciphertext; // Not encrypted / legacy
+            if (payload.Length < 1 + 12 + 16) return ciphertext; // Not encrypted / plaintext string
 
             byte version = payload[0];
             byte[] nonce = new byte[12];
@@ -77,8 +77,8 @@ public class AesGcmEncryptionService : IEncryptionService
         }
         catch
         {
-            // If decryption fails (e.g. invalid format), return fallback/masked
-            return "[Encrypted Record]";
+            // If it was already plaintext (or decryption is not applicable), return the original text directly
+            return ciphertext;
         }
     }
 }

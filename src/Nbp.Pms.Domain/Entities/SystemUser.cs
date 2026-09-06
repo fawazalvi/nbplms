@@ -7,7 +7,8 @@ public class SystemUser
     public required string PasswordHash { get; set; } // BCrypt hashed
     public required string FullName { get; set; }
     public string? Email { get; set; }
-    public required string Role { get; set; } // PmwSuperAdmin, PmwAdmin, GroupPerformanceManager, Employee, FirstAppraiser, SecondAppraiser, Auditor, SystemSupport
+    public required string Role { get; set; }
+    public string? AssignedReportingGroups { get; set; } // Comma-separated group codes e.g. "0001,0002", or null/empty for All Groups // PmwSuperAdmin, PmwAdmin, GroupPerformanceManager, Employee, FirstAppraiser, SecondAppraiser, Auditor, SystemSupport
 
     // Link to Employee record (null for pure admin accounts)
     public Guid? EmployeeId { get; set; }

@@ -16,6 +16,7 @@ export interface KPIItemData {
   evidenceRef?: string;
   selfRating?: number;
   appraiserRating: number;
+  requiresCoAppraiserReview?: boolean;
 }
 
 interface KPIAssessmentItemProps {
@@ -84,7 +85,7 @@ export const KPIAssessmentItem: React.FC<KPIAssessmentItemProps> = ({
               showLabel={false}
               value={data.appraiserRating || null}
               onChange={(s) => onChange({ ...data, appraiserRating: s })}
-              readOnly={readOnly || !isAppraiser}
+              readOnly={readOnly}
               orientation="horizontal"
               mode="horizontal"
             />
@@ -169,9 +170,9 @@ export const KPIAssessmentItem: React.FC<KPIAssessmentItemProps> = ({
             </div>
           </div>
 
-          {/* Action Footer (Evidence Upload & View / Remove) */}
-          <div className="flex items-center justify-between border-t border-slate-100 pt-2">
-            <div className="flex items-center space-x-2">
+          {/* Action Footer (Evidence Upload & View / Co-Appraiser Toggle / Remove) */}
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Button
                 variant="outline"
                 size="sm"
@@ -179,7 +180,7 @@ export const KPIAssessmentItem: React.FC<KPIAssessmentItemProps> = ({
                 className="h-7 text-[11px] font-semibold border-slate-200 text-slate-700"
               >
                 <Paperclip className="h-3 w-3 mr-1 text-emerald-700" />
-                {data.evidenceRef ? 'Upload / Update Evidence' : 'Attach Supporting Evidence (PDF, Word, Excel)'}
+                {data.evidenceRef ? 'Upload / Update Evidence' : 'Attach Supporting Evidence'}
               </Button>
 
               {data.evidenceRef && (
@@ -190,9 +191,26 @@ export const KPIAssessmentItem: React.FC<KPIAssessmentItemProps> = ({
                   className="h-7 text-[11px] font-bold"
                 >
                   <Download className="h-3 w-3 mr-1" />
-                  View & Download ({data.evidenceRef})
+                  View ({data.evidenceRef})
                 </Button>
               )}
+
+              {/* Co-Appraiser Flag Toggle */}
+              <label className="flex items-center space-x-1.5 cursor-pointer bg-slate-50 hover:bg-slate-100 py-1 px-2.5 rounded-lg border border-slate-200 text-[11px] select-none">
+                <input
+                  type="checkbox"
+                  disabled={readOnly}
+                  checked={data.requiresCoAppraiserReview || false}
+                  onChange={(e) => onChange({ ...data, requiresCoAppraiserReview: e.target.checked })}
+                  className="rounded text-emerald-600 focus:ring-emerald-500 h-3.5 w-3.5 cursor-pointer"
+                />
+                <span className="font-semibold text-slate-700">Flag for Co-Appraiser Review</span>
+                {data.requiresCoAppraiserReview && (
+                  <Badge className="bg-teal-700 text-white text-[9px] px-1.5 py-0 h-4">
+                    🎯 Co-App Assigned
+                  </Badge>
+                )}
+              </label>
             </div>
 
             {onRemove && !readOnly && (

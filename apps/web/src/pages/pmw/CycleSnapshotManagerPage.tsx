@@ -85,6 +85,7 @@ export const CycleSnapshotManagerPage: React.FC<CycleSnapshotManagerPageProps> =
 
   const [showBulkAppraiserModal, setShowBulkAppraiserModal] = useState(false);
   const [bulkFirstAppraiserSapId, setBulkFirstAppraiserSapId] = useState('');
+  const [bulkCoAppraiserSapId, setBulkCoAppraiserSapId] = useState('');
   const [bulkSecondAppraiserSapId, setBulkSecondAppraiserSapId] = useState('');
 
   const [showEditEmployeeModal, setShowEditEmployeeModal] = useState(false);
@@ -413,11 +414,13 @@ export const CycleSnapshotManagerPage: React.FC<CycleSnapshotManagerPageProps> =
       const res = await api.bulkAssignCycleAppraisers(activeCycleId, {
         employeeCycleIds: selectedEmployeeIds,
         firstAppraiserSapId: bulkFirstAppraiserSapId || undefined,
-        secondAppraiserSapId: bulkSecondAppraiserSapId || undefined
+        secondAppraiserSapId: bulkSecondAppraiserSapId || undefined,
+        coAppraiserSapId: bulkCoAppraiserSapId || undefined
       });
       setMessage(res.message || `Assigned appraisers for ${res.updatedCount} employees.`);
       setShowBulkAppraiserModal(false);
       setBulkFirstAppraiserSapId('');
+      setBulkCoAppraiserSapId('');
       setBulkSecondAppraiserSapId('');
       await loadCycleData(activeCycleId);
     } catch (e: any) {
@@ -496,6 +499,7 @@ export const CycleSnapshotManagerPage: React.FC<CycleSnapshotManagerPageProps> =
         snapshotRegionBranch: editingEmpCycle.snapshotRegionBranch,
         snapshotIsMrtOrMrc: editingEmpCycle.snapshotIsMrtOrMrc,
         firstAppraiserSapId: editingEmpCycle.firstAppraiserSapId,
+        coAppraiserSapId: editingEmpCycle.coAppraiserSapId,
         secondAppraiserSapId: editingEmpCycle.secondAppraiserSapId,
         assignedFormType: editingEmpCycle.assignedFormType,
       });
@@ -1013,6 +1017,7 @@ export const CycleSnapshotManagerPage: React.FC<CycleSnapshotManagerPageProps> =
                     <th className="p-3">Group (RPSA)</th>
                     <th className="p-3">Assigned Form</th>
                     <th className="p-3">First Appraiser</th>
+                    <th className="p-3">Co-Appraiser</th>
                     <th className="p-3">Second Appraiser</th>
                     <th className="p-3">Line Status</th>
                     <th className="p-3 text-right">Actions</th>
@@ -1060,16 +1065,25 @@ export const CycleSnapshotManagerPage: React.FC<CycleSnapshotManagerPageProps> =
                             {formDisplay.label}
                           </Badge>
                         </td>
-                        <td className="p-3 font-mono text-slate-700">
-                          {ec.firstAppraiser?.fullName ? (
-                            <span>{ec.firstAppraiser.fullName} ({ec.firstAppraiser.sapId})</span>
+                        <td className="p-3 font-mono text-slate-700 text-[11px]">
+                          {ec.firstAppraiser?.fullName || ec.firstAppraiserSapId ? (
+                            <span>{ec.firstAppraiser?.fullName || '1st Appraiser'} ({ec.firstAppraiser?.sapId || ec.firstAppraiserSapId})</span>
                           ) : (
                             <span className="text-slate-400">—</span>
                           )}
                         </td>
-                        <td className="p-3 font-mono text-slate-700">
-                          {ec.secondAppraiser?.fullName ? (
-                            <span>{ec.secondAppraiser.fullName} ({ec.secondAppraiser.sapId})</span>
+                        <td className="p-3 font-mono text-slate-700 text-[11px]">
+                          {ec.coAppraiser?.fullName || ec.coAppraiserName || ec.coAppraiserSapId || ec.coAppraiser?.sapId || ec.pendingCoAppraiserSapId ? (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded bg-teal-50 text-teal-800 border border-teal-200 font-semibold text-[10px]">
+                              {ec.coAppraiser?.fullName || ec.coAppraiserName || 'Co-Appraiser'} ({ec.coAppraiser?.sapId || ec.coAppraiserSapId || ec.pendingCoAppraiserSapId})
+                            </span>
+                          ) : (
+                            <span className="text-slate-400">—</span>
+                          )}
+                        </td>
+                        <td className="p-3 font-mono text-slate-700 text-[11px]">
+                          {ec.secondAppraiser?.fullName || ec.secondAppraiserSapId ? (
+                            <span>{ec.secondAppraiser?.fullName || '2nd Appraiser'} ({ec.secondAppraiser?.sapId || ec.secondAppraiserSapId})</span>
                           ) : (
                             <span className="text-slate-400">—</span>
                           )}
@@ -1129,8 +1143,9 @@ export const CycleSnapshotManagerPage: React.FC<CycleSnapshotManagerPageProps> =
                                 snapshotRegionBranch: ec.snapshotRegionBranch || emp.regionBranch,
                                 snapshotIsMrtOrMrc: ec.snapshotIsMrtOrMrc ?? emp.isMrtOrMrc ?? false,
                                 assignedFormType: formTypeStr,
-                                firstAppraiserSapId: ec.firstAppraiser?.sapId || '',
-                                secondAppraiserSapId: ec.secondAppraiser?.sapId || ''
+                                firstAppraiserSapId: ec.firstAppraiser?.sapId || ec.firstAppraiserSapId || '',
+                                coAppraiserSapId: ec.coAppraiser?.sapId || ec.coAppraiserSapId || ec.pendingCoAppraiserSapId || '',
+                                secondAppraiserSapId: ec.secondAppraiser?.sapId || ec.secondAppraiserSapId || ''
                               });
                               setShowEditEmployeeModal(true);
                             }}
@@ -2063,6 +2078,14 @@ export const CycleSnapshotManagerPage: React.FC<CycleSnapshotManagerPageProps> =
                 </div>
                 <div>
                   <SapIdAutocomplete
+                    label="Co-Appraiser SAP ID (Optional)"
+                    value={bulkCoAppraiserSapId}
+                    onChange={setBulkCoAppraiserSapId}
+                    placeholder="Search Co-Appraiser (Optional)..."
+                  />
+                </div>
+                <div>
+                  <SapIdAutocomplete
                     label="Second Appraiser SAP ID"
                     value={bulkSecondAppraiserSapId}
                     onChange={setBulkSecondAppraiserSapId}
@@ -2163,13 +2186,21 @@ export const CycleSnapshotManagerPage: React.FC<CycleSnapshotManagerPageProps> =
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <div>
                   <SapIdAutocomplete
                     label="First Appraiser SAP"
                     value={editingEmpCycle.firstAppraiserSapId}
                     onChange={(sap) => setEditingEmpCycle({ ...editingEmpCycle, firstAppraiserSapId: sap })}
                     placeholder="SAP ID"
+                  />
+                </div>
+                <div>
+                  <SapIdAutocomplete
+                    label="Co-Appraiser SAP (Optional)"
+                    value={editingEmpCycle.coAppraiserSapId || ''}
+                    onChange={(sap) => setEditingEmpCycle({ ...editingEmpCycle, coAppraiserSapId: sap })}
+                    placeholder="SAP ID (Optional)"
                   />
                 </div>
                 <div>

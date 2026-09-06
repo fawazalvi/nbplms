@@ -95,15 +95,17 @@ const RPSA_GROUP_MAP: Record<string, { name: string; rpsa: string }> = {
 
 export function formatGradeLabel(grade: string | null | undefined): string {
   if (!grade || typeof grade !== 'string') return '—';
-  const clean = grade.trim();
+  let clean = grade.trim();
   if (!clean) return '—';
 
-  if (clean.includes('(ESG') || clean.includes('ESG ')) return clean;
+  // Strip patterns like "ESG 06 - ", "ESG 06: ", "ESG 06", "(ESG 06)", etc.
+  clean = clean.replace(/^(ESG\s*\d+\s*[-:]?\s*)/i, '').trim();
+  clean = clean.replace(/\s*\(ESG\s*\d+\)/i, '').trim();
 
   const key = clean.toUpperCase();
   const match = ESG_GRADE_MAP[key];
   if (match) {
-    return match.name + ' (ESG ' + match.esg + ')';
+    return match.name;
   }
   return clean;
 }

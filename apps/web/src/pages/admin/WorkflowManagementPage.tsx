@@ -10,6 +10,7 @@ import {
   ArrowRight, Clock, CheckCircle2, XCircle, Shield, Users, Filter, X,
   Mail, Bell, ToggleLeft, ToggleRight, History, AlertTriangle
 } from 'lucide-react';
+import { SetWorkflowStageModal } from '@/components/admin/SetWorkflowStageModal';
 
 // ─── Workflow Status Pipeline Definition ───
 const PIPELINE_STAGES = [
@@ -835,74 +836,30 @@ export const WorkflowManagementPage: React.FC<{ userRole?: string }> = ({ userRo
         </Card>
       )}
 
-      {/* ═══════════════ FORCE TRANSITION MODAL ═══════════════ */}
-      {showForceModal && forceTarget && (
-        <div className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden">
-            <div className="p-5 bg-gradient-to-r from-purple-900 to-indigo-900 text-white">
-              <h3 className="text-base font-bold flex items-center space-x-2">
-                <Shield className="h-5 w-5" />
-                <span>Administrative Force Transition</span>
-              </h3>
-              <p className="text-xs text-purple-200 mt-1">
-                Override workflow status for <strong>{forceTarget.employeeName}</strong> (SAP: {forceTarget.sapId})
-              </p>
-            </div>
-
-            <div className="p-5 space-y-4">
-              <div className="flex items-center space-x-3 p-3 bg-slate-50 rounded-lg text-xs">
-                <span className="font-bold text-slate-500">Current Status:</span>
-                <Badge className="bg-slate-700 text-white font-bold">{formatAppraisalStatus(forceTarget.currentStatus)}</Badge>
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1.5">Target Status *</label>
-                <select
-                  value={forceStatus}
-                  onChange={(e) => setForceStatus(e.target.value)}
-                  className="w-full text-xs border border-slate-300 rounded-lg px-3 py-2.5 bg-white font-medium focus:ring-2 focus:ring-purple-500 focus:outline-none"
-                >
-                  <option value="">Select target status...</option>
-                  {ALL_STATUSES.map(s => (
-                    <option key={s} value={s}>{formatAppraisalStatus(s)}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-slate-700 block mb-1.5">Justification & Comments * <span className="text-rose-500">(Mandatory for audit)</span></label>
-                <textarea
-                  rows={3}
-                  value={forceJustification}
-                  onChange={(e) => setForceJustification(e.target.value)}
-                  placeholder="Provide mandatory justification for this administrative override..."
-                  className="w-full text-xs border border-slate-300 rounded-lg p-3 focus:ring-2 focus:ring-purple-500 focus:outline-none"
-                />
-              </div>
-
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-[11px] text-amber-800 flex items-start space-x-2">
-                <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
-                <span>This action will be permanently logged in the audit trail with your credentials and justification. Force transitions bypass all workflow validation rules.</span>
-              </div>
-            </div>
-
-            <div className="p-4 bg-slate-50 border-t flex items-center justify-between">
-              <Button variant="secondary" size="sm" onClick={() => { setShowForceModal(false); setForceTarget(null); }}>
-                Cancel
-              </Button>
-              <Button
-                size="sm"
-                disabled={!forceStatus || !forceJustification.trim() || forcing}
-                onClick={handleForceTransition}
-                className="bg-purple-700 hover:bg-purple-600 text-white font-bold text-xs"
-              >
-                <Send className="h-3.5 w-3.5 mr-1.5" />
-                {forcing ? 'Processing...' : 'Execute Force Transition'}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* ═══════════════ SET WORKFLOW STAGE MODAL (PMW ADMIN OVERRIDE) ═══════════════ */}
+      <SetWorkflowStageModal
+        isOpen={showForceModal}
+        onClose={() => {
+          setShowForceModal(false);
+          setForceTarget(null);
+        }}
+        onSuccess={() => {
+          loadDashboard();
+        }}
+        target={
+          forceTarget
+            ? {
+                employeeCycleId: forceTarget.id || forceTarget.employeeCycleId,
+                sapId: forceTarget.sapId,
+                fullName: forceTarget.employeeName || forceTarget.fullName,
+                grade: forceTarget.grade,
+                currentStatus: forceTarget.currentStatus,
+                formType: forceTarget.formType
+              }
+            : null
+        }
+        cycleId={selectedCycleId || undefined}
+      />
     </div>
   );
 };

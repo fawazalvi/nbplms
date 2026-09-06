@@ -15,12 +15,21 @@ public class AppraisalsController : ControllerBase
     private readonly PmsDbContext _db;
     private readonly WorkflowEngine _workflowEngine;
     private readonly IEmailService _emailService;
+    private readonly IEncryptionService _encryptionService;
+    private readonly FormCalculationService _calcService;
 
-    public AppraisalsController(PmsDbContext db, WorkflowEngine workflowEngine, IEmailService emailService)
+    public AppraisalsController(
+        PmsDbContext db,
+        WorkflowEngine workflowEngine,
+        IEmailService emailService,
+        IEncryptionService encryptionService,
+        FormCalculationService calcService)
     {
         _db = db;
         _workflowEngine = workflowEngine;
         _emailService = emailService;
+        _encryptionService = encryptionService;
+        _calcService = calcService;
     }
 
     [HttpGet("my-cycles")]
@@ -92,32 +101,244 @@ public class AppraisalsController : ControllerBase
             return NotFound(new { message = "No active appraisal cycle found for this employee." });
         }
 
-        // If First/Second/Co appraiser navigation properties are null but SAP IDs exist, resolve them
+        // Resolve appraiser navigation entities across direct IDs, master employee links, and pending SAP IDs
+        if (empCycle.FirstAppraiser == null && empCycle.FirstAppraiserId.HasValue)
+            empCycle.FirstAppraiser = await _db.Employees.FirstOrDefaultAsync(e => e.Id == empCycle.FirstAppraiserId.Value);
+        if (empCycle.FirstAppraiser == null && empCycle.Employee?.FirstAppraiserId.HasValue == true)
+            empCycle.FirstAppraiser = await _db.Employees.FirstOrDefaultAsync(e => e.Id == empCycle.Employee.FirstAppraiserId.Value);
         if (empCycle.FirstAppraiser == null && !string.IsNullOrWhiteSpace(empCycle.PendingFirstAppraiserSapId))
-        {
             empCycle.FirstAppraiser = await _db.Employees.FirstOrDefaultAsync(e => e.SapId == empCycle.PendingFirstAppraiserSapId);
-        }
+
+        if (empCycle.SecondAppraiser == null && empCycle.SecondAppraiserId.HasValue)
+            empCycle.SecondAppraiser = await _db.Employees.FirstOrDefaultAsync(e => e.Id == empCycle.SecondAppraiserId.Value);
+        if (empCycle.SecondAppraiser == null && empCycle.Employee?.SecondAppraiserId.HasValue == true)
+            empCycle.SecondAppraiser = await _db.Employees.FirstOrDefaultAsync(e => e.Id == empCycle.Employee.SecondAppraiserId.Value);
         if (empCycle.SecondAppraiser == null && !string.IsNullOrWhiteSpace(empCycle.PendingSecondAppraiserSapId))
-        {
             empCycle.SecondAppraiser = await _db.Employees.FirstOrDefaultAsync(e => e.SapId == empCycle.PendingSecondAppraiserSapId);
-        }
+
+        if (empCycle.CoAppraiser == null && empCycle.CoAppraiserId.HasValue)
+            empCycle.CoAppraiser = await _db.Employees.FirstOrDefaultAsync(e => e.Id == empCycle.CoAppraiserId.Value);
+        if (empCycle.CoAppraiser == null && empCycle.Employee?.CoAppraiserId.HasValue == true)
+            empCycle.CoAppraiser = await _db.Employees.FirstOrDefaultAsync(e => e.Id == empCycle.Employee.CoAppraiserId.Value);
         if (empCycle.CoAppraiser == null && !string.IsNullOrWhiteSpace(empCycle.PendingCoAppraiserSapId))
-        {
             empCycle.CoAppraiser = await _db.Employees.FirstOrDefaultAsync(e => e.SapId == empCycle.PendingCoAppraiserSapId);
-        }
 
         var objectives = await _db.Objectives.Include(o => o.Perspective).Where(o => o.EmployeeCycleId == empCycle.Id).ToListAsync();
         var traits = await _db.BehaviourTraits.Where(t => t.EmployeeCycleId == empCycle.Id).ToListAsync();
+        if (empCycle.AssignedFormType == FormType.KpiForm && traits.Count == 0)
+        {
+            traits = new List<BehaviourTrait>
+            {
+                new BehaviourTrait { EmployeeCycleId = empCycle.Id, TraitName = "Integrity & Professional Ethics", Definition = "Demonstrates high standards of honesty, fairness, compliance with banking regulations and NBP code of conduct.", WeightagePercentage = 6.0m, FirstAppraiserRating = 4 },
+                new BehaviourTrait { EmployeeCycleId = empCycle.Id, TraitName = "Teamwork & Collaboration", Definition = "Works effectively with colleagues, supports cross-functional goals and promotes positive work atmosphere.", WeightagePercentage = 6.0m, FirstAppraiserRating = 4 },
+                new BehaviourTrait { EmployeeCycleId = empCycle.Id, TraitName = "Job Knowledge & Execution", Definition = "Applies functional skills effectively, delivers high-quality outputs with attention to detail and accuracy.", WeightagePercentage = 6.0m, FirstAppraiserRating = 4 },
+                new BehaviourTrait { EmployeeCycleId = empCycle.Id, TraitName = "Initiative & Innovation", Definition = "Proactively identifies opportunities, proposes solutions and drives continuous improvement.", WeightagePercentage = 6.0m, FirstAppraiserRating = 4 },
+                new BehaviourTrait { EmployeeCycleId = empCycle.Id, TraitName = "Customer Focus & Service Excellence", Definition = "Prioritizes customer needs, resolves issues promptly and maintains high service standards.", WeightagePercentage = 6.0m, FirstAppraiserRating = 4 },
+            };
+            _db.BehaviourTraits.AddRange(traits);
+            await _db.SaveChangesAsync();
+        }
         var score = await _db.Scores.FirstOrDefaultAsync(s => s.EmployeeCycleId == empCycle.Id);
         var developmentReview = await _db.DevelopmentReviews.FirstOrDefaultAsync(d => d.EmployeeCycleId == empCycle.Id);
 
+        string? appraiserComments = null;
+        if (score != null && !string.IsNullOrEmpty(score.EncryptedAppraiserComments))
+        {
+            try
+            {
+                appraiserComments = _encryptionService.Decrypt(score.EncryptedAppraiserComments, score.KeyVersion);
+            }
+            catch
+            {
+                appraiserComments = score.EncryptedAppraiserComments;
+            }
+            if (appraiserComments == "[Encrypted Record]") appraiserComments = "";
+        }
+
+        var mappedObjectives = objectives.Select(o => {
+            string dec = "";
+            if (!string.IsNullOrEmpty(o.EncryptedConfidentialComments))
+            {
+                try { dec = _encryptionService.Decrypt(o.EncryptedConfidentialComments); }
+                catch { dec = o.EncryptedConfidentialComments; }
+                if (dec == "[Encrypted Record]") dec = "";
+            }
+            string pName = o.Perspective != null ? o.Perspective.Name : "";
+            return new
+            {
+                o.Id,
+                o.EmployeeCycleId,
+                o.PerspectiveId,
+                Perspective = o.Perspective != null ? new { o.Perspective.Id, o.Perspective.Name, o.Perspective.WeightagePercentage } : null,
+                PerspectiveName = pName,
+                o.Title,
+                o.TargetDescription,
+                o.WeightagePercentage,
+                o.AchievementDetails,
+                o.EmployeeSelfRating,
+                o.FirstAppraiserRating,
+                o.CoAppraiserRating,
+                o.SecondAppraiserRating,
+                o.RequiresCoAppraiserReview,
+                IsFlaggedForCoAppraiser = o.RequiresCoAppraiserReview,
+                FirstAppraiserComments = dec,
+                SecondAppraiserComments = dec,
+                EncryptedConfidentialComments = o.EncryptedConfidentialComments,
+                o.CreatedAt,
+                o.UpdatedAt
+            };
+        });
+
+        var mappedTraits = traits.Select(t => {
+            string dec = "";
+            if (!string.IsNullOrEmpty(t.EncryptedConfidentialComments))
+            {
+                try { dec = _encryptionService.Decrypt(t.EncryptedConfidentialComments); }
+                catch { dec = t.EncryptedConfidentialComments; }
+                if (dec == "[Encrypted Record]") dec = "";
+            }
+            return new
+            {
+                t.Id,
+                t.EmployeeCycleId,
+                t.TraitName,
+                t.Definition,
+                t.WeightagePercentage,
+                t.FirstAppraiserRating,
+                FirstAppraiserComments = dec,
+                SecondAppraiserComments = dec,
+                EncryptedConfidentialComments = t.EncryptedConfidentialComments
+            };
+        });
+
+        if (score != null)
+        {
+            if (empCycle.AssignedFormType == FormType.KpiForm || traits.Count > 0)
+            {
+                var calc = _calcService.CalculateAndEncryptScore(empCycle.Id, objectives, traits, appraiserComments, score.KeyVersion, FormType.KpiForm);
+                score.ObjectiveTotalScore = calc.ObjectiveTotalScore;
+                score.TraitTotalScore = calc.TraitTotalScore;
+                score.FinalCompositeScore = calc.FinalCompositeScore;
+                score.FinalRatingLevel = calc.FinalRatingLevel;
+                await _db.SaveChangesAsync();
+            }
+            else if (score.FinalCompositeScore > 5.0m)
+            {
+                score.ObjectiveTotalScore = Math.Round(score.ObjectiveTotalScore / 20.0m, 2);
+                score.TraitTotalScore = Math.Round(score.TraitTotalScore / 20.0m, 2);
+                score.FinalCompositeScore = Math.Round(score.FinalCompositeScore / 20.0m, 2);
+                await _db.SaveChangesAsync();
+            }
+        }
+
+        var disCase = await _db.DisagreementCases.FirstOrDefaultAsync(d => d.EmployeeCycleId == empCycle.Id);
+
         return Ok(new
         {
-            employeeCycle = empCycle,
-            objectives,
-            traits,
-            score,
-            developmentReview
+            employeeCycle = new
+            {
+                empCycle.Id,
+                empCycle.EmployeeId,
+                empCycle.CycleId,
+                empCycle.AssignedFormType,
+                empCycle.CurrentStatus,
+                empCycle.FirstAppraiserId,
+                empCycle.SecondAppraiserId,
+                empCycle.CoAppraiserId,
+                FirstAppraiser = empCycle.FirstAppraiser != null ? new { empCycle.FirstAppraiser.Id, empCycle.FirstAppraiser.SapId, empCycle.FirstAppraiser.FullName, empCycle.FirstAppraiser.Grade, empCycle.FirstAppraiser.Designation, empCycle.FirstAppraiser.ReportingGroup } : null,
+                SecondAppraiser = empCycle.SecondAppraiser != null ? new { empCycle.SecondAppraiser.Id, empCycle.SecondAppraiser.SapId, empCycle.SecondAppraiser.FullName, empCycle.SecondAppraiser.Grade, empCycle.SecondAppraiser.Designation, empCycle.SecondAppraiser.ReportingGroup } : null,
+                CoAppraiser = empCycle.CoAppraiser != null ? new { empCycle.CoAppraiser.Id, empCycle.CoAppraiser.SapId, empCycle.CoAppraiser.FullName, empCycle.CoAppraiser.Grade, empCycle.CoAppraiser.Designation, empCycle.CoAppraiser.ReportingGroup } : null,
+                FirstAppraiserSapId = empCycle.FirstAppraiser?.SapId ?? empCycle.PendingFirstAppraiserSapId,
+                SecondAppraiserSapId = empCycle.SecondAppraiser?.SapId ?? empCycle.PendingSecondAppraiserSapId,
+                CoAppraiserSapId = empCycle.CoAppraiser?.SapId ?? empCycle.PendingCoAppraiserSapId,
+                PendingFirstAppraiserSapId = empCycle.PendingFirstAppraiserSapId,
+                PendingSecondAppraiserSapId = empCycle.PendingSecondAppraiserSapId,
+                PendingCoAppraiserSapId = empCycle.PendingCoAppraiserSapId,
+                empCycle.AppraiserValidationStatus,
+                empCycle.AppraiserRejectionReason,
+                DisagreementReason = empCycle.DisagreementReason ?? empCycle.AppraiserRejectionReason ?? disCase?.MandatoryDisagreementReason,
+                DisagreementAttachmentFileName = empCycle.DisagreementAttachmentFileName ?? disCase?.AttachmentFileName,
+                DisagreementAttachmentFileData = empCycle.DisagreementAttachmentFileData ?? disCase?.AttachmentFileData,
+                DisagreementAttachmentSizeBytes = empCycle.DisagreementAttachmentSizeBytes ?? disCase?.AttachmentFileSizeBytes,
+                DisagreementAttachmentContentType = empCycle.DisagreementAttachmentContentType ?? disCase?.AttachmentFileType,
+                empCycle.AppraiserValidatedAt,
+                empCycle.AppraiserValidatedBySapId,
+                empCycle.SnapshotGrade,
+                empCycle.SnapshotDesignation,
+                empCycle.SnapshotReportingGroup,
+                empCycle.SnapshotLocation,
+                empCycle.SnapshotDivision,
+                empCycle.SnapshotWingDepartment,
+                empCycle.SnapshotRegionBranch,
+                Employee = empCycle.Employee != null ? new
+                {
+                    empCycle.Employee.Id,
+                    empCycle.Employee.SapId,
+                    empCycle.Employee.FullName,
+                    empCycle.Employee.Grade,
+                    empCycle.Employee.Designation,
+                    empCycle.Employee.Location,
+                    empCycle.Employee.ReportingGroup,
+                    empCycle.Employee.Division,
+                    empCycle.Employee.WingDepartment,
+                    empCycle.Employee.RegionBranch,
+                    empCycle.Employee.Email,
+                    empCycle.Employee.IsMrtOrMrc,
+                    empCycle.Employee.IsActive
+                } : null,
+                Cycle = empCycle.Cycle != null ? new
+                {
+                    empCycle.Cycle.Id,
+                    empCycle.Cycle.Title,
+                    Status = empCycle.Cycle.Status.ToString(),
+                    empCycle.Cycle.CircularReference,
+                    empCycle.Cycle.StartDate,
+                    empCycle.Cycle.EndDate,
+                    empCycle.Cycle.AcknowledgementDeadline
+                } : null,
+                empCycle.AcknowledgedAt,
+                empCycle.CreatedAt,
+                empCycle.UpdatedAt
+            },
+            objectives = mappedObjectives,
+            traits = mappedTraits,
+            score = score != null ? new
+            {
+                score.Id,
+                score.EmployeeCycleId,
+                ObjectiveTotalScore = score.ObjectiveTotalScore > 5.0m ? Math.Round(score.ObjectiveTotalScore / 20.0m, 2) : score.ObjectiveTotalScore,
+                TraitTotalScore = score.TraitTotalScore > 5.0m ? Math.Round(score.TraitTotalScore / 20.0m, 2) : score.TraitTotalScore,
+                FinalCompositeScore = score.FinalCompositeScore > 5.0m ? Math.Round(score.FinalCompositeScore / 20.0m, 2) : score.FinalCompositeScore,
+                score.FinalRatingLevel,
+                RatingLevelText = score.FinalRatingLevel switch
+                {
+                    RatingLevel.Outstanding => "Outstanding (1)",
+                    RatingLevel.VeryGood => "Very Good (2)",
+                    RatingLevel.Good => "Good (3)",
+                    RatingLevel.NeedsImprovement => "Needs Improvement (4)",
+                    RatingLevel.Unsatisfactory => "Unsatisfactory (5)",
+                    _ => score.FinalRatingLevel.ToString()
+                },
+                score.CalculatedAt,
+                score.KeyVersion,
+                score.EncryptedAppraiserComments,
+                appraiserComments = appraiserComments ?? ""
+            } : null,
+            developmentReview,
+            disagreementCase = disCase != null ? new
+            {
+                disCase.Id,
+                disCase.EmployeeCycleId,
+                disCase.MandatoryDisagreementReason,
+                disCase.Status,
+                disCase.ResolutionNotes,
+                disCase.RaisedAt,
+                disCase.ResolvedAt,
+                disCase.AttachmentFileName,
+                disCase.AttachmentFileData,
+                disCase.AttachmentFileSizeBytes,
+                disCase.AttachmentFileType
+            } : null
         });
     }
 
@@ -164,21 +385,31 @@ public class AppraisalsController : ControllerBase
             
         if (empCycle == null) return NotFound();
 
-        // Lock against re-requests if line is already validated by supervisor
+        // Lock against re-requests only if line is already officially validated by supervisor
         if (string.Equals(empCycle.AppraiserValidationStatus, "Validated", StringComparison.OrdinalIgnoreCase))
         {
             return BadRequest(new { message = "Your reporting line has been confirmed and validated by your supervisor and is locked against modifications. Only PMW Admin can unlock or reset the reporting line." });
         }
 
-        // Prevent concurrent duplicate requests if already pending confirmation
-        if (string.Equals(empCycle.AppraiserValidationStatus, "PendingConfirmation", StringComparison.OrdinalIgnoreCase))
-        {
-            return BadRequest(new { message = "Your previous appraiser update request is currently pending supervisor confirmation. Please wait for confirmation or rejection before submitting a new request." });
-        }
-
         empCycle.PendingFirstAppraiserSapId = dto.FirstAppraiserSapId?.Trim();
         empCycle.PendingSecondAppraiserSapId = dto.SecondAppraiserSapId?.Trim();
-        empCycle.PendingCoAppraiserSapId = dto.CoAppraiserSapId?.Trim();
+        
+        string? coSap = !string.IsNullOrWhiteSpace(dto.CoAppraiserSapId) ? dto.CoAppraiserSapId.Trim() : null;
+        empCycle.PendingCoAppraiserSapId = coSap;
+
+        if (!string.IsNullOrEmpty(coSap))
+        {
+            var coApp = await _db.Employees.FirstOrDefaultAsync(e => e.SapId == coSap);
+            if (coApp != null)
+            {
+                empCycle.CoAppraiserId = coApp.Id;
+            }
+        }
+        else
+        {
+            empCycle.CoAppraiserId = null;
+        }
+
         empCycle.AppraiserValidationStatus = "PendingConfirmation";
         empCycle.AppraiserRejectionReason = null;
         empCycle.UpdatedAt = DateTime.UtcNow;
@@ -190,39 +421,113 @@ public class AppraisalsController : ControllerBase
             ActorRole = "Employee",
             TargetEntityId = empCycle.Id.ToString(),
             TargetEntityType = nameof(EmployeeCycle),
-            ActionDescription = $"Requested Appraiser/Supervisor update: 1st Appraiser={dto.FirstAppraiserSapId}, 2nd Appraiser/Supervisor={dto.SecondAppraiserSapId}.",
+            ActionDescription = $"Requested Appraiser/Supervisor update: 1st Appraiser={dto.FirstAppraiserSapId}, Co-Appraiser={coSap ?? "None"}, 2nd Appraiser/Supervisor={dto.SecondAppraiserSapId}.",
             Timestamp = DateTime.UtcNow
         };
         _db.AuditEvents.Add(audit);
 
         await _db.SaveChangesAsync();
-        return Ok(new { message = "Appraiser & Supervisor update requested. Awaiting confirmation from your appraiser.", employeeCycle = empCycle });
+
+        return Ok(new 
+        { 
+            message = "Appraiser & Supervisor update requested. Awaiting confirmation from your appraiser.", 
+            employeeCycleId = empCycle.Id,
+            validationStatus = empCycle.AppraiserValidationStatus,
+            pendingFirstSap = empCycle.PendingFirstAppraiserSapId,
+            pendingSecondSap = empCycle.PendingSecondAppraiserSapId,
+            pendingCoSap = empCycle.PendingCoAppraiserSapId
+        });
     }
 
     [HttpPost("{id}/objectives")]
-    public async Task<IActionResult> SaveObjectives(Guid id, [FromBody] List<Objective> objectives)
+    public async Task<IActionResult> SaveObjectives(Guid id, [FromBody] List<SaveObjectiveDto> objectives)
     {
-        var empCycle = await _db.EmployeeCycles.FindAsync(id);
+        var empCycle = await _db.EmployeeCycles.Include(e => e.Cycle).FirstOrDefaultAsync(e => e.Id == id);
         if (empCycle == null) return NotFound();
 
         var existingObjs = await _db.Objectives.Where(o => o.EmployeeCycleId == id).ToListAsync();
         _db.Objectives.RemoveRange(existingObjs);
 
-        foreach (var obj in objectives)
+        var allPerspectives = await _db.Perspectives.ToListAsync();
+
+        var savedList = new List<Objective>();
+        if (objectives != null)
         {
-            obj.Id = Guid.NewGuid();
-            obj.EmployeeCycleId = id;
-            _db.Objectives.Add(obj);
+            foreach (var dto in objectives)
+            {
+                if (string.IsNullOrWhiteSpace(dto.Title) && string.IsNullOrWhiteSpace(dto.TargetDescription))
+                    continue;
+
+                Guid? matchedPerspectiveId = dto.PerspectiveId;
+                if (matchedPerspectiveId == null && !string.IsNullOrWhiteSpace(dto.PerspectiveName))
+                {
+                    var pName = dto.PerspectiveName.Trim().ToLowerInvariant();
+                    var matched = allPerspectives.FirstOrDefault(p =>
+                        p.Name.ToLowerInvariant().Contains(pName) ||
+                        pName.Contains(p.Name.ToLowerInvariant()) ||
+                        (pName.Contains("fin") && p.Name.ToLowerInvariant().Contains("fin")) ||
+                        (pName.Contains("cust") && p.Name.ToLowerInvariant().Contains("cust")) ||
+                        (pName.Contains("proc") && p.Name.ToLowerInvariant().Contains("proc")) ||
+                        (pName.Contains("learn") && p.Name.ToLowerInvariant().Contains("learn")) ||
+                        (pName.Contains("risk") && p.Name.ToLowerInvariant().Contains("risk")) ||
+                        (pName.Contains("kpi") && p.Name.ToLowerInvariant().Contains("performance"))
+                    );
+                    if (matched != null)
+                    {
+                        matchedPerspectiveId = matched.Id;
+                    }
+                    else
+                    {
+                        // Create perspective on-the-fly if needed
+                        var newP = new Perspective
+                        {
+                            Id = Guid.NewGuid(),
+                            FormTemplateId = Guid.Empty,
+                            Name = dto.PerspectiveName.Trim(),
+                            WeightagePercentage = dto.WeightagePercentage ?? dto.Weightage ?? 25.0m,
+                            DisplayOrder = allPerspectives.Count + 1
+                        };
+                        _db.Perspectives.Add(newP);
+                        allPerspectives.Add(newP);
+                        matchedPerspectiveId = newP.Id;
+                    }
+                }
+
+                var obj = new Objective
+                {
+                    Id = Guid.NewGuid(),
+                    EmployeeCycleId = id,
+                    PerspectiveId = matchedPerspectiveId,
+                    Title = !string.IsNullOrWhiteSpace(dto.Title) ? dto.Title.Trim() : "Objective",
+                    TargetDescription = dto.TargetDescription?.Trim() ?? string.Empty,
+                    WeightagePercentage = dto.WeightagePercentage ?? dto.Weightage ?? 10.0m,
+                    AchievementDetails = dto.AchievementDetails,
+                    EmployeeSelfRating = dto.EmployeeSelfRating > 0 ? dto.EmployeeSelfRating : null,
+                    FirstAppraiserRating = dto.FirstAppraiserRating > 0 ? dto.FirstAppraiserRating : null,
+                    CoAppraiserRating = dto.CoAppraiserRating > 0 ? dto.CoAppraiserRating : null,
+                    SecondAppraiserRating = dto.SecondAppraiserRating > 0 ? dto.SecondAppraiserRating : null,
+                    RequiresCoAppraiserReview = dto.RequiresCoAppraiserReview ?? dto.IsFlaggedForCoAppraiser ?? false,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                _db.Objectives.Add(obj);
+                savedList.Add(obj);
+            }
         }
 
+        empCycle.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
-        return Ok(new { message = "Objectives saved successfully." });
+
+        return Ok(new { message = "Objectives draft saved successfully.", count = savedList.Count, objectives = savedList });
     }
 
     [HttpPost("{id}/submit")]
     public async Task<IActionResult> SubmitSelfAssessment(Guid id, [FromQuery] string actorUserId = "84920", [FromQuery] string role = "Employee")
     {
-        var empCycle = await _db.EmployeeCycles.FindAsync(id);
+        var empCycle = await _db.EmployeeCycles
+            .Include(ec => ec.Employee)
+            .Include(ec => ec.CoAppraiser)
+            .FirstOrDefaultAsync(ec => ec.Id == id);
         if (empCycle == null) return NotFound();
 
         // Enforce Hard Constraint: Employee CANNOT submit until Appraiser & Supervisor information is validated!
@@ -233,7 +538,21 @@ public class AppraisalsController : ControllerBase
             });
         }
 
-        var result = _workflowEngine.Transition(empCycle, WorkflowStatus.FirstAppraiserAssessment, actorUserId, role);
+        // Synchronize CoAppraiser if present on master Employee record
+        if (!empCycle.CoAppraiserId.HasValue && empCycle.Employee?.CoAppraiserId.HasValue == true)
+        {
+            empCycle.CoAppraiserId = empCycle.Employee.CoAppraiserId;
+        }
+
+        // Sequential Workflow: If Co-Appraiser is assigned, first submit to Co-Appraiser!
+        var hasCoAppraiser = empCycle.CoAppraiserId.HasValue || 
+                             !string.IsNullOrWhiteSpace(empCycle.PendingCoAppraiserSapId) ||
+                             empCycle.CoAppraiser != null ||
+                             empCycle.Employee?.CoAppraiserId.HasValue == true;
+
+        var targetStatus = hasCoAppraiser ? WorkflowStatus.CoAppraiserReview : WorkflowStatus.FirstAppraiserAssessment;
+
+        var result = _workflowEngine.Transition(empCycle, targetStatus, actorUserId, role);
         if (!result.Success) return BadRequest(new { message = result.Message });
 
         if (result.AuditLog != null) _db.AuditEvents.Add(result.AuditLog);
@@ -241,7 +560,12 @@ public class AppraisalsController : ControllerBase
 
         await _workflowEngine.DispatchNotificationsAsync(empCycle, result.PreviousStatus, result.NewStatus);
 
-        return Ok(new { message = "Self assessment submitted successfully.", currentStatus = empCycle.CurrentStatus });
+        return Ok(new { 
+            message = hasCoAppraiser
+                ? "Self assessment submitted successfully. Routed to Co-Appraiser for review."
+                : "Self assessment submitted successfully. Routed to 1st Appraiser for primary evaluation.", 
+            currentStatus = empCycle.CurrentStatus 
+        });
     }
 
     [HttpGet("history")]
@@ -319,6 +643,82 @@ public class AppraisalsController : ControllerBase
         await _workflowEngine.DispatchNotificationsAsync(empCycle, result.PreviousStatus, result.NewStatus);
 
         return Ok(new { message = "Appraisal acknowledged and agreed successfully. Form is now permanently locked.", currentStatus = empCycle.CurrentStatus });
+    }
+
+    [HttpPost("{id}/disagree")]
+    public async Task<IActionResult> RecordDisagreement(Guid id, [FromBody] DisagreementRequestDto request)
+    {
+        var empCycle = await _db.EmployeeCycles
+            .Include(ec => ec.Employee)
+            .FirstOrDefaultAsync(ec => ec.Id == id);
+            
+        if (empCycle == null) return NotFound();
+
+        if (string.IsNullOrWhiteSpace(request.Reason))
+        {
+            return BadRequest(new { message = "Mandatory justification is required to record a formal disagreement." });
+        }
+
+        var actorSapId = !string.IsNullOrWhiteSpace(request.SapId) ? request.SapId : (empCycle.Employee?.SapId ?? "EMPLOYEE");
+        var result = _workflowEngine.Transition(empCycle, WorkflowStatus.EmployeeDisagreed, actorSapId, "Employee", comments: request.Reason.Trim());
+        if (!result.Success) return BadRequest(new { message = result.Message });
+
+        empCycle.AppraiserRejectionReason = request.Reason.Trim();
+        empCycle.DisagreementReason = request.Reason.Trim();
+        empCycle.DisagreementAttachmentFileName = request.AttachmentFileName;
+        empCycle.DisagreementAttachmentFileData = request.AttachmentFileData;
+        empCycle.DisagreementAttachmentSizeBytes = request.AttachmentFileSizeBytes;
+        empCycle.DisagreementAttachmentContentType = request.AttachmentFileType;
+        empCycle.AcknowledgedAt = DateTime.UtcNow;
+
+        var disCase = await _db.DisagreementCases.FirstOrDefaultAsync(d => d.EmployeeCycleId == id);
+        if (disCase == null)
+        {
+            disCase = new DisagreementCase
+            {
+                Id = Guid.NewGuid(),
+                EmployeeCycleId = id,
+                EmployeeId = empCycle.EmployeeId,
+                MandatoryDisagreementReason = request.Reason.Trim(),
+                Status = "PendingGpmReview",
+                AttachmentFileName = request.AttachmentFileName,
+                AttachmentFileData = request.AttachmentFileData,
+                AttachmentFileSizeBytes = request.AttachmentFileSizeBytes,
+                AttachmentFileType = request.AttachmentFileType,
+                RaisedAt = DateTime.UtcNow
+            };
+            _db.DisagreementCases.Add(disCase);
+        }
+        else
+        {
+            disCase.MandatoryDisagreementReason = request.Reason.Trim();
+            disCase.Status = "PendingGpmReview";
+            disCase.AttachmentFileName = request.AttachmentFileName;
+            disCase.AttachmentFileData = request.AttachmentFileData;
+            disCase.AttachmentFileSizeBytes = request.AttachmentFileSizeBytes;
+            disCase.AttachmentFileType = request.AttachmentFileType;
+            disCase.RaisedAt = DateTime.UtcNow;
+            disCase.ResolvedAt = null;
+            disCase.ResolutionNotes = null;
+        }
+
+        if (result.AuditLog != null)
+        {
+            if (!string.IsNullOrWhiteSpace(request.AttachmentFileName))
+            {
+                result.AuditLog.ActionDescription += $" [Supporting Document Attached: {request.AttachmentFileName}]";
+            }
+            _db.AuditEvents.Add(result.AuditLog);
+        }
+        await _db.SaveChangesAsync();
+
+        await _workflowEngine.DispatchNotificationsAsync(empCycle, result.PreviousStatus, result.NewStatus);
+
+        return Ok(new {
+            message = "Disagreement registered successfully. Your dispute, justification, and supporting document have been forwarded to Group Management for record and review.",
+            currentStatus = empCycle.CurrentStatus,
+            attachmentFileName = request.AttachmentFileName
+        });
     }
 
     [HttpPost("{id}/resolve-disagreement")]
@@ -405,6 +805,32 @@ public class AppraisalsController : ControllerBase
     }
 }
 
-public record RequestAppraiserUpdateDto(string FirstAppraiserSapId, string SecondAppraiserSapId, string? CoAppraiserSapId);
-public record DisagreementRequestDto(string SapId, string Reason);
+public record DisagreementRequestDto(
+    string SapId,
+    string Reason,
+    string? AttachmentFileName = null,
+    string? AttachmentFileData = null,
+    long? AttachmentFileSizeBytes = null,
+    string? AttachmentFileType = null
+);
 public record ResolveDisagreementDto(string ActorUserId, string ResolutionNotes);
+public record RequestAppraiserUpdateDto(string? FirstAppraiserSapId, string? SecondAppraiserSapId, string? CoAppraiserSapId = null);
+
+public class SaveObjectiveDto
+{
+    public Guid? Id { get; set; }
+    public string? Title { get; set; }
+    public string? TargetDescription { get; set; }
+    public decimal? Weightage { get; set; }
+    public decimal? WeightagePercentage { get; set; }
+    public string? AchievementDetails { get; set; }
+    public int? EmployeeSelfRating { get; set; }
+    public int? FirstAppraiserRating { get; set; }
+    public int? CoAppraiserRating { get; set; }
+    public int? SecondAppraiserRating { get; set; }
+    public bool? RequiresCoAppraiserReview { get; set; }
+    public bool? IsFlaggedForCoAppraiser { get; set; }
+    public string? EvidenceReference { get; set; }
+    public string? PerspectiveName { get; set; }
+    public Guid? PerspectiveId { get; set; }
+}

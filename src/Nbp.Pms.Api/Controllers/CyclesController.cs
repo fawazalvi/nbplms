@@ -272,8 +272,10 @@ public class CyclesController : ControllerBase
     {
         var query = _db.EmployeeCycles
             .Include(ec => ec.Employee)
+            .ThenInclude(e => e!.CoAppraiser)
             .Include(ec => ec.FirstAppraiser)
             .Include(ec => ec.SecondAppraiser)
+            .Include(ec => ec.CoAppraiser)
             .Where(ec => ec.CycleId == cycleId)
             .AsQueryable();
 
@@ -351,13 +353,100 @@ public class CyclesController : ControllerBase
                 SecondAppraiserSapId = ec.SecondAppraiser != null ? ec.SecondAppraiser.SapId : ec.Employee!.SecondAppraiser != null ? ec.Employee!.SecondAppraiser.SapId : null,
                 SecondAppraiserName = ec.SecondAppraiser != null ? ec.SecondAppraiser.FullName : ec.Employee!.SecondAppraiser != null ? ec.Employee!.SecondAppraiser.FullName : null,
 
+                CoAppraiserId = ec.CoAppraiserId,
+                CoAppraiser = ec.CoAppraiser != null
+                    ? new { ec.CoAppraiser.Id, ec.CoAppraiser.SapId, ec.CoAppraiser.FullName }
+                    : ec.Employee!.CoAppraiser != null
+                        ? new { ec.Employee!.CoAppraiser.Id, ec.Employee!.CoAppraiser.SapId, ec.Employee!.CoAppraiser.FullName }
+                        : null,
+                CoAppraiserSapId = ec.CoAppraiser != null ? ec.CoAppraiser.SapId : ec.Employee!.CoAppraiser != null ? ec.Employee!.CoAppraiser.SapId : ec.PendingCoAppraiserSapId,
+                CoAppraiserName = ec.CoAppraiser != null ? ec.CoAppraiser.FullName : ec.Employee!.CoAppraiser != null ? ec.Employee!.CoAppraiser.FullName : null,
+                PendingCoAppraiserSapId = ec.PendingCoAppraiserSapId,
+
                 ec.AppraiserValidationStatus,
                 ec.CreatedAt,
                 ec.UpdatedAt
             })
             .ToListAsync();
 
-        return Ok(roster);
+        var allEmployees = await _db.Employees.ToListAsync();
+        var empLookup = allEmployees.ToDictionary(e => e.SapId, StringComparer.OrdinalIgnoreCase);
+
+        var finalRoster = roster.Select(r => {
+            string? coSap = r.CoAppraiserSapId ?? r.PendingCoAppraiserSapId;
+            object? coObj = r.CoAppraiser;
+            string? coName = r.CoAppraiserName;
+
+            // Direct cycle record CoAppraiserId lookup
+            if (string.IsNullOrWhiteSpace(coSap) && r.CoAppraiserId.HasValue)
+            {
+                var directCo = allEmployees.FirstOrDefault(e => e.Id == r.CoAppraiserId.Value);
+                if (directCo != null)
+                {
+                    coSap = directCo.SapId;
+                    coObj = new { directCo.Id, directCo.SapId, directCo.FullName };
+                    coName = directCo.FullName;
+                }
+            }
+
+            // Fallback to Employee master record's CoAppraiser if cycle record is not explicitly linked
+            if (string.IsNullOrWhiteSpace(coSap) && empLookup.TryGetValue(r.SapId, out var selfEmp) && selfEmp.CoAppraiserId.HasValue)
+            {
+                var masterCoApp = allEmployees.FirstOrDefault(e => e.Id == selfEmp.CoAppraiserId.Value);
+                if (masterCoApp != null)
+                {
+                    coSap = masterCoApp.SapId;
+                    coObj = new { masterCoApp.Id, masterCoApp.SapId, masterCoApp.FullName };
+                    coName = masterCoApp.FullName;
+                }
+            }
+
+            if (coObj == null && !string.IsNullOrWhiteSpace(coSap) && empLookup.TryGetValue(coSap, out var matchedEmp))
+            {
+                coObj = new { matchedEmp.Id, matchedEmp.SapId, matchedEmp.FullName };
+                coName = matchedEmp.FullName;
+            }
+
+            return new
+            {
+                r.Id,
+                r.EmployeeCycleId,
+                r.EmployeeId,
+                r.Employee,
+                r.SapId,
+                r.FullName,
+                r.Email,
+                r.SnapshotGrade,
+                r.SnapshotDesignation,
+                r.SnapshotReportingGroup,
+                r.SnapshotDivision,
+                r.SnapshotWingDepartment,
+                r.SnapshotRegionBranch,
+                r.SnapshotLocation,
+                r.SnapshotIsMrtOrMrc,
+                r.AssignedFormType,
+                r.CurrentStatus,
+                r.CurrentStatusCode,
+                r.FirstAppraiserId,
+                r.FirstAppraiser,
+                r.FirstAppraiserSapId,
+                r.FirstAppraiserName,
+                r.SecondAppraiserId,
+                r.SecondAppraiser,
+                r.SecondAppraiserSapId,
+                r.SecondAppraiserName,
+                r.CoAppraiserId,
+                CoAppraiser = coObj,
+                CoAppraiserSapId = coSap,
+                CoAppraiserName = coName,
+                r.PendingCoAppraiserSapId,
+                r.AppraiserValidationStatus,
+                r.CreatedAt,
+                r.UpdatedAt
+            };
+        }).ToList();
+
+        return Ok(finalRoster);
     }
 
     /// <summary>
@@ -544,13 +633,41 @@ public class CyclesController : ControllerBase
         if (!string.IsNullOrWhiteSpace(dto.FirstAppraiserSapId))
         {
             var fa = await _db.Employees.FirstOrDefaultAsync(e => e.SapId == dto.FirstAppraiserSapId.Trim());
-            if (fa != null) empCycle.FirstAppraiserId = fa.Id;
+            if (fa != null)
+            {
+                empCycle.FirstAppraiserId = fa.Id;
+                if (empCycle.Employee != null) empCycle.Employee.FirstAppraiserId = fa.Id;
+            }
         }
 
         if (!string.IsNullOrWhiteSpace(dto.SecondAppraiserSapId))
         {
             var sa = await _db.Employees.FirstOrDefaultAsync(e => e.SapId == dto.SecondAppraiserSapId.Trim());
-            if (sa != null) empCycle.SecondAppraiserId = sa.Id;
+            if (sa != null)
+            {
+                empCycle.SecondAppraiserId = sa.Id;
+                if (empCycle.Employee != null) empCycle.Employee.SecondAppraiserId = sa.Id;
+            }
+        }
+
+        if (dto.CoAppraiserSapId != null)
+        {
+            if (string.IsNullOrWhiteSpace(dto.CoAppraiserSapId))
+            {
+                empCycle.CoAppraiserId = null;
+                empCycle.PendingCoAppraiserSapId = null;
+                if (empCycle.Employee != null) empCycle.Employee.CoAppraiserId = null;
+            }
+            else
+            {
+                var ca = await _db.Employees.FirstOrDefaultAsync(e => e.SapId == dto.CoAppraiserSapId.Trim());
+                if (ca != null)
+                {
+                    empCycle.CoAppraiserId = ca.Id;
+                    empCycle.PendingCoAppraiserSapId = null;
+                    if (empCycle.Employee != null) empCycle.Employee.CoAppraiserId = ca.Id;
+                }
+            }
         }
 
         // Recalculate or override Assigned Form Type based on updated snapshot grade / MRT / explicit DTO
@@ -1331,10 +1448,31 @@ public class CyclesController : ControllerBase
             .Where(ec => ec.CycleId == id && dto.EmployeeCycleIds.Contains(ec.Id))
             .ToListAsync();
 
+        Guid? coAppraiserId = null;
+        if (!string.IsNullOrWhiteSpace(dto.CoAppraiserSapId))
+        {
+            var ca = await _db.Employees.FirstOrDefaultAsync(e => e.SapId == dto.CoAppraiserSapId.Trim());
+            if (ca != null) coAppraiserId = ca.Id;
+        }
+
         foreach (var ec in empCycles)
         {
-            if (firstAppraiserId.HasValue) ec.FirstAppraiserId = firstAppraiserId.Value;
-            if (secondAppraiserId.HasValue) ec.SecondAppraiserId = secondAppraiserId.Value;
+            if (firstAppraiserId.HasValue)
+            {
+                ec.FirstAppraiserId = firstAppraiserId.Value;
+                if (ec.Employee != null) ec.Employee.FirstAppraiserId = firstAppraiserId.Value;
+            }
+            if (secondAppraiserId.HasValue)
+            {
+                ec.SecondAppraiserId = secondAppraiserId.Value;
+                if (ec.Employee != null) ec.Employee.SecondAppraiserId = secondAppraiserId.Value;
+            }
+            if (dto.CoAppraiserSapId != null)
+            {
+                ec.CoAppraiserId = coAppraiserId;
+                ec.PendingCoAppraiserSapId = null;
+                if (ec.Employee != null) ec.Employee.CoAppraiserId = coAppraiserId;
+            }
             ec.UpdatedAt = DateTime.UtcNow;
         }
 
@@ -1698,6 +1836,7 @@ public record UpdateCycleEmployeeSnapshotDto(
     bool? SnapshotIsMrtOrMrc,
     string? FirstAppraiserSapId,
     string? SecondAppraiserSapId,
+    string? CoAppraiserSapId = null,
     string? AssignedFormType = null,
     string? ActorUserId = "PMW_ADMIN"
 );
@@ -1731,6 +1870,7 @@ public record BulkAssignAppraisersDto(
     List<Guid> EmployeeCycleIds,
     string? FirstAppraiserSapId,
     string? SecondAppraiserSapId,
+    string? CoAppraiserSapId = null,
     string? ActorUserId = "PMW_ADMIN"
 );
 

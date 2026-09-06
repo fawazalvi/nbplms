@@ -1,7 +1,9 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { HelpCircle, FileText, Download, ExternalLink, BookOpen } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { HelpCircle, FileText, Download, ExternalLink, BookOpen, GitBranch, ArrowRight } from 'lucide-react';
 
 export const HelpCircularsPage: React.FC = () => {
   return (
@@ -18,6 +20,40 @@ export const HelpCircularsPage: React.FC = () => {
             Official NBP HR policy guidelines, circular references, and appraisal form writing SMART objectives guides.
           </p>
         </div>
+
+        <Link to="/workflow-swimlane" target="_blank" rel="noopener noreferrer">
+          <Button className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-lg flex items-center space-x-2">
+            <GitBranch className="h-4 w-4" />
+            <span>Open Workflow Swimlane</span>
+            <ArrowRight className="h-3.5 w-3.5" />
+          </Button>
+        </Link>
+      </div>
+
+      {/* Interactive Workflow Swimlane Banner Card */}
+      <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-900 via-teal-900 to-blue-950 text-white border border-emerald-700/60 shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center space-x-3.5">
+          <div className="p-2.5 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+            <GitBranch className="h-6 w-6" />
+          </div>
+          <div>
+            <h3 className="text-sm font-black text-white flex items-center">
+              <span>Interactive Workflow Swimlane &amp; Process Guide</span>
+              <Badge className="ml-2 bg-emerald-400 text-emerald-950 text-[9px] font-black uppercase">
+                Visual Matrix
+              </Badge>
+            </h3>
+            <p className="text-xs text-slate-300 mt-0.5">
+              Explore all 6 stakeholder roles, sequential approval stages, decision gates, and business rules across the full appraisal lifecycle.
+            </p>
+          </div>
+        </div>
+        <Link to="/workflow-swimlane" target="_blank" rel="noopener noreferrer" className="shrink-0">
+          <Button size="sm" className="bg-white text-emerald-950 hover:bg-emerald-50 font-bold text-xs shadow">
+            <span>Explore Swimlane</span>
+            <ArrowRight className="h-3.5 w-3.5 ml-1" />
+          </Button>
+        </Link>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

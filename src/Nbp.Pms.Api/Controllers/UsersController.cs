@@ -51,6 +51,7 @@ public class UsersController : ControllerBase
             EmployeeGrade = u.Employee != null ? u.Employee.Grade : null,
             EmployeeDesignation = u.Employee != null ? u.Employee.Designation : null,
             EmployeeGroup = u.Employee != null ? u.Employee.ReportingGroup : null,
+            AssignedReportingGroups = u.AssignedReportingGroups,
         }).ToListAsync();
 
         return Ok(users);
@@ -90,6 +91,7 @@ public class UsersController : ControllerBase
             Email = dto.Email?.Trim() ?? $"{dto.Username}@nbp.com.pk",
             Role = dto.Role ?? "Employee",
             EmployeeId = employeeId,
+            AssignedReportingGroups = !string.IsNullOrWhiteSpace(dto.AssignedReportingGroups) ? dto.AssignedReportingGroups.Trim() : null,
             IsActive = true,
             MustChangePassword = true
         };
@@ -126,6 +128,10 @@ public class UsersController : ControllerBase
         if (!string.IsNullOrWhiteSpace(dto.FullName)) user.FullName = dto.FullName.Trim();
         if (!string.IsNullOrWhiteSpace(dto.Email)) user.Email = dto.Email.Trim();
         if (!string.IsNullOrWhiteSpace(dto.Role)) user.Role = dto.Role;
+        if (dto.AssignedReportingGroups != null)
+        {
+            user.AssignedReportingGroups = !string.IsNullOrWhiteSpace(dto.AssignedReportingGroups) ? dto.AssignedReportingGroups.Trim() : null;
+        }
         user.UpdatedAt = DateTime.UtcNow;
 
         // If linking to a different employee
@@ -259,7 +265,8 @@ public record CreateSystemUserDto(
     string? Role,
     string? Password,
     string? EmployeeSapId,
-    string? ActorUserId
+    string? ActorUserId,
+    string? AssignedReportingGroups = null
 );
 
 public record UpdateSystemUserDto(
@@ -267,5 +274,6 @@ public record UpdateSystemUserDto(
     string? Email,
     string? Role,
     string? EmployeeSapId,
-    string? ActorUserId
+    string? ActorUserId,
+    string? AssignedReportingGroups = null
 );

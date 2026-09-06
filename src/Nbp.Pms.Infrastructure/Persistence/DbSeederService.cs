@@ -144,6 +144,7 @@ public class DbSeederService
                 UPDATE ReportingGroups SET RpsaCode = '0006' WHERE GroupCode = 'OPS' AND (RpsaCode IS NULL OR RpsaCode = '');
                 UPDATE ReportingGroups SET RpsaCode = '0007' WHERE GroupCode = 'HRG' AND (RpsaCode IS NULL OR RpsaCode = '');
                 UPDATE ReportingGroups SET RpsaCode = '0008' WHERE GroupCode = 'CMP' AND (RpsaCode IS NULL OR RpsaCode = '');
+                END
 
                 IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'GradeMappings' AND COLUMN_NAME = 'EsgCode')
                 BEGIN
@@ -217,6 +218,23 @@ public class DbSeederService
                     ALTER TABLE EmployeeCycles ADD SnapshotIsMrtOrMrc BIT NULL;
                 END
 
+                IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'DisagreementCases' AND COLUMN_NAME = 'AttachmentFileName')
+                BEGIN
+                    ALTER TABLE DisagreementCases ADD AttachmentFileName NVARCHAR(255) NULL;
+                    ALTER TABLE DisagreementCases ADD AttachmentFileData NVARCHAR(MAX) NULL;
+                    ALTER TABLE DisagreementCases ADD AttachmentFileSizeBytes BIGINT NULL;
+                    ALTER TABLE DisagreementCases ADD AttachmentFileType NVARCHAR(100) NULL;
+                END
+
+                IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'EmployeeCycles' AND COLUMN_NAME = 'DisagreementAttachmentFileName')
+                BEGIN
+                    ALTER TABLE EmployeeCycles ADD DisagreementReason NVARCHAR(MAX) NULL;
+                    ALTER TABLE EmployeeCycles ADD DisagreementAttachmentFileName NVARCHAR(255) NULL;
+                    ALTER TABLE EmployeeCycles ADD DisagreementAttachmentFileData NVARCHAR(MAX) NULL;
+                    ALTER TABLE EmployeeCycles ADD DisagreementAttachmentSizeBytes BIGINT NULL;
+                    ALTER TABLE EmployeeCycles ADD DisagreementAttachmentContentType NVARCHAR(100) NULL;
+                END
+
                 IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'SystemUsers')
                 BEGIN
                     CREATE TABLE SystemUsers (
@@ -237,6 +255,11 @@ public class DbSeederService
                         CONSTRAINT FK_SystemUsers_Employees FOREIGN KEY (EmployeeId) REFERENCES Employees(Id) ON DELETE SET NULL
                     );
                     CREATE UNIQUE INDEX IX_SystemUsers_Username ON SystemUsers(Username);
+                END
+
+                IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'SystemUsers' AND COLUMN_NAME = 'AssignedReportingGroups')
+                BEGIN
+                    ALTER TABLE SystemUsers ADD AssignedReportingGroups NVARCHAR(MAX) NULL;
                 END
 
                 IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'EmailConfigurations')
@@ -480,7 +503,24 @@ public class DbSeederService
             FirstAppraiser = svp
         };
 
-        _db.Employees.AddRange(pres, sevp, svp, vp, avp, og1, og2, mrtAvp);
+        var coApp = new Employee
+        {
+            SapId = "10008",
+            FullName = "Farhan Siddiqui",
+            Grade = "05", // VP
+            Designation = "Matrix Project Director / Co-Appraiser",
+            Location = "Head Office Karachi",
+            ReportingGroup = "0001", // Commercial Banking Group
+            Division = "Special Projects Division",
+            WingDepartment = "Matrix Operations",
+            RegionBranch = "Head Office",
+            FirstAppraiser = svp,
+            Email = "10008@nbp.com.pk"
+        };
+
+        avp.CoAppraiser = coApp;
+
+        _db.Employees.AddRange(pres, sevp, svp, vp, avp, og1, og2, mrtAvp, coApp);
 
         // 5. Appraisal Cycles
         var cycle2026 = new AppraisalCycle
@@ -524,6 +564,7 @@ public class DbSeederService
             SnapshotIsMrtOrMrc = false,
             FirstAppraiser = vp,
             SecondAppraiser = svp,
+            CoAppraiser = coApp,
             AppraiserValidationStatus = "Validated"
         };
 
@@ -789,9 +830,18 @@ public class DbSeederService
             EmployeeCycleId = zahidCycle.Id,
             EmployeeId = og1.Id,
             MandatoryDisagreementReason = "I believe my NPL recovery efforts (PKR 45M recovered) were not adequately reflected in the final rating. The recovery target was PKR 30M and I exceeded it by 50%.",
-            Status = "PendingGpmReview"
+            Status = "PendingGpmReview",
+            AttachmentFileName = "NPL_Recovery_Portfolio_Q4_2026.xlsx",
+            AttachmentFileType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            AttachmentFileSizeBytes = 184520,
+            AttachmentFileData = "data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64,UEsDBBQABgAIAAAAIQ=="
         };
         _db.DisagreementCases.Add(zahidDisagreement);
+        zahidCycle.DisagreementReason = zahidDisagreement.MandatoryDisagreementReason;
+        zahidCycle.DisagreementAttachmentFileName = zahidDisagreement.AttachmentFileName;
+        zahidCycle.DisagreementAttachmentFileData = zahidDisagreement.AttachmentFileData;
+        zahidCycle.DisagreementAttachmentSizeBytes = zahidDisagreement.AttachmentFileSizeBytes;
+        zahidCycle.DisagreementAttachmentContentType = zahidDisagreement.AttachmentFileType;
 
         var ae1 = new AuditEvent { EventType = "EMPLOYEE_IMPORTED", ActorUserId = "SYSTEM", ActorRole = "System", TargetEntityType = "Employee", ActionDescription = "Imported employee Zahid Hussain", IpAddress = "127.0.0.1", Timestamp = DateTime.UtcNow.AddDays(-10) };
         var ae2 = new AuditEvent { EventType = "CYCLE_OPENED", ActorUserId = "ADMIN", ActorRole = "PmwSuperAdmin", TargetEntityType = "AppraisalCycle", ActionDescription = "Opened 2026 cycle", IpAddress = "127.0.0.1", Timestamp = DateTime.UtcNow.AddDays(-5) };

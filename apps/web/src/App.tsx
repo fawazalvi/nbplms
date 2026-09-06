@@ -5,6 +5,8 @@ import { Sidebar } from './components/layout/Sidebar';
 import { LoginPage } from './pages/auth/LoginPage';
 import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
 import ResetPasswordPage from './pages/auth/ResetPasswordPage';
+import { WorkflowSwimlanePage } from './pages/help/WorkflowSwimlanePage';
+import { GpmOperationsDashboard } from './pages/gpm/GpmOperationsDashboard';
 import { PmwDashboard } from './pages/dashboard/PmwDashboard';
 import { SuperAdminDashboard } from './pages/dashboard/SuperAdminDashboard';
 import { ObjectiveFormPage } from './pages/forms/ObjectiveFormPage';
@@ -53,6 +55,8 @@ export function App() {
   if (!isAuthenticated) {
     return (
       <Routes>
+        <Route path="/workflow-swimlane" element={<WorkflowSwimlanePage />} />
+        <Route path="/workflow" element={<WorkflowSwimlanePage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="*" element={<LoginPage onLoginSuccess={handleLoginSuccess} />} />
@@ -80,6 +84,9 @@ export function App() {
           return <DatabaseToolsPage userRole={userRole} />;
         case 'workflow-management':
           return <WorkflowManagementPage userRole={userRole} />;
+        case 'workflow-swimlane':
+        case 'workflow-guide':
+          return <WorkflowSwimlanePage />;
         case 'dashboard':
         default:
           return <SuperAdminDashboard onSelectCycle={handleSelectCycle} onNavigate={setActiveTab} />;
@@ -108,8 +115,29 @@ export function App() {
             onNavigate={setActiveTab}
           />
         );
+      case 'gpm-reports':
+      case 'gpm-operations':
+      case 'gpm-supervisors':
+        return (
+          <GpmOperationsDashboard
+            userRole={userRole}
+            currentUser={currentUser}
+            onNavigate={setActiveTab}
+            defaultView={activeTab === 'gpm-supervisors' ? 'supervisors' : 'overview'}
+          />
+        );
       case 'organization':
       case 'employees':
+        if (userRole === 'GroupPerformanceManager') {
+          return (
+            <GpmOperationsDashboard
+              userRole={userRole}
+              currentUser={currentUser}
+              onNavigate={setActiveTab}
+              defaultView="roster"
+            />
+          );
+        }
         if (userRole === 'PmwAdmin') {
           return (
             <CycleSnapshotManagerPage
@@ -123,20 +151,50 @@ export function App() {
         return <EmployeeDataPage userRole={userRole} />;
       case 'my-appraisal':
       case 'forms':
-        return <ObjectiveFormPage formType={userRole === 'PmwAdmin' ? 'BSC' : 'KPI'} />;
+        return <ObjectiveFormPage currentUser={currentUser} formType={userRole === 'PmwAdmin' ? 'BSC' : 'KPI'} />;
       case 'appraiser-setup':
-        return <AppraiserSetupPage userRole={userRole} onNavigate={setActiveTab} />;
+        return <AppraiserSetupPage currentUser={currentUser} userRole={userRole} onNavigate={setActiveTab} />;
       case 'team-reviews':
         return <TeamReviewInboxPage currentUser={currentUser} userRole={userRole} />;
       case 'my-dev-review':
       case 'dev-review':
       case 'dev-reviews':
-        return <DevelopmentReviewPage userRole={userRole} />;
+        return <DevelopmentReviewPage currentUser={currentUser} userRole={userRole} />;
       case 'bellcurve':
+        if (userRole === 'GroupPerformanceManager') {
+          return (
+            <GpmOperationsDashboard
+              userRole={userRole}
+              currentUser={currentUser}
+              onNavigate={setActiveTab}
+              defaultView="bellcurve"
+            />
+          );
+        }
         return <BellCurvePage />;
       case 'disagreements':
+        if (userRole === 'GroupPerformanceManager') {
+          return (
+            <GpmOperationsDashboard
+              userRole={userRole}
+              currentUser={currentUser}
+              onNavigate={setActiveTab}
+              defaultView="disputes"
+            />
+          );
+        }
         return <DisagreementRegisterPage />;
       case 'reminders':
+        if (userRole === 'GroupPerformanceManager') {
+          return (
+            <GpmOperationsDashboard
+              userRole={userRole}
+              currentUser={currentUser}
+              onNavigate={setActiveTab}
+              defaultView="supervisors"
+            />
+          );
+        }
         return <RemindersPage />;
       case 'audit':
         return <AuditLogPage />;
@@ -146,6 +204,9 @@ export function App() {
         return <DatabaseToolsPage userRole={userRole} />;
       case 'workflow-management':
         return <WorkflowManagementPage userRole={userRole} />;
+      case 'workflow-swimlane':
+      case 'workflow-guide':
+        return <WorkflowSwimlanePage />;
       case 'help':
         return <HelpCircularsPage />;
       case 'dashboard':
@@ -160,7 +221,17 @@ export function App() {
             />
           );
         }
-        return <ObjectiveFormPage formType={userRole === 'GroupPerformanceManager' ? 'BSC' : 'KPI'} />;
+        if (userRole === 'GroupPerformanceManager') {
+          return (
+            <GpmOperationsDashboard
+              userRole={userRole}
+              currentUser={currentUser}
+              onNavigate={setActiveTab}
+              defaultView="overview"
+            />
+          );
+        }
+        return <ObjectiveFormPage currentUser={currentUser} formType="KPI" />;
     }
   };
 
@@ -181,17 +252,9 @@ export function App() {
           activeTab={activeTab}
           onTabChange={setActiveTab}
         />
-        <main className="flex-1 p-6 overflow-y-auto pb-24">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
           {renderContent()}
         </main>
-      </div>
-
-      {/* Global Persistent Footer */}
-      <div className="w-full bg-gradient-to-r from-emerald-950 via-teal-900 to-emerald-950 border-t border-emerald-800 p-2 text-center shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-50 fixed bottom-0 left-0 flex items-center justify-center space-x-2">
-        <svg className="h-4 w-4 text-amber-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/></svg>
-        <p className="text-[10px] sm:text-xs text-emerald-100 font-medium tracking-wide">
-          Designed & Developed by <strong className="font-bold text-white uppercase tracking-wider">HR Digital Transformation Team</strong> — SPB&DTW, SP&RD, HRMG
-        </p>
       </div>
     </div>
   );

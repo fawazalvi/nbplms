@@ -872,7 +872,7 @@ export const AppraisalCyclesPage: React.FC<AppraisalCyclesPageProps> = ({ userRo
                         <th className="p-3">Cycle Snapshot Grade</th>
                         <th className="p-3">Cycle Snapshot Group</th>
                         <th className="p-3">Assigned Form Type</th>
-                        <th className="p-3">1st / 2nd Appraisers</th>
+                        <th className="p-3">Appraisers (1st / Co / 2nd)</th>
                         <th className="p-3">Status</th>
                         <th className="p-3 text-right">Actions</th>
                       </tr>
@@ -911,9 +911,19 @@ export const AppraisalCyclesPage: React.FC<AppraisalCyclesPageProps> = ({ userRo
                                 : 'KPI Form (70/30)'}
                             </Badge>
                           </td>
-                          <td className="p-3 text-[11px]">
-                            {emp.firstAppraiserSapId && <div>1st: <span className="font-mono text-emerald-800 font-semibold">{emp.firstAppraiserSapId}</span></div>}
-                            {emp.secondAppraiserSapId && <div>2nd: <span className="font-mono text-slate-700 font-semibold">{emp.secondAppraiserSapId}</span></div>}
+                          <td className="p-3 text-[11px] space-y-0.5">
+                            {emp.firstAppraiserSapId && (
+                              <div>1st: <span className="font-mono text-emerald-800 font-semibold">{emp.firstAppraiserSapId}</span></div>
+                            )}
+                            {(emp.coAppraiserSapId || emp.coAppraiser?.sapId || emp.pendingCoAppraiserSapId || emp.coAppraiserName) && (
+                              <div>Co-App: <span className="font-mono text-teal-800 font-semibold bg-teal-50 px-1 rounded">{emp.coAppraiserSapId || emp.coAppraiser?.sapId || emp.pendingCoAppraiserSapId} {emp.coAppraiserName ? `(${emp.coAppraiserName})` : ''}</span></div>
+                            )}
+                            {emp.secondAppraiserSapId && (
+                              <div>2nd: <span className="font-mono text-slate-700 font-semibold">{emp.secondAppraiserSapId}</span></div>
+                            )}
+                            {!emp.firstAppraiserSapId && !emp.coAppraiserSapId && !emp.secondAppraiserSapId && (
+                              <span className="text-slate-400 font-mono">—</span>
+                            )}
                           </td>
                           <td className="p-3">
                             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700">

@@ -25,14 +25,17 @@ import {
 } from 'lucide-react';
 
 interface AppraiserSetupPageProps {
+  currentUser?: any;
   userRole?: string;
   onNavigate?: (tab: string) => void;
 }
 
 export const AppraiserSetupPage: React.FC<AppraiserSetupPageProps> = ({
+  currentUser,
   userRole = 'EndUser',
   onNavigate
 }) => {
+  const currentSapId = currentUser?.sapId || currentUser?.username || '84920';
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [empCycle, setEmpCycle] = useState<any>(null);
@@ -52,7 +55,7 @@ export const AppraiserSetupPage: React.FC<AppraiserSetupPageProps> = ({
     setLoading(true);
     try {
       // Load current user's active cycle
-      const data = await api.getMyAppraisal('84920');
+      const data = await api.getMyAppraisal(currentSapId);
       if (data && data.employeeCycle) {
         const ec = data.employeeCycle;
         setEmpCycle(ec);
@@ -65,9 +68,25 @@ export const AppraiserSetupPage: React.FC<AppraiserSetupPageProps> = ({
         setSecondSap(sSap);
         setCoAppSap(cSap);
 
-        if (ec.firstAppraiser) setFirstAppraiserInfo(ec.firstAppraiser);
-        if (ec.secondAppraiser) setSecondAppraiserInfo(ec.secondAppraiser);
-        if (ec.coAppraiser) setCoAppraiserInfo(ec.coAppraiser);
+        if (ec.firstAppraiser) {
+          setFirstAppraiserInfo(ec.firstAppraiser);
+        } else if (ec.pendingFirstAppraiserSapId) {
+          api.getEmployeeBySap(ec.pendingFirstAppraiserSapId).then(fa => { if (fa) setFirstAppraiserInfo(fa); }).catch(() => {});
+        }
+
+        if (ec.secondAppraiser) {
+          setSecondAppraiserInfo(ec.secondAppraiser);
+        } else if (ec.pendingSecondAppraiserSapId) {
+          api.getEmployeeBySap(ec.pendingSecondAppraiserSapId).then(sa => { if (sa) setSecondAppraiserInfo(sa); }).catch(() => {});
+        }
+
+        if (ec.coAppraiser) {
+          setCoAppraiserInfo(ec.coAppraiser);
+        } else if (ec.pendingCoAppraiserSapId) {
+          api.getEmployeeBySap(ec.pendingCoAppraiserSapId).then(ca => { if (ca) setCoAppraiserInfo(ca); }).catch(() => {});
+        } else {
+          setCoAppraiserInfo(null);
+        }
       }
     } catch (e: any) {
       console.error('Failed to load employee appraisal line', e);
@@ -79,7 +98,7 @@ export const AppraiserSetupPage: React.FC<AppraiserSetupPageProps> = ({
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [currentSapId]);
 
   const handleSaveAppraiserLine = async () => {
     if (!empCycle) return;
@@ -234,7 +253,7 @@ export const AppraiserSetupPage: React.FC<AppraiserSetupPageProps> = ({
           </div>
 
           <div className="text-slate-300 font-mono text-[11px]">
-            Employee SAP: <strong>{empCycle?.employee?.sapId || '84920'}</strong> | Grade: <strong>{empCycle?.snapshotGrade || 'AVP'}</strong>
+            Employee SAP: <strong>{empCycle?.employee?.sapId || currentSapId}</strong> | Grade: <strong>{empCycle?.snapshotGrade || currentUser?.grade || 'AVP'}</strong>
           </div>
         </div>
       </div>

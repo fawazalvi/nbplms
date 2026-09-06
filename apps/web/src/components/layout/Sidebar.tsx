@@ -19,7 +19,8 @@ import {
   Sparkles,
   Layers,
   Database,
-  GraduationCap
+  GraduationCap,
+  UserCheck
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -91,6 +92,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentRole, activeTab, onTabC
             items: [
               { id: 'cycles', label: 'Appraisal Cycles', icon: Calendar },
               { id: 'cycle-snapshots', label: 'Cycle Snapshot & Rosters', icon: Layers },
+              { id: 'gpm-reports', label: 'Group HRBP Operations', icon: Building2 },
             ]
           },
           {
@@ -115,23 +117,25 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentRole, activeTab, onTabC
       case 'GroupPerformanceManager':
         return [
           {
-            title: 'Overview',
+            title: 'HRBP Operations & Coordination',
             items: [
-              { id: 'dashboard', label: 'Group Overview', icon: LayoutDashboard },
+              { id: 'dashboard', label: 'Operations Pipeline Hub', icon: LayoutDashboard },
+              { id: 'gpm-supervisors', label: 'Supervisor Action List', icon: UserCheck },
+              { id: 'employees', label: 'Group Appraisal Roster', icon: Users },
             ]
           },
           {
-            title: 'Group Performance',
+            title: 'Governance & Calibration',
             items: [
-              { id: 'employees', label: 'Group Employee List', icon: Users },
-              { id: 'bellcurve', label: 'Bell Curve Preview', icon: Scale },
-              { id: 'reminders', label: 'Send Reminders', icon: Send },
-              { id: 'disagreements', label: 'Group Disagreements', icon: FileCheck },
+              { id: 'bellcurve', label: 'Bell Curve Calibration', icon: Scale },
+              { id: 'disagreements', label: 'Disagreement Register', icon: FileCheck },
+              { id: 'reminders', label: 'Send Reminders & Nudges', icon: Send },
             ]
           },
           {
             title: 'Policy & Resources',
             items: [
+              { id: 'workflow-swimlane', label: 'Workflow Guide & Slideshow', icon: Layers },
               { id: 'help', label: 'Policy & FAQs', icon: HelpCircle },
             ]
           }

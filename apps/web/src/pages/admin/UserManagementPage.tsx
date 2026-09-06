@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { api } from '@/lib/api';
-import { Users, UserPlus, Search, RefreshCw, Lock, Unlock, KeyRound, CheckCircle2, Shield, UserX, UserCheck, X, Edit, Eye, EyeOff } from 'lucide-react';
+import { Users, UserPlus, Building2, Search, RefreshCw, Lock, Unlock, KeyRound, CheckCircle2, Shield, UserX, UserCheck, X, Edit, Eye, EyeOff } from 'lucide-react';
 import { SapIdAutocomplete } from '@/components/appraisal/SapIdAutocomplete';
 
 export const UserManagementPage: React.FC = () => {
@@ -28,16 +28,20 @@ export const UserManagementPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [selectedRole, setSelectedRole] = useState('');
   const [employeeSapId, setEmployeeSapId] = useState('');
+  const [availableGroups, setAvailableGroups] = useState<any[]>([]);
+  const [assignedReportingGroups, setAssignedReportingGroups] = useState<string[]>([]);
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const [usersData, rolesData] = await Promise.all([
+      const [usersData, rolesData, groupsData] = await Promise.all([
         api.getUsers(searchTerm),
-        api.getAvailableRoles().catch(() => [])
+        api.getAvailableRoles().catch(() => []),
+        api.getReportingGroups().catch(() => [])
       ]);
       setUsers(usersData);
       setRoles(rolesData);
+      setAvailableGroups(groupsData || []);
       if (rolesData.length > 0 && !selectedRole) {
         setSelectedRole(rolesData[0].value);
       }
@@ -73,6 +77,7 @@ export const UserManagementPage: React.FC = () => {
     setEmail('');
     setPassword('');
     setEmployeeSapId('');
+    setAssignedReportingGroups([]);
     if (roles.length > 0) setSelectedRole(roles[0].value);
     setShowPassword(false);
     setEditingUserId(null);
@@ -91,6 +96,12 @@ export const UserManagementPage: React.FC = () => {
     setEmail(user.email || '');
     setSelectedRole(user.role || (roles.length > 0 ? roles[0].value : ''));
     setEmployeeSapId(user.employeeSapId || '');
+    if (user.assignedReportingGroups) {
+      const parts = user.assignedReportingGroups.split(',').map((s: string) => s.trim()).filter(Boolean);
+      setAssignedReportingGroups(parts);
+    } else {
+      setAssignedReportingGroups([]);
+    }
     setShowEditModal(true);
   };
 
@@ -107,7 +118,10 @@ export const UserManagementPage: React.FC = () => {
         role: selectedRole,
         password,
         employeeSapId,
-        actorUserId: 'Admin'
+        actorUserId: 'Admin',
+        assignedReportingGroups: selectedRole === 'GroupPerformanceManager' && assignedReportingGroups.length > 0
+          ? assignedReportingGroups.join(',')
+          : null
       });
       setMessage({ type: 'success', text: `User account ${fullName} (${username}) created successfully.` });
       setShowCreateModal(false);
@@ -129,7 +143,10 @@ export const UserManagementPage: React.FC = () => {
         email,
         role: selectedRole,
         employeeSapId,
-        actorUserId: 'Admin'
+        actorUserId: 'Admin',
+        assignedReportingGroups: selectedRole === 'GroupPerformanceManager'
+          ? (assignedReportingGroups.length > 0 ? assignedReportingGroups.join(',') : '')
+          : null
       });
       setMessage({ type: 'success', text: `User account updated successfully.` });
       setShowEditModal(false);
@@ -292,7 +309,7 @@ export const UserManagementPage: React.FC = () => {
                   <tr>
                     <th className="p-3">Username</th>
                     <th className="p-3">Full Name</th>
-                    <th className="p-3">Role</th>
+                    <th className="p-3">Role & Jurisdiction</th>
                     <th className="p-3">Employee Link</th>
                     <th className="p-3">Status</th>
                     <th className="p-3">Last Login</th>
@@ -304,7 +321,24 @@ export const UserManagementPage: React.FC = () => {
                     <tr key={u.id} className="hover:bg-slate-50">
                       <td className="p-3 font-mono font-bold text-slate-900">{u.username}</td>
                       <td className="p-3 font-bold text-slate-900">{u.fullName}</td>
-                      <td className="p-3"><Badge variant="nbp" className="text-[10px]">{u.role}</Badge></td>
+                      <td className="p-3">
+                        <Badge variant="nbp" className="text-[10px]">{u.role}</Badge>
+                        {u.role === 'GroupPerformanceManager' && (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {u.assignedReportingGroups ? (
+                              u.assignedReportingGroups.split(',').map((grp: string) => (
+                                <span key={grp} className="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
+                                  {grp.trim()}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-bold bg-purple-100 text-purple-800 border border-purple-200">
+                                All Groups (Global Access)
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </td>
                       <td className="p-3 text-slate-600 font-mono text-[11px]">{u.employeeSapId || '-'}</td>
                       <td className="p-3 space-x-1">
                         {u.isLockedOut ? (
@@ -419,6 +453,89 @@ export const UserManagementPage: React.FC = () => {
                   />
                 </div>
               </div>
+
+              {/* Reporting Group Jurisdiction (Group Performance Manager only) */}
+              {selectedRole === 'GroupPerformanceManager' && (
+                <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <label className="font-bold text-slate-800 flex items-center gap-1.5">
+                        <Building2 className="h-4 w-4 text-emerald-700" />
+                        Responsible Reporting Groups (Jurisdiction)
+                      </label>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        Select one or more reporting groups under this GPM's jurisdiction. <strong className="text-emerald-700">If no group is selected, this user will have access to all groups.</strong>
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const allCodes = availableGroups.map((g: any) => g.groupCode || g.rpsaCode || g.groupName);
+                          setAssignedReportingGroups(allCodes);
+                        }}
+                        className="text-[10px] font-bold text-emerald-700 hover:text-emerald-900 px-2 py-0.5 border border-emerald-300 rounded bg-white"
+                      >
+                        Select All
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAssignedReportingGroups([])}
+                        className="text-[10px] font-bold text-slate-600 hover:text-slate-800 px-2 py-0.5 border border-slate-300 rounded bg-white"
+                      >
+                        Clear (All Groups)
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-1 pb-1">
+                    <span className="text-[10px] font-bold uppercase text-slate-400">Jurisdiction Status:</span>
+                    {assignedReportingGroups.length === 0 ? (
+                      <Badge className="bg-purple-100 text-purple-800 border-purple-200 text-[10px] font-bold">
+                        ★ Access to ALL Groups across the Bank (Unrestricted)
+                      </Badge>
+                    ) : (
+                      <Badge className="bg-emerald-100 text-emerald-900 border-emerald-200 text-[10px] font-bold">
+                        Restricted to {assignedReportingGroups.length} selected group(s)
+                      </Badge>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 max-h-44 overflow-y-auto pr-1 border border-slate-200 bg-white rounded-lg p-2">
+                    {availableGroups.map((g: any) => {
+                      const code = g.groupCode || g.rpsaCode || g.groupName;
+                      const isChecked = assignedReportingGroups.includes(code);
+                      return (
+                        <label
+                          key={g.id || code}
+                          className={`flex items-center space-x-2 p-1.5 rounded cursor-pointer border text-[11px] transition-colors ${
+                            isChecked
+                              ? 'bg-emerald-50 border-emerald-300 text-emerald-950 font-bold'
+                              : 'bg-white border-slate-100 text-slate-700 hover:bg-slate-50'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 h-3.5 w-3.5"
+                            checked={isChecked}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setAssignedReportingGroups([...assignedReportingGroups, code]);
+                              } else {
+                                setAssignedReportingGroups(assignedReportingGroups.filter(c => c !== code));
+                              }
+                            }}
+                          />
+                          <span className="truncate" title={g.groupName}>
+                            <span className="font-mono font-bold text-slate-900 mr-1">[{g.groupCode || g.rpsaCode}]</span>
+                            {g.groupName}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="p-4 bg-slate-50 border-t flex items-center justify-between">
@@ -485,6 +602,89 @@ export const UserManagementPage: React.FC = () => {
                   />
                 </div>
               </div>
+
+              {/* Reporting Group Jurisdiction (Group Performance Manager only) */}
+              {selectedRole === 'GroupPerformanceManager' && (
+                <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <label className="font-bold text-slate-800 flex items-center gap-1.5">
+                        <Building2 className="h-4 w-4 text-emerald-700" />
+                        Responsible Reporting Groups (Jurisdiction)
+                      </label>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        Select one or more reporting groups under this GPM's jurisdiction. <strong className="text-emerald-700">If no group is selected, this user will have access to all groups.</strong>
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const allCodes = availableGroups.map((g: any) => g.groupCode || g.rpsaCode || g.groupName);
+                          setAssignedReportingGroups(allCodes);
+                        }}
+                        className="text-[10px] font-bold text-emerald-700 hover:text-emerald-900 px-2 py-0.5 border border-emerald-300 rounded bg-white"
+                      >
+                        Select All
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAssignedReportingGroups([])}
+                        className="text-[10px] font-bold text-slate-600 hover:text-slate-800 px-2 py-0.5 border border-slate-300 rounded bg-white"
+                      >
+                        Clear (All Groups)
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-1 pb-1">
+                    <span className="text-[10px] font-bold uppercase text-slate-400">Jurisdiction Status:</span>
+                    {assignedReportingGroups.length === 0 ? (
+                      <Badge className="bg-purple-100 text-purple-800 border-purple-200 text-[10px] font-bold">
+                        ★ Access to ALL Groups across the Bank (Unrestricted)
+                      </Badge>
+                    ) : (
+                      <Badge className="bg-emerald-100 text-emerald-900 border-emerald-200 text-[10px] font-bold">
+                        Restricted to {assignedReportingGroups.length} selected group(s)
+                      </Badge>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 max-h-44 overflow-y-auto pr-1 border border-slate-200 bg-white rounded-lg p-2">
+                    {availableGroups.map((g: any) => {
+                      const code = g.groupCode || g.rpsaCode || g.groupName;
+                      const isChecked = assignedReportingGroups.includes(code);
+                      return (
+                        <label
+                          key={g.id || code}
+                          className={`flex items-center space-x-2 p-1.5 rounded cursor-pointer border text-[11px] transition-colors ${
+                            isChecked
+                              ? 'bg-emerald-50 border-emerald-300 text-emerald-950 font-bold'
+                              : 'bg-white border-slate-100 text-slate-700 hover:bg-slate-50'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 h-3.5 w-3.5"
+                            checked={isChecked}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setAssignedReportingGroups([...assignedReportingGroups, code]);
+                              } else {
+                                setAssignedReportingGroups(assignedReportingGroups.filter(c => c !== code));
+                              }
+                            }}
+                          />
+                          <span className="truncate" title={g.groupName}>
+                            <span className="font-mono font-bold text-slate-900 mr-1">[{g.groupCode || g.rpsaCode}]</span>
+                            {g.groupName}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="p-4 bg-slate-50 border-t flex items-center justify-between">

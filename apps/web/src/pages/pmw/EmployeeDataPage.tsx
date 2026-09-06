@@ -22,9 +22,11 @@ import {
   Building2,
   Award,
   ShieldAlert,
+  Shield,
   Layers
 } from 'lucide-react';
 import { SapIdAutocomplete } from '@/components/appraisal/SapIdAutocomplete';
+import { SetWorkflowStageModal, SetWorkflowStageTarget } from '@/components/admin/SetWorkflowStageModal';
 
 interface EmployeeDataPageProps {
   userRole?: string;
@@ -59,6 +61,7 @@ export const EmployeeDataPage: React.FC<EmployeeDataPageProps> = ({ userRole = '
     isMrtOrMrc: false,
     isActive: true,
     firstAppraiserSapId: '',
+    coAppraiserSapId: '',
     secondAppraiserSapId: '',
     createPortalUser: true,
     portalUserRole: 'Employee'
@@ -83,6 +86,10 @@ export const EmployeeDataPage: React.FC<EmployeeDataPageProps> = ({ userRole = '
   const [bulkAppraiserText, setBulkAppraiserText] = useState('');
   const [parsedAppraiserRows, setParsedAppraiserRows] = useState<any[]>([]);
   const [savingBulkAppraisers, setSavingBulkAppraisers] = useState(false);
+
+  // PMW Stage Override Modal State
+  const [showStageModal, setShowStageModal] = useState(false);
+  const [stageModalTarget, setStageModalTarget] = useState<SetWorkflowStageTarget | null>(null);
 
   const loadCycles = async () => {
     try {
@@ -190,6 +197,7 @@ export const EmployeeDataPage: React.FC<EmployeeDataPageProps> = ({ userRole = '
       isMrtOrMrc: false,
       isActive: true,
       firstAppraiserSapId: '',
+      coAppraiserSapId: '',
       secondAppraiserSapId: '',
       createPortalUser: true,
       portalUserRole: 'Employee'
@@ -214,6 +222,7 @@ export const EmployeeDataPage: React.FC<EmployeeDataPageProps> = ({ userRole = '
       isMrtOrMrc: emp.isMrtOrMrc || false,
       isActive: emp.isActive !== false,
       firstAppraiserSapId: emp.firstAppraiserSapId || '',
+      coAppraiserSapId: emp.coAppraiserSapId || '',
       secondAppraiserSapId: emp.secondAppraiserSapId || '',
       createPortalUser: false,
       portalUserRole: 'Employee'
@@ -560,6 +569,20 @@ export const EmployeeDataPage: React.FC<EmployeeDataPageProps> = ({ userRole = '
             Bulk Appraisers
           </Button>
 
+          <Button
+            variant="outline"
+            size="sm"
+            className="bg-purple-900/60 text-white hover:bg-purple-800 border-purple-400/40 font-semibold"
+            onClick={() => {
+              setStageModalTarget(null);
+              setShowStageModal(true);
+            }}
+            title="Set Appraisal Stage for Any Employee by SAP ID (PMW Admin Override)"
+          >
+            <Shield className="h-4 w-4 mr-1.5 text-purple-300" />
+            Set Stage
+          </Button>
+
           {userRole === 'PmwSuperAdmin' && (
             <Button
               variant="gold"
@@ -753,20 +776,28 @@ export const EmployeeDataPage: React.FC<EmployeeDataPageProps> = ({ userRole = '
                         <div className="font-medium text-slate-800">{getGroupDisplay(emp.reportingGroup)}</div>
                         <div className="text-[11px] text-slate-400">{emp.location} • {emp.regionBranch}</div>
                       </td>
-                      <td className="p-3">
+                      <td className="p-3 space-y-0.5">
                         {emp.firstAppraiserSapId ? (
                           <div className="text-[11px]">
                             <span className="font-semibold text-slate-700">1st:</span>{' '}
-                            <span className="font-mono text-emerald-800">{emp.firstAppraiserSapId}</span>
+                            <span className="font-mono text-emerald-800 font-semibold">{emp.firstAppraiserSapId}</span>
                             {emp.firstAppraiserName && <span className="text-slate-500"> ({emp.firstAppraiserName.split(' ')[0]})</span>}
                           </div>
                         ) : (
                           <span className="text-[10px] text-slate-400 italic">No 1st Appraiser</span>
                         )}
+                        {emp.coAppraiserSapId && (
+                          <div className="text-[11px]">
+                            <span className="font-semibold text-teal-800">Co:</span>{' '}
+                            <span className="font-mono text-teal-800 font-bold bg-teal-50 px-1 rounded border border-teal-200">{emp.coAppraiserSapId}</span>
+                            {emp.coAppraiserName && <span className="text-slate-500"> ({emp.coAppraiserName.split(' ')[0]})</span>}
+                          </div>
+                        )}
                         {emp.secondAppraiserSapId && (
                           <div className="text-[11px] text-slate-500">
                             <span className="font-semibold">2nd:</span>{' '}
-                            <span className="font-mono text-slate-700">{emp.secondAppraiserSapId}</span>
+                            <span className="font-mono text-slate-700 font-semibold">{emp.secondAppraiserSapId}</span>
+                            {emp.secondAppraiserName && <span className="text-slate-500"> ({emp.secondAppraiserName.split(' ')[0]})</span>}
                           </div>
                         )}
                       </td>
@@ -781,29 +812,48 @@ export const EmployeeDataPage: React.FC<EmployeeDataPageProps> = ({ userRole = '
                         )}
                       </td>
                       <td className="p-3 text-right">
-                        {userRole === 'PmwSuperAdmin' ? (
-                          <div className="flex items-center justify-end space-x-1">
-                            <button
-                              onClick={() => handleOpenEditModal(emp)}
-                              className="p-1.5 rounded-lg text-slate-500 hover:text-emerald-800 hover:bg-emerald-50 transition-colors"
-                              title="Edit Employee"
-                            >
-                              <Edit2 className="h-4 w-4" />
-                            </button>
-                            <button
-                              onClick={() => {
-                                setEmployeeToDelete(emp);
-                                setShowDeleteModal(true);
-                              }}
-                              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-700 hover:bg-rose-50 transition-colors"
-                              title="Remove Employee"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          </div>
-                        ) : (
-                          <span className="text-[11px] text-slate-400 font-medium">Read-only</span>
-                        )}
+                        <div className="flex items-center justify-end space-x-1">
+                          <button
+                            onClick={() => {
+                              setStageModalTarget({
+                                id: emp.id,
+                                employeeCycleId: emp.employeeCycleId,
+                                sapId: emp.sapId,
+                                fullName: emp.fullName,
+                                grade: emp.grade,
+                                designation: emp.designation,
+                                currentStatus: emp.currentStatus
+                              });
+                              setShowStageModal(true);
+                            }}
+                            className="p-1.5 rounded-lg text-purple-600 hover:text-purple-900 hover:bg-purple-50 transition-colors"
+                            title="Set / Override Appraisal Workflow Stage"
+                          >
+                            <Shield className="h-4 w-4" />
+                          </button>
+
+                          {userRole === 'PmwSuperAdmin' && (
+                            <>
+                              <button
+                                onClick={() => handleOpenEditModal(emp)}
+                                className="p-1.5 rounded-lg text-slate-500 hover:text-emerald-800 hover:bg-emerald-50 transition-colors"
+                                title="Edit Employee"
+                              >
+                                <Edit2 className="h-4 w-4" />
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setEmployeeToDelete(emp);
+                                  setShowDeleteModal(true);
+                                }}
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-700 hover:bg-rose-50 transition-colors"
+                                title="Remove Employee"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -1326,6 +1376,20 @@ export const EmployeeDataPage: React.FC<EmployeeDataPageProps> = ({ userRole = '
           </div>
         </div>
       )}
+
+      {/* Set Appraisal Workflow Stage Modal (PMW Admin Override) */}
+      <SetWorkflowStageModal
+        isOpen={showStageModal}
+        onClose={() => {
+          setShowStageModal(false);
+          setStageModalTarget(null);
+        }}
+        onSuccess={() => {
+          loadEmployees();
+        }}
+        target={stageModalTarget}
+        cycleId={selectedCycleId !== 'all' ? selectedCycleId : undefined}
+      />
     </div>
   );
 };

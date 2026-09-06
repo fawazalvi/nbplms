@@ -25,6 +25,7 @@ public class EmployeesController : ControllerBase
         var query = _db.Employees
             .Include(e => e.FirstAppraiser)
             .Include(e => e.SecondAppraiser)
+            .Include(e => e.CoAppraiser)
             .AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(group) && group != "All Groups")
@@ -63,6 +64,9 @@ public class EmployeesController : ControllerBase
             e.SecondAppraiserId,
             SecondAppraiserSapId = e.SecondAppraiser != null ? e.SecondAppraiser.SapId : null,
             SecondAppraiserName = e.SecondAppraiser != null ? e.SecondAppraiser.FullName : null,
+            e.CoAppraiserId,
+            CoAppraiserSapId = e.CoAppraiser != null ? e.CoAppraiser.SapId : null,
+            CoAppraiserName = e.CoAppraiser != null ? e.CoAppraiser.FullName : null,
             FormTypeAssigned = EmployeeImportService.DetermineFormType(e.Grade, e.IsMrtOrMrc).ToString(),
             e.CreatedAt,
             e.UpdatedAt
@@ -77,6 +81,7 @@ public class EmployeesController : ControllerBase
         var emp = await _db.Employees
             .Include(e => e.FirstAppraiser)
             .Include(e => e.SecondAppraiser)
+            .Include(e => e.CoAppraiser)
             .FirstOrDefaultAsync(e => e.Id == id);
 
         if (emp == null) return NotFound(new { message = "Employee not found." });
@@ -102,6 +107,9 @@ public class EmployeesController : ControllerBase
             emp.SecondAppraiserId,
             SecondAppraiserSapId = emp.SecondAppraiser?.SapId,
             SecondAppraiserName = emp.SecondAppraiser?.FullName,
+            emp.CoAppraiserId,
+            CoAppraiserSapId = emp.CoAppraiser?.SapId,
+            CoAppraiserName = emp.CoAppraiser?.FullName,
             FormTypeAssigned = EmployeeImportService.DetermineFormType(emp.Grade, emp.IsMrtOrMrc).ToString(),
             emp.CreatedAt,
             emp.UpdatedAt
@@ -140,6 +148,13 @@ public class EmployeesController : ControllerBase
         {
             var second = await _db.Employees.FirstOrDefaultAsync(e => e.SapId == dto.SecondAppraiserSapId.Trim());
             if (second != null) secondAppraiserId = second.Id;
+        }
+
+        Guid? coAppraiserId = null;
+        if (!string.IsNullOrWhiteSpace(dto.CoAppraiserSapId))
+        {
+            var co = await _db.Employees.FirstOrDefaultAsync(e => e.SapId == dto.CoAppraiserSapId.Trim());
+            if (co != null) coAppraiserId = co.Id;
         }
 
         var matchedGrade = await _db.GradeMappings.FirstOrDefaultAsync(g => g.EsgCode == dto.Grade.Trim() || g.GradeName == dto.Grade.Trim() || g.GradeCode == dto.Grade.Trim());
@@ -253,6 +268,13 @@ public class EmployeesController : ControllerBase
             if (second != null && second.Id != id) secondAppraiserId = second.Id;
         }
 
+        Guid? coAppraiserId = null;
+        if (!string.IsNullOrWhiteSpace(dto.CoAppraiserSapId))
+        {
+            var co = await _db.Employees.FirstOrDefaultAsync(e => e.SapId == dto.CoAppraiserSapId.Trim());
+            if (co != null && co.Id != id) coAppraiserId = co.Id;
+        }
+
         var matchedUpdateGrade = await _db.GradeMappings.FirstOrDefaultAsync(g => g.EsgCode == dto.Grade.Trim() || g.GradeName == dto.Grade.Trim() || g.GradeCode == dto.Grade.Trim());
         string normalizedUpdateGrade = matchedUpdateGrade?.EsgCode ?? dto.Grade.Trim();
 
@@ -272,6 +294,7 @@ public class EmployeesController : ControllerBase
         employee.IsActive = dto.IsActive;
         employee.FirstAppraiserId = firstAppraiserId;
         employee.SecondAppraiserId = secondAppraiserId;
+        employee.CoAppraiserId = coAppraiserId;
         employee.UpdatedAt = DateTime.UtcNow;
 
         // Also update associated SystemUser if exists
@@ -284,11 +307,13 @@ public class EmployeesController : ControllerBase
         }
 
         // If employee has active EmployeeCycle, keep appraiser links synchronized
-        var empCycle = await _db.EmployeeCycles.FirstOrDefaultAsync(ec => ec.EmployeeId == employee.Id);
-        if (empCycle != null)
+        var empCycles = await _db.EmployeeCycles.Where(ec => ec.EmployeeId == employee.Id).ToListAsync();
+        foreach (var empCycle in empCycles)
         {
             if (firstAppraiserId.HasValue) empCycle.FirstAppraiserId = firstAppraiserId.Value;
             if (secondAppraiserId.HasValue) empCycle.SecondAppraiserId = secondAppraiserId.Value;
+            empCycle.CoAppraiserId = coAppraiserId;
+            empCycle.PendingCoAppraiserSapId = null;
             empCycle.AssignedFormType = EmployeeImportService.DetermineFormType(employee.Grade, employee.IsMrtOrMrc);
         }
 
@@ -491,6 +516,7 @@ public record CreateEmployeeDto(
     bool IsActive = true,
     string? FirstAppraiserSapId = null,
     string? SecondAppraiserSapId = null,
+    string? CoAppraiserSapId = null,
     bool CreatePortalUser = true,
     string? PortalUserRole = null,
     string? ActorUserId = "PMW_ADMIN"
@@ -510,6 +536,7 @@ public record UpdateEmployeeDto(
     bool IsActive = true,
     string? FirstAppraiserSapId = null,
     string? SecondAppraiserSapId = null,
+    string? CoAppraiserSapId = null,
     string? ActorUserId = "PMW_ADMIN"
 );
 

@@ -5,11 +5,15 @@ import { Badge } from '@/components/ui/badge';
 import { ShieldCheck, FileCheck2, Send, Lock } from 'lucide-react';
 import { api } from '@/lib/api';
 
+import { formatGradeLabel, formatGroupLabel } from '@/lib/formatters';
+
 interface DevReviewProps {
+  currentUser?: any;
   userRole?: string;
 }
 
-export const DevelopmentReviewPage: React.FC<DevReviewProps> = ({ userRole = 'Employee' }) => {
+export const DevelopmentReviewPage: React.FC<DevReviewProps> = ({ currentUser, userRole = 'Employee' }) => {
+  const currentSapId = currentUser?.sapId || currentUser?.username || '84920';
   const isAppraiser = userRole === 'FirstAppraiser' || userRole === 'SecondAppraiser' || userRole === 'PmwAdmin';
 
   const [strengths, setStrengths] = useState('');
@@ -17,6 +21,7 @@ export const DevelopmentReviewPage: React.FC<DevReviewProps> = ({ userRole = 'Em
   const [actionPlan, setActionPlan] = useState('');
   const [supervisorComments, setSupervisorComments] = useState('');
   const [employeeCycleId, setEmployeeCycleId] = useState<string | null>(null);
+  const [empCycle, setEmpCycle] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   const [isSubmitted, setIsSubmitted] = useState(true);
@@ -25,37 +30,46 @@ export const DevelopmentReviewPage: React.FC<DevReviewProps> = ({ userRole = 'Em
     const fetchData = async () => {
       try {
         setLoading(true);
-        const appraisal = await api.getMyAppraisal('84920');
-        const cycleId = appraisal.employeeCycle.id;
-        setEmployeeCycleId(cycleId);
+        const appraisal = await api.getMyAppraisal(currentSapId);
+        if (appraisal && appraisal.employeeCycle) {
+          const cycleId = appraisal.employeeCycle.id;
+          setEmployeeCycleId(cycleId);
+          setEmpCycle(appraisal.employeeCycle);
 
-        const review = await api.getDevelopmentReview(cycleId);
-        if (review) {
-          setStrengths(review.strengths || '');
-          setDevelopmentAreas(review.developmentAreas || '');
-          setActionPlan(review.actionPlan || '');
-          setSupervisorComments(review.supervisorComments || '');
+          const review = await api.getDevelopmentReview(cycleId);
+          if (review) {
+            setStrengths(review.keyStrengths || review.strengths || '');
+            setDevelopmentAreas(review.developmentAreas || '');
+            setActionPlan(review.trainingActionPlan || review.actionPlan || '');
+            setSupervisorComments(review.supervisorComments || '');
+            setIsSubmitted(review.isSubmitted ?? false);
+          } else {
+            setIsSubmitted(false);
+          }
         }
       } catch (error) {
         console.error('Error fetching development review:', error);
+        setIsSubmitted(false);
       } finally {
         setLoading(false);
       }
     };
     fetchData();
-  }, []);
+  }, [currentSapId]);
 
   const handleSave = async () => {
     try {
       if (!employeeCycleId) return;
       await api.saveDevelopmentReview({
         employeeCycleId,
-        strengths,
+        keyStrengths: strengths,
         developmentAreas,
-        actionPlan,
-        supervisorComments
+        trainingActionPlan: actionPlan,
+        supervisorComments,
+        isSubmitted: true
       });
       setIsSubmitted(true);
+      alert('Development review submitted successfully.');
     } catch (error) {
       console.error('Error saving development review:', error);
     }
@@ -75,7 +89,7 @@ export const DevelopmentReviewPage: React.FC<DevReviewProps> = ({ userRole = 'Em
               </div>
               <h1 className="text-2xl font-black tracking-tight">Employee Development Review</h1>
               <p className="text-slate-300 text-xs mt-1">
-                Target Employee: Fawaz Ahmed (SAP ID: 84920) | AVP — Commercial Banking Group
+                Target Employee: {empCycle?.employee?.fullName || currentUser?.fullName || 'Staff Member'} (SAP ID: {empCycle?.employee?.sapId || currentSapId}) | {formatGradeLabel(empCycle?.snapshotGrade || currentUser?.grade || '06')} — {formatGroupLabel(empCycle?.snapshotReportingGroup || currentUser?.group || '')}
               </p>
             </div>
             <div className="text-right">

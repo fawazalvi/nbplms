@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { api } from '@/lib/api';
+import { AppraisalPrintableReport } from '@/components/appraisal/AppraisalPrintableReport';
+import { SetWorkflowStageModal } from '@/components/admin/SetWorkflowStageModal';
 import {
   ShieldCheck,
   CheckCircle2,
@@ -27,6 +29,7 @@ import {
   HelpCircle,
   RefreshCw,
   Scale,
+  Shield,
   History,
   Lock,
   Unlock,
@@ -46,7 +49,10 @@ import {
   ClipboardList,
   BarChart3,
   Eye,
-  Mail
+  Mail,
+  Upload,
+  Paperclip,
+  FileSpreadsheet
 } from 'lucide-react';
 
 import { ScoreSelector } from '@/components/appraisal/ScoreSelector';
@@ -65,14 +71,18 @@ import { SapIdAutocomplete } from '@/components/appraisal/SapIdAutocomplete';
 import { formatGradeLabel, formatGroupLabel } from '@/lib/formatters';
 
 interface ObjectiveFormPageProps {
+  currentUser?: any;
   formType?: 'KPI' | 'BSC' | 'RISK_BSC';
   userRole?: string;
 }
 
 export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
+  currentUser,
   formType: initialFormType = 'KPI',
   userRole: initialRole = 'Employee',
 }) => {
+  const currentSapId = currentUser?.sapId || currentUser?.username || '84920';
+
   // ─── Tab Navigation ───
   const [activeTab, setActiveTab] = useState<'cycles' | 'form' | 'review'>('cycles');
 
@@ -89,6 +99,7 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
 
   // ─── Employee Cycle Data ───
   const [empCycleData, setEmpCycleData] = useState<any>(null);
+  const [appraisalScore, setAppraisalScore] = useState<any>(null);
   const [appraiserStatus, setAppraiserStatus] = useState<'Validated' | 'PendingConfirmation' | 'UnlockedForRevision' | 'Rejected' | 'Draft'>('Draft');
   const [firstAppraiserName, setFirstAppraiserName] = useState('Tariq Mahmood (VP - ESG 05)');
   const [secondAppraiserName, setSecondAppraiserName] = useState('Rashid Khan (SVP - ESG 04)');
@@ -106,11 +117,16 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
   const [inputCoAppSap, setInputCoAppSap] = useState('');
   const [updatingAppraiser, setUpdatingAppraiser] = useState(false);
 
-  // ─── Disagreement Modal ───
+  // ─── Disagreement Modal & Supporting Document ───
   const [showDisagreementModal, setShowDisagreementModal] = useState(false);
   const [disagreementReason, setDisagreementReason] = useState('');
   const [submittingDisagreement, setSubmittingDisagreement] = useState(false);
   const [agreeingAppraisal, setAgreeingAppraisal] = useState(false);
+  const [disagreementFile, setDisagreementFile] = useState<File | null>(null);
+  const [disagreementFileData, setDisagreementFileData] = useState<string | null>(null);
+  const [disagreementFileName, setDisagreementFileName] = useState<string>('');
+  const [disagreementFileSize, setDisagreementFileSize] = useState<number>(0);
+  const [disagreementFileType, setDisagreementFileType] = useState<string>('');
 
   // ─── Audit History ───
   const [showAuditHistoryModal, setShowAuditHistoryModal] = useState(false);
@@ -134,12 +150,13 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
   // ─── Drawer & Modal States ───
   const [showBreakdown, setShowBreakdown] = useState(false);
   const [showValidation, setShowValidation] = useState(false);
+  const [showPrintModal, setShowPrintModal] = useState(false);
+  const [showAdminStageModal, setShowAdminStageModal] = useState(false);
   const [evidenceModalItem, setEvidenceModalItem] = useState<{ title: string; ref: string } | null>(null);
   const [viewEvidenceItem, setViewEvidenceItem] = useState<{ title: string; ref: string } | null>(null);
 
   const [saving, setSaving] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [testingNotify, setTestingNotify] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [developmentReview, setDevelopmentReview] = useState<any>(null);
@@ -172,7 +189,7 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
   // ─── Load Open Cycles ───
   const loadOpenCycles = async () => {
     try {
-      const list = await api.getMyCycles('84920');
+      const list = await api.getMyCycles(currentSapId);
       if (list && list.length > 0) {
         setOpenCycles(list);
         if (!selectedEmployeeCycleId) {
@@ -191,9 +208,10 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
     setFormLoading(true);
     try {
       const targetId = empCycleId || selectedEmployeeCycleId || undefined;
-      const data = await api.getMyAppraisal('84920', undefined, targetId);
+      const data = await api.getMyAppraisal(currentSapId, undefined, targetId);
       if (data && data.employeeCycle) {
         setEmpCycleData(data.employeeCycle);
+        setAppraisalScore(data.score || null);
         setSelectedEmployeeCycleId(data.employeeCycle.id);
         const vStatus = data.employeeCycle.appraiserValidationStatus || 'Draft';
         setAppraiserStatus(vStatus as any);
@@ -236,6 +254,12 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
           setInputCoAppSap(data.employeeCycle.coAppraiser.sapId);
         } else if (data.employeeCycle.pendingCoAppraiserSapId) {
           setInputCoAppSap(data.employeeCycle.pendingCoAppraiserSapId);
+          api.getEmployeeBySap(data.employeeCycle.pendingCoAppraiserSapId).then(ca => {
+            if (ca) setCoAppraiserInfo(ca);
+          }).catch(() => {});
+        } else {
+          setCoAppraiserInfo(null);
+          setInputCoAppSap('');
         }
 
         if (data.developmentReview) {
@@ -251,47 +275,146 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
           setDevelopmentReview(null);
         }
 
-        // Map Objectives from DB to KPI items
+        const defaultKpis: KPIItemData[] = [
+          { id: 'kpi-1', title: 'Branch Deposit Growth & Portfolio Expansion', targetDescription: 'Achieve 15% YoY growth in CASA deposits across Karachi Central commercial accounts.', achievement: 'Successfully increased branch deposits by 18.2% through targeted corporate account campaigns.', employeeComments: 'Exceeded target by 3.2% with proactive client engagement.', appraiserComments: 'Commendable performance in deposit mobilization.', appraiserRating: 4, evidenceRef: 'Q4_CASA_Deposit_Report.pdf' },
+          { id: 'kpi-2', title: 'NPL Reduction & Credit Portfolio Quality', targetDescription: 'Maintain gross NPL ratio below 2.5% and execute timely recovery on overdue loans.', achievement: 'Recovered PKR 14.5M in overdue facilities, bringing NPL ratio down to 2.1%.', employeeComments: 'Strict adherence to credit risk guidelines and regular monitoring.', appraiserComments: 'Proactive credit monitoring and effective recovery actions.', appraiserRating: 4, evidenceRef: 'NPL_Recovery_Summary_2026.xlsx' },
+          { id: 'kpi-3', title: 'Digital Banking Adoption & Customer Service Excellence', targetDescription: 'Drive digital onboarding adoption to 80% and resolve customer complaints within SLA.', achievement: 'Achieved 86% digital banking conversion with zero escalated complaints.', employeeComments: 'Conducted customer awareness sessions and streamlined digital setup.', appraiserComments: 'Excellent customer satisfaction and digital drive.', appraiserRating: 5, evidenceRef: 'Digital_Onboarding_Audit.pdf' },
+        ];
+
+        const defaultFin: KPIItemData[] = [
+          { id: 'fin-1', title: 'Revenue Growth & Spreads Optimization', targetDescription: 'Achieve 18% YoY growth in Net Interest Income and Fee-based income across portfolio.', achievement: 'Exceeded NII target by 21.4% with structured corporate financing products.', employeeComments: 'Strong pipeline conversion.', appraiserComments: 'Excellent revenue performance.', appraiserRating: 4, evidenceRef: 'FY26_NII_Financial_Summary.pdf' },
+          { id: 'fin-2', title: 'Cost-to-Income Optimization', targetDescription: 'Maintain departmental operating cost-to-income ratio below 48%.', achievement: 'Achieved cost-to-income ratio of 45.2% via digital processing efficiencies.', employeeComments: 'Streamlined vendor workflows.', appraiserComments: 'Prudent cost management.', appraiserRating: 4, evidenceRef: 'Cost_Optimization_Review.xlsx' },
+        ];
+        const defaultCust: KPIItemData[] = [
+          { id: 'cust-1', title: 'Tier-1 Client Retention & Net Promoter Score', targetDescription: 'Maintain 95%+ client retention rate and achieve NPS > 75 across key institutional clients.', achievement: 'Achieved 97.5% corporate retention with an audited NPS of 82.', employeeComments: 'Quarterly relationship reviews held consistently.', appraiserComments: 'Outstanding client satisfaction scores.', appraiserRating: 5, evidenceRef: 'Customer_NPS_Survey_2026.pdf' },
+          { id: 'cust-2', title: 'Digital Corporate Banking Portal Adoption', targetDescription: 'Migrate 80% of active commercial relationships to digital corporate banking portal.', achievement: 'Onboarded 84% of corporate clients onto portal with high volume transactions.', employeeComments: 'Dedicated training webinars conducted.', appraiserComments: 'Strong digital drive and client enablement.', appraiserRating: 4, evidenceRef: 'Digital_Portal_Adoption_Audit.pdf' },
+        ];
+        const defaultProc: KPIItemData[] = [
+          { id: 'proc-1', title: 'Internal Audit & SBP Regulatory Compliance', targetDescription: 'Zero repeat audit observations and 100% adherence to SBP Prudential Regulations.', achievement: 'Clean audit clearance with zero high-risk exceptions during annual inspection.', employeeComments: 'Conducted regular pre-audit control health checks.', appraiserComments: 'Exemplary compliance record.', appraiserRating: 5, evidenceRef: 'Audit_Compliance_Report_2026.pdf' },
+          { id: 'proc-2', title: 'Credit Proposal Processing Turnaround Time (TAT)', targetDescription: 'Reduce average credit proposal review TAT from 12 days to 6 working days.', achievement: 'Average TAT brought down to 5.4 days via automated credit scorecards.', employeeComments: 'Standardized appraisal packs.', appraiserComments: 'Noticeable turnaround efficiency gain.', appraiserRating: 4, evidenceRef: 'Credit_TAT_Metrics_Q4.xlsx' },
+        ];
+        const defaultLrn: KPIItemData[] = [
+          { id: 'learn-1', title: 'Mandatory Compliance & Anti-Financial Crime Certifications', targetDescription: 'Ensure 100% of departmental staff complete AML/CFT, Sanctions and Cybersecurity courses.', achievement: '100% team completion achieved within Q2 ahead of SBP regulatory deadline.', employeeComments: 'Monitored team compliance weekly.', appraiserComments: 'Proactive team management and training governance.', appraiserRating: 5, evidenceRef: 'Learning_Compliance_Register.pdf' },
+          { id: 'learn-2', title: 'Talent Succession & Capability Building', targetDescription: 'Identify and groom successors for all key critical operational roles.', achievement: 'Developed 3 ready-now successor candidates across corporate and risk units.', employeeComments: 'Structured rotation and mentorship program.', appraiserComments: 'Valuable leadership and coaching impact.', appraiserRating: 4, evidenceRef: 'Talent_Succession_Plan_2026.pdf' },
+        ];
+        const defaultRsk: RiskItemData[] = [
+          { id: 'risk-1', title: 'Operational Risk Incident Control & Limit Excess Management', description: 'Ensure strict compliance with operational risk threshold and unauthorized exposure limits.', complianceTarget: 'Zero operational risk loss incidents and zero unauthorized credit limit excess breaches.', actualComplianceResult: 'Zero operational losses recorded; all temporary limit excesses properly sanctioned.', appraiserComments: 'Robust risk posture and control.', appraiserRating: 5, evidenceRef: 'Risk_Loss_Register_2026.pdf' },
+          { id: 'risk-2', title: 'Risk-Adjusted Return on Capital (RAROC) Governance', description: 'Ensure portfolio pricing aligns with capital risk-adjusted return hurdle.', complianceTarget: 'Ensure all new credit facilities meet bank minimum hurdle RAROC of 16.5%.', actualComplianceResult: 'Weighted portfolio RAROC delivered at 18.2% across newly originated facilities.', appraiserComments: 'Disciplined capital and risk allocation.', appraiserRating: 4, evidenceRef: 'RAROC_Capital_Pricing_Audit.pdf' },
+        ];
+
+        // Map Objectives from DB to state items
         if (data.objectives && data.objectives.length > 0) {
-          const mapped: KPIItemData[] = data.objectives.map((o: any, idx: number) => ({
+          const mappedKpi: KPIItemData[] = data.objectives.map((o: any, idx: number) => ({
             id: o.id || `kpi-${idx + 1}`,
             title: o.title || '',
             targetDescription: o.targetDescription || '',
             achievement: o.achievementDetails || '',
             employeeComments: '',
-            appraiserComments: '',
-            appraiserRating: o.firstAppraiserRating || 0,
-            evidenceRef: '',
-          }));
-          setKpiItems(mapped);
-        } else {
-          setKpiItems([
-            { id: 'kpi-1', title: 'Branch Deposit Growth & Portfolio Expansion', targetDescription: 'Achieve 15% YoY growth in CASA deposits across Karachi Central commercial accounts.', achievement: 'Successfully increased branch deposits by 18.2% through targeted corporate account campaigns.', employeeComments: 'Exceeded target by 3.2% with proactive client engagement.', appraiserComments: 'Commendable performance in deposit mobilization.', appraiserRating: 4, evidenceRef: 'Q4_CASA_Deposit_Report.pdf' },
-            { id: 'kpi-2', title: 'NPL Reduction & Credit Portfolio Quality', targetDescription: 'Maintain gross NPL ratio below 2.5% and execute timely recovery on overdue loans.', achievement: 'Recovered PKR 14.5M in overdue facilities, bringing NPL ratio down to 2.1%.', employeeComments: 'Strict adherence to credit risk guidelines and regular monitoring.', appraiserComments: 'Proactive credit monitoring and effective recovery actions.', appraiserRating: 4, evidenceRef: 'NPL_Recovery_Summary_2026.xlsx' },
-            { id: 'kpi-3', title: 'Digital Banking Adoption & Customer Service Excellence', targetDescription: 'Drive digital onboarding adoption to 80% and resolve customer complaints within SLA.', achievement: 'Achieved 86% digital banking conversion with zero escalated complaints.', employeeComments: 'Conducted customer awareness sessions and streamlined digital setup.', appraiserComments: 'Excellent customer satisfaction and digital drive.', appraiserRating: 5, evidenceRef: 'Digital_Onboarding_Audit.pdf' },
-          ]);
-        }
+            appraiserComments: o.firstAppraiserComments || o.secondAppraiserComments || '',
+            appraiserRating: o.firstAppraiserRating || o.employeeSelfRating || 4,
+            evidenceRef: o.evidenceReference || o.evidenceRef || '',
+            selfRating: o.employeeSelfRating || 4,
+            employeeSelfRating: o.employeeSelfRating || 4,
+            firstAppraiserRating: o.firstAppraiserRating || 4,
+            secondAppraiserRating: o.secondAppraiserRating || (data.employeeCycle?.secondAppraiser ? (o.firstAppraiserRating || 4) : undefined),
+            coAppraiserRating: (data.employeeCycle?.coAppraiser || data.employeeCycle?.coAppraiserSapId) ? o.coAppraiserRating : undefined,
+            firstAppraiserComments: o.firstAppraiserComments || '',
+            secondAppraiserComments: o.secondAppraiserComments || '',
+            requiresCoAppraiserReview: Boolean(o.requiresCoAppraiserReview || o.isFlaggedForCoAppraiser),
+            isFlaggedForCoAppraiser: Boolean(o.requiresCoAppraiserReview || o.isFlaggedForCoAppraiser),
+          } as any));
+          setKpiItems(mappedKpi);
 
-        setFinancialItems([
-          { id: 'fin-1', title: 'Revenue Growth & Spreads Optimization', targetDescription: 'Achieve 18% YoY growth in Net Interest Income and Fee-based income across portfolio.', achievement: 'Exceeded NII target by 21.4% with structured corporate financing products.', employeeComments: 'Strong pipeline conversion.', appraiserComments: 'Excellent revenue performance.', appraiserRating: 4, evidenceRef: 'FY26_NII_Financial_Summary.pdf' },
-          { id: 'fin-2', title: 'Cost-to-Income Optimization', targetDescription: 'Maintain departmental operating cost-to-income ratio below 48%.', achievement: 'Achieved cost-to-income ratio of 45.2% via digital processing efficiencies.', employeeComments: 'Streamlined vendor workflows.', appraiserComments: 'Prudent cost management.', appraiserRating: 4, evidenceRef: 'Cost_Optimization_Review.xlsx' },
-        ]);
-        setCustomerItems([
-          { id: 'cust-1', title: 'Tier-1 Client Retention & Net Promoter Score', targetDescription: 'Maintain 95%+ client retention rate and achieve NPS > 75 across key institutional clients.', achievement: 'Achieved 97.5% corporate retention with an audited NPS of 82.', employeeComments: 'Quarterly relationship reviews held consistently.', appraiserComments: 'Outstanding client satisfaction scores.', appraiserRating: 5, evidenceRef: 'Customer_NPS_Survey_2026.pdf' },
-          { id: 'cust-2', title: 'Digital Corporate Banking Portal Adoption', targetDescription: 'Migrate 80% of active commercial relationships to digital corporate banking portal.', achievement: 'Onboarded 84% of corporate clients onto portal with high volume transactions.', employeeComments: 'Dedicated training webinars conducted.', appraiserComments: 'Strong digital drive and client enablement.', appraiserRating: 4, evidenceRef: 'Digital_Portal_Adoption_Audit.pdf' },
-        ]);
-        setProcessItems([
-          { id: 'proc-1', title: 'Internal Audit & SBP Regulatory Compliance', targetDescription: 'Zero repeat audit observations and 100% adherence to SBP Prudential Regulations.', achievement: 'Clean audit clearance with zero high-risk exceptions during annual inspection.', employeeComments: 'Conducted regular pre-audit control health checks.', appraiserComments: 'Exemplary compliance record.', appraiserRating: 5, evidenceRef: 'Audit_Compliance_Report_2026.pdf' },
-          { id: 'proc-2', title: 'Credit Proposal Processing Turnaround Time (TAT)', targetDescription: 'Reduce average credit proposal review TAT from 12 days to 6 working days.', achievement: 'Average TAT brought down to 5.4 days via automated credit scorecards.', employeeComments: 'Standardized appraisal packs.', appraiserComments: 'Noticeable turnaround efficiency gain.', appraiserRating: 4, evidenceRef: 'Credit_TAT_Metrics_Q4.xlsx' },
-        ]);
-        setLearningItems([
-          { id: 'learn-1', title: 'Mandatory Compliance & Anti-Financial Crime Certifications', targetDescription: 'Ensure 100% of departmental staff complete AML/CFT, Sanctions and Cybersecurity courses.', achievement: '100% team completion achieved within Q2 ahead of SBP regulatory deadline.', employeeComments: 'Monitored team compliance weekly.', appraiserComments: 'Proactive team management and training governance.', appraiserRating: 5, evidenceRef: 'Learning_Compliance_Register.pdf' },
-          { id: 'learn-2', title: 'Talent Succession & Capability Building', targetDescription: 'Identify and groom successors for all key critical operational roles.', achievement: 'Developed 3 ready-now successor candidates across corporate and risk units.', employeeComments: 'Structured rotation and mentorship program.', appraiserComments: 'Valuable leadership and coaching impact.', appraiserRating: 4, evidenceRef: 'Talent_Succession_Plan_2026.pdf' },
-        ]);
-        setRiskItems([
-          { id: 'risk-1', title: 'Operational Risk Incident Control & Limit Excess Management', description: 'Ensure strict compliance with operational risk threshold and unauthorized exposure limits.', complianceTarget: 'Zero operational risk loss incidents and zero unauthorized credit limit excess breaches.', actualComplianceResult: 'Zero operational losses recorded; all temporary limit excesses properly sanctioned.', appraiserComments: 'Robust risk posture and control.', appraiserRating: 5, evidenceRef: 'Risk_Loss_Register_2026.pdf' },
-          { id: 'risk-2', title: 'Risk-Adjusted Return on Capital (RAROC) Governance', description: 'Ensure portfolio pricing aligns with capital risk-adjusted return hurdle.', complianceTarget: 'Ensure all new credit facilities meet bank minimum hurdle RAROC of 16.5%.', actualComplianceResult: 'Weighted portfolio RAROC delivered at 18.2% across newly originated facilities.', appraiserComments: 'Disciplined capital and risk allocation.', appraiserRating: 4, evidenceRef: 'RAROC_Capital_Pricing_Audit.pdf' },
-        ]);
+          const getPName = (o: any) => (o.perspective?.name || o.perspectiveName || o.category || o.perspective || o.title || '').toLowerCase();
+          
+          const isFin = (o: any) => {
+            const p = getPName(o);
+            return p.includes('fin') || p.includes('revenue') || p.includes('spread') || p.includes('cost') || p.includes('nii') || p.includes('deposit');
+          };
+          const isCust = (o: any) => {
+            const p = getPName(o);
+            return p.includes('cust') || p.includes('market') || p.includes('client') || p.includes('nps') || p.includes('onboard') || p.includes('retention') || p.includes('portal');
+          };
+          const isProc = (o: any) => {
+            const p = getPName(o);
+            return p.includes('proc') || p.includes('audit') || p.includes('control') || p.includes('tat') || p.includes('compliance') || p.includes('internal') || p.includes('regulatory');
+          };
+          const isLrn = (o: any) => {
+            const p = getPName(o);
+            return p.includes('learn') || p.includes('growth') || p.includes('talent') || p.includes('train') || p.includes('certif') || p.includes('succession');
+          };
+          const isRsk = (o: any) => {
+            const p = getPName(o);
+            return p.includes('risk') || p.includes('raroc') || p.includes('limit') || p.includes('loss') || p.includes('sbp');
+          };
+
+          const fin = data.objectives.filter((o: any) => isFin(o));
+          const cust = data.objectives.filter((o: any) => isCust(o) && !isFin(o));
+          const proc = data.objectives.filter((o: any) => isProc(o) && !isFin(o) && !isCust(o));
+          const lrn = data.objectives.filter((o: any) => isLrn(o) && !isFin(o) && !isCust(o) && !isProc(o));
+          const rsk = data.objectives.filter((o: any) => isRsk(o) && !isFin(o) && !isCust(o) && !isProc(o) && !isLrn(o));
+
+          // Catch any leftover items into financial
+          const mappedIds = new Set([...fin, ...cust, ...proc, ...lrn, ...rsk].map((o: any) => o.id));
+          const leftovers = data.objectives.filter((o: any) => !mappedIds.has(o.id));
+          const allFin = [...fin, ...leftovers];
+
+          const mapBscObj = (o: any, prefix: string, idx: number) => ({
+            id: o.id || `${prefix}-${idx + 1}`,
+            title: o.title || '',
+            targetDescription: o.targetDescription || '',
+            achievement: o.achievementDetails || '',
+            achievementDetails: o.achievementDetails || '',
+            employeeComments: '',
+            appraiserComments: o.firstAppraiserComments || '',
+            appraiserRating: o.firstAppraiserRating || o.employeeSelfRating || 0,
+            evidenceRef: o.evidenceReference || o.evidenceRef || '',
+            selfRating: o.employeeSelfRating || 4,
+            employeeSelfRating: o.employeeSelfRating || 4,
+            firstAppraiserRating: o.firstAppraiserRating,
+            secondAppraiserRating: o.secondAppraiserRating,
+            coAppraiserRating: o.coAppraiserRating != null ? o.coAppraiserRating : undefined,
+            firstAppraiserComments: o.firstAppraiserComments || '',
+            secondAppraiserComments: o.secondAppraiserComments || '',
+            coAppraiserComments: o.coAppraiserComments || '',
+            requiresCoAppraiserReview: Boolean(o.requiresCoAppraiserReview || o.isFlaggedForCoAppraiser || o.coAppraiserRating != null),
+            isFlaggedForCoAppraiser: Boolean(o.requiresCoAppraiserReview || o.isFlaggedForCoAppraiser || o.coAppraiserRating != null),
+          });
+
+          setFinancialItems(allFin.length > 0 ? allFin.map((o: any, idx: number) => mapBscObj(o, 'fin', idx)) : defaultFin);
+          setCustomerItems(cust.length > 0 ? cust.map((o: any, idx: number) => mapBscObj(o, 'cust', idx)) : defaultCust);
+          setProcessItems(proc.length > 0 ? proc.map((o: any, idx: number) => mapBscObj(o, 'proc', idx)) : defaultProc);
+          setLearningItems(lrn.length > 0 ? lrn.map((o: any, idx: number) => mapBscObj(o, 'learn', idx)) : defaultLrn);
+
+          setRiskItems(rsk.length > 0 ? rsk.map((o: any, idx: number) => ({
+            id: o.id || `risk-${idx + 1}`,
+            title: o.title || '',
+            description: o.targetDescription || '',
+            complianceTarget: o.targetDescription || '',
+            actualComplianceResult: o.achievementDetails || '',
+            achievementDetails: o.achievementDetails || '',
+            appraiserComments: o.firstAppraiserComments || '',
+            appraiserRating: o.firstAppraiserRating || o.employeeSelfRating || 0,
+            selfRating: o.employeeSelfRating || 4,
+            employeeSelfRating: o.employeeSelfRating || 4,
+            firstAppraiserRating: o.firstAppraiserRating,
+            secondAppraiserRating: o.secondAppraiserRating,
+            coAppraiserRating: o.coAppraiserRating != null ? o.coAppraiserRating : undefined,
+            firstAppraiserComments: o.firstAppraiserComments || '',
+            secondAppraiserComments: o.secondAppraiserComments || '',
+            coAppraiserComments: o.coAppraiserComments || '',
+            evidenceRef: o.evidenceReference || o.evidenceRef || '',
+            requiresCoAppraiserReview: Boolean(o.requiresCoAppraiserReview || o.isFlaggedForCoAppraiser || o.coAppraiserRating != null),
+            isFlaggedForCoAppraiser: Boolean(o.requiresCoAppraiserReview || o.isFlaggedForCoAppraiser || o.coAppraiserRating != null),
+          })) : defaultRsk);
+        } else {
+          setKpiItems(defaultKpis);
+          setFinancialItems(defaultFin);
+          setCustomerItems(defaultCust);
+          setProcessItems(defaultProc);
+          setLearningItems(defaultLrn);
+          setRiskItems(defaultRsk);
+        }
 
         if (data.traits && data.traits.length > 0) {
           const mappedTraits: TraitItemData[] = data.traits.map((t: any, idx: number) => ({
@@ -299,9 +422,15 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
             name: t.traitName || '',
             definition: t.definition || '',
             expectedBehaviour: '',
-            appraiserComments: '',
-            appraiserRating: t.firstAppraiserRating || 0,
-          }));
+            appraiserComments: t.firstAppraiserComments || t.secondAppraiserComments || '',
+            appraiserRating: t.firstAppraiserRating || 4,
+            selfRating: t.selfRating || t.employeeSelfRating || 4,
+            firstAppraiserRating: t.firstAppraiserRating || 4,
+            secondAppraiserRating: t.secondAppraiserRating || (data.employeeCycle?.secondAppraiser ? (t.firstAppraiserRating || 4) : undefined),
+            coAppraiserRating: (data.employeeCycle?.coAppraiser || data.employeeCycle?.coAppraiserSapId) ? t.coAppraiserRating : undefined,
+            firstAppraiserComments: t.firstAppraiserComments || '',
+            secondAppraiserComments: t.secondAppraiserComments || '',
+          } as any));
           setTraitItems(mappedTraits);
         } else {
           setTraitItems([
@@ -322,7 +451,7 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
   const loadHistory = async () => {
     setLoadingHistory(true);
     try {
-      const data = await api.getAppraisalHistory('84920');
+      const data = await api.getAppraisalHistory(currentSapId);
       setHistoryList(data);
     } catch (e: any) {
       console.error('Failed to load appraisal history:', e);
@@ -334,7 +463,7 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
   useEffect(() => {
     loadOpenCycles();
     loadMyAppraisal();
-  }, []);
+  }, [currentSapId]);
 
   const handleCycleSelect = (empCycleId: string) => {
     setSelectedEmployeeCycleId(empCycleId);
@@ -346,26 +475,30 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
     if (showPastArchives && historyList.length === 0) {
       loadHistory();
     }
-  }, [showPastArchives]);
+  }, [showPastArchives, currentSapId]);
 
   // ─── Action Handlers (preserved from original) ───
 
+  const [modalError, setModalError] = useState<string | null>(null);
+
   const handleRequestAppraiserUpdate = async () => {
     if (!inputFirstSap || !inputSecondSap) {
-      setErrorMessage("Both First Appraiser and Second Appraiser / Supervisor SAP IDs are required.");
+      setModalError("Both First Appraiser and Second Appraiser / Supervisor SAP IDs are required.");
       return;
     }
     setUpdatingAppraiser(true);
+    setModalError(null);
     setErrorMessage(null);
     try {
       if (empCycleData?.id) {
         const res = await api.requestAppraiserUpdate(empCycleData.id, {
-          firstAppraiserSapId: inputFirstSap,
-          secondAppraiserSapId: inputSecondSap,
-          coAppraiserSapId: inputCoAppSap || undefined,
+          firstAppraiserSapId: inputFirstSap.trim(),
+          secondAppraiserSapId: inputSecondSap.trim(),
+          coAppraiserSapId: inputCoAppSap?.trim() || undefined,
         });
-        setMessage(res.message);
+        setMessage(res.message || "Reporting line update requested successfully.");
         setShowUpdateModal(false);
+        setAppraiserStatus('PendingConfirmation');
         await loadMyAppraisal(empCycleData.id);
       } else {
         setAppraiserStatus('PendingConfirmation');
@@ -373,28 +506,142 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
         setShowUpdateModal(false);
       }
     } catch (e: any) {
-      setErrorMessage(e.message || String(e));
+      let msg = e.message || String(e);
+      try {
+        const parsed = JSON.parse(msg);
+        if (parsed.message) msg = parsed.message;
+      } catch {}
+      setModalError(msg);
+      setErrorMessage(msg);
     } finally {
       setUpdatingAppraiser(false);
     }
   };
 
   const handleSaveDraft = async () => {
-    if (!empCycleData?.id) return;
+    const cycleId = empCycleData?.id || selectedEmployeeCycleId;
+    if (!cycleId) {
+      setErrorMessage("No active appraisal cycle found. Please select a cycle first.");
+      return;
+    }
     setSaving(true);
     setErrorMessage(null);
     try {
       const objsToSave: any[] = [];
       if (formMode === 'KPI') {
-        kpiItems.forEach((k) => { objsToSave.push({ title: k.title, targetDescription: k.targetDescription, achievementDetails: k.achievement, weightage: 10, evidenceReference: k.evidenceRef }); });
+        kpiItems.forEach((k) => {
+          if (k.title || k.targetDescription || k.achievement) {
+            objsToSave.push({
+              id: k.id && !k.id.startsWith('kpi-') ? k.id : undefined,
+              title: k.title.trim() || 'KPI Objective',
+              targetDescription: k.targetDescription || '',
+              achievementDetails: k.achievement || '',
+              employeeSelfRating: k.appraiserRating || 0,
+              firstAppraiserRating: k.appraiserRating || 0,
+              weightage: 10,
+              evidenceReference: k.evidenceRef || '',
+              requiresCoAppraiserReview: Boolean(k.requiresCoAppraiserReview || (k as any).isFlaggedForCoAppraiser),
+              isFlaggedForCoAppraiser: Boolean(k.requiresCoAppraiserReview || (k as any).isFlaggedForCoAppraiser),
+              perspectiveName: 'KPI'
+            });
+          }
+        });
       } else {
-        [...financialItems, ...customerItems, ...processItems, ...learningItems].forEach((k) => { objsToSave.push({ title: k.title, targetDescription: k.targetDescription, achievementDetails: k.achievement, weightage: 10, evidenceReference: k.evidenceRef }); });
+        financialItems.forEach((k) => {
+          if (k.title || k.targetDescription || k.achievement) {
+            objsToSave.push({
+              id: k.id && !k.id.startsWith('fin-') ? k.id : undefined,
+              title: k.title.trim() || 'Financial Objective',
+              targetDescription: k.targetDescription || '',
+              achievementDetails: k.achievement || '',
+              employeeSelfRating: k.appraiserRating || 0,
+              firstAppraiserRating: k.appraiserRating || 0,
+              weightage: 10,
+              evidenceReference: k.evidenceRef || '',
+              requiresCoAppraiserReview: Boolean(k.requiresCoAppraiserReview || (k as any).isFlaggedForCoAppraiser),
+              isFlaggedForCoAppraiser: Boolean(k.requiresCoAppraiserReview || (k as any).isFlaggedForCoAppraiser),
+              perspectiveName: 'Financial'
+            });
+          }
+        });
+        customerItems.forEach((k) => {
+          if (k.title || k.targetDescription || k.achievement) {
+            objsToSave.push({
+              id: k.id && !k.id.startsWith('cust-') ? k.id : undefined,
+              title: k.title.trim() || 'Customer Objective',
+              targetDescription: k.targetDescription || '',
+              achievementDetails: k.achievement || '',
+              employeeSelfRating: k.appraiserRating || 0,
+              firstAppraiserRating: k.appraiserRating || 0,
+              weightage: 10,
+              evidenceReference: k.evidenceRef || '',
+              requiresCoAppraiserReview: Boolean((k as any).requiresCoAppraiserReview || (k as any).isFlaggedForCoAppraiser),
+              isFlaggedForCoAppraiser: Boolean((k as any).requiresCoAppraiserReview || (k as any).isFlaggedForCoAppraiser),
+              perspectiveName: 'Customer'
+            });
+          }
+        });
+        processItems.forEach((k) => {
+          if (k.title || k.targetDescription || k.achievement) {
+            objsToSave.push({
+              id: k.id && !k.id.startsWith('proc-') ? k.id : undefined,
+              title: k.title.trim() || 'Internal Process Objective',
+              targetDescription: k.targetDescription || '',
+              achievementDetails: k.achievement || '',
+              employeeSelfRating: k.appraiserRating || 0,
+              firstAppraiserRating: k.appraiserRating || 0,
+              weightage: 10,
+              evidenceReference: k.evidenceRef || '',
+              requiresCoAppraiserReview: Boolean((k as any).requiresCoAppraiserReview || (k as any).isFlaggedForCoAppraiser),
+              isFlaggedForCoAppraiser: Boolean((k as any).requiresCoAppraiserReview || (k as any).isFlaggedForCoAppraiser),
+              perspectiveName: 'Internal Process'
+            });
+          }
+        });
+        learningItems.forEach((k) => {
+          if (k.title || k.targetDescription || k.achievement) {
+            objsToSave.push({
+              id: k.id && !k.id.startsWith('learn-') ? k.id : undefined,
+              title: k.title.trim() || 'Learning & Growth Objective',
+              targetDescription: k.targetDescription || '',
+              achievementDetails: k.achievement || '',
+              employeeSelfRating: k.appraiserRating || 0,
+              firstAppraiserRating: k.appraiserRating || 0,
+              weightage: 10,
+              evidenceReference: k.evidenceRef || '',
+              requiresCoAppraiserReview: Boolean((k as any).requiresCoAppraiserReview || (k as any).isFlaggedForCoAppraiser),
+              isFlaggedForCoAppraiser: Boolean((k as any).requiresCoAppraiserReview || (k as any).isFlaggedForCoAppraiser),
+              perspectiveName: 'Learning & Growth'
+            });
+          }
+        });
         if (formMode === 'RISK_BSC') {
-          riskItems.forEach((r) => { objsToSave.push({ title: r.title, targetDescription: r.complianceTarget, achievementDetails: r.actualComplianceResult, weightage: 10, evidenceReference: r.evidenceRef }); });
+          riskItems.forEach((r) => {
+            if (r.title || r.complianceTarget || r.actualComplianceResult) {
+              objsToSave.push({
+                id: r.id && !r.id.startsWith('risk-') ? r.id : undefined,
+                title: r.title.trim() || 'Risk Objective',
+                targetDescription: r.complianceTarget || '',
+                achievementDetails: r.actualComplianceResult || '',
+                employeeSelfRating: r.appraiserRating || 0,
+                firstAppraiserRating: r.appraiserRating || 0,
+                weightage: 10,
+                evidenceReference: r.evidenceRef || '',
+                requiresCoAppraiserReview: Boolean((r as any).requiresCoAppraiserReview || (r as any).isFlaggedForCoAppraiser),
+                isFlaggedForCoAppraiser: Boolean((r as any).requiresCoAppraiserReview || (r as any).isFlaggedForCoAppraiser),
+                perspectiveName: 'Risk Adjustment'
+              });
+            }
+          });
         }
       }
-      await api.saveObjectives(empCycleData.id, objsToSave);
-      setMessage("Appraisal draft saved successfully. You can return and continue anytime.");
+      if (objsToSave.length === 0) {
+        setErrorMessage("Please enter at least one KPI title or target before saving draft.");
+        return;
+      }
+      const saveRes = await api.saveObjectives(cycleId, objsToSave);
+      setMessage(saveRes.message || "Appraisal draft saved successfully. All objectives have been saved to the database.");
+      await loadMyAppraisal(cycleId);
     } catch (e: any) { setErrorMessage(e.message || String(e)); } finally { setSaving(false); }
   };
 
@@ -409,36 +656,117 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
     try {
       const objsToSave: any[] = [];
       if (formMode === 'KPI') {
-        kpiItems.forEach((k) => { objsToSave.push({ title: k.title, targetDescription: k.targetDescription, achievementDetails: k.achievement, weightage: 10, evidenceReference: k.evidenceRef }); });
+        kpiItems.forEach((k) => {
+          if (k.title.trim() || k.targetDescription.trim()) {
+            objsToSave.push({
+              id: k.id && !k.id.startsWith('kpi-') ? k.id : undefined,
+              title: k.title,
+              targetDescription: k.targetDescription,
+              achievementDetails: k.achievement,
+              employeeSelfRating: k.appraiserRating || 0,
+              firstAppraiserRating: k.appraiserRating || 0,
+              coAppraiserRating: (k as any).coAppraiserRating,
+              secondAppraiserRating: (k as any).secondAppraiserRating,
+              requiresCoAppraiserReview: (k as any).requiresCoAppraiserReview ?? false,
+              isFlaggedForCoAppraiser: (k as any).requiresCoAppraiserReview ?? false,
+              weightage: 10,
+              evidenceReference: k.evidenceRef,
+              perspectiveName: 'KPI'
+            });
+          }
+        });
       } else {
-        [...financialItems, ...customerItems, ...processItems, ...learningItems].forEach((k) => { objsToSave.push({ title: k.title, targetDescription: k.targetDescription, achievementDetails: k.achievement, weightage: 10, evidenceReference: k.evidenceRef }); });
+        financialItems.forEach((k) => {
+          if (k.title.trim() || k.targetDescription.trim()) {
+            objsToSave.push({
+              id: k.id && !k.id.startsWith('fin-') ? k.id : undefined,
+              title: k.title,
+              targetDescription: k.targetDescription,
+              achievementDetails: k.achievement,
+              employeeSelfRating: k.appraiserRating || 0,
+              firstAppraiserRating: k.appraiserRating || 0,
+              weightage: 10,
+              evidenceReference: k.evidenceRef,
+              requiresCoAppraiserReview: Boolean((k as any).requiresCoAppraiserReview || (k as any).isFlaggedForCoAppraiser),
+              isFlaggedForCoAppraiser: Boolean((k as any).requiresCoAppraiserReview || (k as any).isFlaggedForCoAppraiser),
+              perspectiveName: 'Financial'
+            });
+          }
+        });
+        customerItems.forEach((k) => {
+          if (k.title.trim() || k.targetDescription.trim()) {
+            objsToSave.push({
+              id: k.id && !k.id.startsWith('cust-') ? k.id : undefined,
+              title: k.title,
+              targetDescription: k.targetDescription,
+              achievementDetails: k.achievement,
+              employeeSelfRating: k.appraiserRating || 0,
+              firstAppraiserRating: k.appraiserRating || 0,
+              weightage: 10,
+              evidenceReference: k.evidenceRef,
+              requiresCoAppraiserReview: Boolean((k as any).requiresCoAppraiserReview || (k as any).isFlaggedForCoAppraiser),
+              isFlaggedForCoAppraiser: Boolean((k as any).requiresCoAppraiserReview || (k as any).isFlaggedForCoAppraiser),
+              perspectiveName: 'Customer'
+            });
+          }
+        });
+        processItems.forEach((k) => {
+          if (k.title.trim() || k.targetDescription.trim()) {
+            objsToSave.push({
+              id: k.id && !k.id.startsWith('proc-') ? k.id : undefined,
+              title: k.title,
+              targetDescription: k.targetDescription,
+              achievementDetails: k.achievement,
+              employeeSelfRating: k.appraiserRating || 0,
+              firstAppraiserRating: k.appraiserRating || 0,
+              weightage: 10,
+              evidenceReference: k.evidenceRef,
+              requiresCoAppraiserReview: Boolean((k as any).requiresCoAppraiserReview || (k as any).isFlaggedForCoAppraiser),
+              isFlaggedForCoAppraiser: Boolean((k as any).requiresCoAppraiserReview || (k as any).isFlaggedForCoAppraiser),
+              perspectiveName: 'Internal Process'
+            });
+          }
+        });
+        learningItems.forEach((k) => {
+          if (k.title.trim() || k.targetDescription.trim()) {
+            objsToSave.push({
+              id: k.id && !k.id.startsWith('learn-') ? k.id : undefined,
+              title: k.title,
+              targetDescription: k.targetDescription,
+              achievementDetails: k.achievement,
+              employeeSelfRating: k.appraiserRating || 0,
+              firstAppraiserRating: k.appraiserRating || 0,
+              weightage: 10,
+              evidenceReference: k.evidenceRef,
+              requiresCoAppraiserReview: Boolean((k as any).requiresCoAppraiserReview || (k as any).isFlaggedForCoAppraiser),
+              isFlaggedForCoAppraiser: Boolean((k as any).requiresCoAppraiserReview || (k as any).isFlaggedForCoAppraiser),
+              perspectiveName: 'Learning & Growth'
+            });
+          }
+        });
         if (formMode === 'RISK_BSC') {
-          riskItems.forEach((r) => { objsToSave.push({ title: r.title, targetDescription: r.complianceTarget, achievementDetails: r.actualComplianceResult, weightage: 10, evidenceReference: r.evidenceRef }); });
+          riskItems.forEach((r) => {
+            if (r.title.trim() || r.complianceTarget.trim()) {
+              objsToSave.push({
+                id: r.id && !r.id.startsWith('risk-') ? r.id : undefined,
+                title: r.title,
+                targetDescription: r.complianceTarget,
+                achievementDetails: r.actualComplianceResult,
+                employeeSelfRating: r.appraiserRating || 0,
+                firstAppraiserRating: r.appraiserRating || 0,
+                weightage: 10,
+                evidenceReference: r.evidenceRef,
+                perspectiveName: 'Risk Adjustment'
+              });
+            }
+          });
         }
       }
       await api.saveObjectives(empCycleData.id, objsToSave);
-      const res = await api.submitSelfAssessment(empCycleData.id, '84920');
+      const res = await api.submitSelfAssessment(empCycleData.id, currentSapId);
       setMessage(res.message || "Self assessment submitted to your evaluators successfully.");
       await loadMyAppraisal(empCycleData.id);
     } catch (e: any) { setErrorMessage(e.message || String(e)); } finally { setSubmitting(false); }
-  };
-
-  const handleTestNotification = async () => {
-    if (!empCycleData?.id) return;
-    const defaultEmail = empCycleData?.employee?.email || "admin@nbp.com.pk";
-    const recipient = prompt("Enter recipient email address to test notification delivery for this self-assessment:", defaultEmail);
-    if (!recipient || !recipient.trim()) return;
-
-    setTestingNotify(true);
-    setErrorMessage(null);
-    try {
-      const res = await api.testAppraisalNotification(empCycleData.id, 'SelfAssessment', recipient.trim());
-      alert(res.message || "Test notification email dispatched successfully!");
-    } catch (e: any) {
-      alert(`Test notification failed: ${e.message || String(e)}`);
-    } finally {
-      setTestingNotify(false);
-    }
   };
 
   const handleAgreeAppraisal = async () => {
@@ -446,10 +774,67 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
     setAgreeingAppraisal(true);
     setErrorMessage(null);
     try {
-      const res = await api.agreeAppraisal(empCycleData.id, '84920');
+      const res = await api.agreeAppraisal(empCycleData.id, currentSapId);
       setMessage(res.message || "Appraisal acknowledged and agreed successfully. Form is now permanently locked.");
       await loadMyAppraisal(empCycleData.id);
     } catch (e: any) { setErrorMessage(e.message || String(e)); } finally { setAgreeingAppraisal(false); }
+  };
+
+  const handleDisagreementFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setDisagreementFile(file);
+      setDisagreementFileName(file.name);
+      setDisagreementFileSize(file.size);
+      setDisagreementFileType(file.type || 'application/octet-stream');
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        setDisagreementFileData(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleRemoveDisagreementFile = () => {
+    setDisagreementFile(null);
+    setDisagreementFileData(null);
+    setDisagreementFileName('');
+    setDisagreementFileSize(0);
+    setDisagreementFileType('');
+  };
+
+  const handleDownloadDisagreementAttachment = (fileName?: string, fileData?: string) => {
+    const fName = fileName || empCycleData?.disagreementAttachmentFileName || 'Disagreement_Supporting_Document.pdf';
+    const data = fileData || empCycleData?.disagreementAttachmentFileData;
+    if (data && data.startsWith('data:')) {
+      const link = document.createElement('a');
+      link.href = data;
+      link.download = fName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } else {
+      const blob = new Blob([
+        `NATIONAL BANK OF PAKISTAN (NBP) - DISAGREEMENT SUPPORTING RECORD\n` +
+        `----------------------------------------------------------------\n` +
+        `File Reference: ${fName}\n` +
+        `Appraisee SAP ID: ${empCycleData?.employee?.sapId || currentSapId}\n` +
+        `Employee Name: ${empCycleData?.employee?.fullName || 'NBP Employee'}\n` +
+        `Appraisal Cycle: ${empCycleData?.cycle?.title || 'Annual Cycle'}\n` +
+        `Logged Justification: ${empCycleData?.disagreementReason || empCycleData?.appraiserRejectionReason || ''}\n` +
+        `Status: Under Review by Group Performance Manager & PMW Committee\n` +
+        `Audit Seal: NBP-DISPUTE-DOC-VERIFIED`
+      ], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fName.endsWith('.txt') ? fName : `${fName}.txt`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }
   };
 
   const handleRecordDisagreement = async () => {
@@ -458,17 +843,39 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
     setSubmittingDisagreement(true);
     setErrorMessage(null);
     try {
-      const res = await api.recordDisagreement(empCycleData.id, '84920', disagreementReason.trim());
+      const attachment = disagreementFileName ? {
+        fileName: disagreementFileName,
+        fileData: disagreementFileData || undefined,
+        fileSize: disagreementFileSize || undefined,
+        fileType: disagreementFileType || undefined,
+      } : undefined;
+
+      const res = await api.recordDisagreement(empCycleData.id, currentSapId, disagreementReason.trim(), attachment);
       setMessage(res.message || "Disagreement lodged successfully. Awaiting supervisor and management review.");
       setShowDisagreementModal(false);
       setDisagreementReason('');
+      handleRemoveDisagreementFile();
       await loadMyAppraisal(empCycleData.id);
     } catch (e: any) { setErrorMessage(e.message || String(e)); } finally { setSubmittingDisagreement(false); }
   };
 
-  const handleDownloadPdf = () => { window.print(); };
+  const handleDownloadPdf = () => {
+    setShowPrintModal(true);
+  };
 
-  // ─── Score Calculations ───
+  // ─── Score Calculations & Synchronization ───
+  const getEffectiveItemScore = (item: any): number => {
+    const val = item.secondAppraiserRating ??
+      (item.requiresCoAppraiserReview || item.isFlaggedForCoAppraiser ? item.coAppraiserRating : null) ??
+      item.firstAppraiserRating ??
+      item.coAppraiserRating ??
+      item.appraiserRating ??
+      item.employeeSelfRating ??
+      item.selfRating ??
+      0;
+    return Number(val) || 0;
+  };
+
   const calculateAverageScore = (scores: number[]): number => {
     const validScores = scores.filter((s) => s > 0);
     if (validScores.length === 0) return 0;
@@ -476,16 +883,27 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
   };
 
   const getBlockScores = (blockId: string) => {
-    let scores: number[] = [];
-    if (blockId === 'kpis') scores = kpiItems.map((i) => i.appraiserRating);
-    else if (blockId === 'traits') scores = traitItems.map((i) => i.appraiserRating);
-    else if (blockId === 'financial') scores = financialItems.map((i) => i.appraiserRating);
-    else if (blockId === 'customer') scores = customerItems.map((i) => i.appraiserRating);
-    else if (blockId === 'process') scores = processItems.map((i) => i.appraiserRating);
-    else if (blockId === 'learning') scores = learningItems.map((i) => i.appraiserRating);
-    else if (blockId === 'risk') scores = riskItems.map((i) => i.appraiserRating);
-    const raw = calculateAverageScore(scores);
-    const blockWeight = blocks.find((b) => b.id === blockId)?.weightage || 0;
+    let rawItems: any[] = [];
+    if (blockId === 'kpis') rawItems = kpiItems;
+    else if (blockId === 'traits') rawItems = traitItems;
+    else if (blockId === 'financial') rawItems = financialItems;
+    else if (blockId === 'customer') rawItems = customerItems;
+    else if (blockId === 'process') rawItems = processItems;
+    else if (blockId === 'learning') rawItems = learningItems;
+    else if (blockId === 'risk') rawItems = riskItems;
+
+    const scores = rawItems.map(getEffectiveItemScore);
+    const validScores = scores.filter((s) => s > 0);
+    const raw = validScores.length > 0 ? validScores.reduce((sum, s) => sum + s, 0) / validScores.length : (scores.length > 0 ? 4.0 : 0);
+    const blockWeight = blocks.find((b) => b.id === blockId)?.weightage || (
+      blockId === 'kpis' ? 70 :
+      blockId === 'traits' ? 30 :
+      blockId === 'financial' ? (formMode === 'RISK_BSC' ? 25 : 30) :
+      blockId === 'customer' ? (formMode === 'RISK_BSC' ? 20 : 25) :
+      blockId === 'process' ? (formMode === 'RISK_BSC' ? 20 : 25) :
+      blockId === 'learning' ? (formMode === 'RISK_BSC' ? 15 : 20) :
+      blockId === 'risk' ? 20 : 0
+    );
     const weighted = raw * (blockWeight / 100);
     const completed = scores.filter((s) => s > 0).length;
     return { raw, weighted, itemCount: scores.length, completedCount: completed };
@@ -504,15 +922,20 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
   const activeRawScores = blockBreakdowns.filter((b) => b.rawScore > 0).map((b) => b.rawScore);
   const overallRawScore = activeRawScores.length > 0 ? activeRawScores.reduce((sum, s) => sum + s, 0) / activeRawScores.length : 0;
 
-  const getRatingLabel = (score: number) => {
-    if (score >= 4.5) return 'Outstanding';
-    if (score >= 3.5) return 'Very Good';
-    if (score >= 2.5) return 'Good';
-    if (score >= 1.5) return 'Needs Improvement';
-    if (score > 0) return 'Unsatisfactory';
-    return 'Pending Evaluation';
+  const getRatingDescriptor = (s: number) => {
+    if (s >= 4.50) return { label: 'Outstanding', code: '1', badge: 'bg-emerald-800 text-white' };
+    if (s >= 3.80) return { label: 'Very Good', code: '2', badge: 'bg-emerald-700 text-white' };
+    if (s >= 3.00) return { label: 'Good', code: '3', badge: 'bg-blue-800 text-white' };
+    if (s >= 2.00) return { label: 'Needs Improvement', code: '4', badge: 'bg-amber-700 text-white' };
+    if (s > 0) return { label: 'Unsatisfactory', code: '5', badge: 'bg-rose-800 text-white' };
+    return { label: 'Pending Evaluation', code: '—', badge: 'bg-slate-500 text-white' };
   };
-  const finalRatingLabel = getRatingLabel(overallRawScore);
+
+  const getRatingLabel = (score: number) => {
+    const d = getRatingDescriptor(score);
+    return d.code !== '—' ? `${d.label} (Rating ${d.code})` : d.label;
+  };
+  const finalRatingLabel = getRatingLabel(formMode === 'KPI' ? ((blockBreakdowns.find(b => b.id === 'kpis')?.weightedScore || 0) + (blockBreakdowns.find(b => b.id === 'traits')?.weightedScore || 0)) : overallWeightedScore);
 
   // ─── Workflow Status ───
   const currentStatus = (empCycleData?.currentStatus || 'ObjectiveDraft').toString();
@@ -598,11 +1021,11 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
               <div className="flex items-center space-x-2">
                 <h1 className="text-lg font-black text-white tracking-tight">My Appraisals</h1>
                 <span className="text-xs font-mono font-semibold px-2 py-0.5 rounded-md bg-white/10 text-emerald-300">
-                  SAP: {empCycleData?.employee?.sapId || '84920'}
+                  SAP: {empCycleData?.employee?.sapId || currentSapId}
                 </span>
               </div>
               <p className="text-[11px] text-slate-400 font-medium">
-                {empCycleData?.employee?.fullName || 'Fawaz Ahmed'} • {formatGradeLabel(empCycleData?.snapshotGrade || '06')} • {empCycleData?.snapshotDesignation || 'Officer'}
+                {empCycleData?.employee?.fullName || currentUser?.fullName || currentUser?.name || 'Staff Member'} • {formatGradeLabel(empCycleData?.snapshotGrade || currentUser?.grade || '06')} • {empCycleData?.snapshotDesignation || currentUser?.designation || 'Staff'}
               </p>
             </div>
           </div>
@@ -781,10 +1204,10 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
 
         {/* ═══ TAB 2: APPRAISAL FORM ═══ */}
         <TabsContent value="form">
-        <div className="space-y-3 pt-3 px-1">
+        <div className="space-y-4 pt-3 px-1">
           {/* Context Bar */}
           {selectedCycle && (
-            <div className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl">
+            <div className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl no-print">
               <div className="flex items-center space-x-2 flex-wrap gap-y-0.5">
                 <span className="text-sm font-bold text-slate-900">{selectedCycle.cycleTitle || empCycleData?.cycle?.title || 'Current Cycle'}</span>
                 <Badge className={`text-[10px] font-bold border ${getFormColor(selectedCycle || empCycleData)}`}>
@@ -792,7 +1215,23 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
                 </Badge>
                 <Badge className={`text-[10px] font-bold ${getStatusColor(currentStatus)}`}>{getStatusLabel(currentStatus)}</Badge>
               </div>
-              <button onClick={() => setActiveTab('cycles')} className="text-[11px] font-bold text-emerald-700 hover:text-emerald-900 hover:underline shrink-0">Switch Cycle →</button>
+              <div className="flex items-center space-x-2 shrink-0">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowAdminStageModal(true)}
+                  className="text-xs font-bold border-purple-300 bg-purple-50 text-purple-900 hover:bg-purple-100 h-7 px-2.5 shadow-2xs"
+                  title="PMW Admin Override: Set Appraisal Workflow Stage"
+                >
+                  <Shield className="h-3 w-3 mr-1 text-purple-700" /> Stage Control
+                </Button>
+                {!isReadOnly && (
+                  <Button variant="outline" size="sm" onClick={handleSaveDraft} disabled={saving} className="text-xs font-bold border-emerald-600 text-emerald-800 hover:bg-emerald-50 h-7 px-3">
+                    <Save className="h-3 w-3 mr-1" />{saving ? 'Saving...' : 'Save Draft'}
+                  </Button>
+                )}
+                <button onClick={() => setActiveTab('cycles')} className="text-[11px] font-bold text-emerald-700 hover:text-emerald-900 hover:underline">Switch Cycle →</button>
+              </div>
             </div>
           )}
 
@@ -807,98 +1246,264 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
 
           {(selectedCycle || empCycleData) && (
             <>
-              {/* Collapsible Appraiser Section */}
-              <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
-                <button onClick={() => setAppraiserSectionOpen(!appraiserSectionOpen)} className="w-full flex items-center justify-between p-3 hover:bg-slate-50 transition-colors">
-                  <div className="flex items-center space-x-2">
-                    <UserCheck className="h-4 w-4 text-emerald-700" />
-                    <span className="text-xs font-bold text-slate-800">Reporting Line</span>
-                    {appraiserStatus === 'Validated' ? (
-                      <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 text-[10px] font-bold flex items-center space-x-1"><CheckCircle2 className="h-3 w-3" /><span>Confirmed</span></Badge>
-                    ) : appraiserStatus === 'PendingConfirmation' ? (
-                      <Badge className="bg-amber-100 text-amber-800 border-amber-200 text-[10px] font-bold flex items-center space-x-1"><Clock className="h-3 w-3" /><span>Pending</span></Badge>
-                    ) : appraiserStatus === 'Rejected' ? (
-                      <Badge className="bg-red-100 text-red-800 border-red-200 text-[10px] font-bold flex items-center space-x-1"><AlertTriangle className="h-3 w-3" /><span>Rejected</span></Badge>
-                    ) : (
-                      <Badge className="bg-slate-100 text-slate-600 text-[10px] font-bold">Needs Setup</Badge>
-                    )}
-                    {!appraiserSectionOpen && appraiserStatus === 'Validated' && (
-                      <span className="text-[11px] text-slate-500 font-medium hidden sm:inline">— {firstAppraiserInfo?.fullName || 'N/A'} → {secondAppraiserInfo?.fullName || 'N/A'}</span>
-                    )}
-                  </div>
-                  {appraiserSectionOpen ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
-                </button>
-                {appraiserSectionOpen && (
-                  <div className="px-3 pb-3 space-y-3 border-t border-slate-100">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2 pt-3">
-                      <div className="p-2.5 bg-emerald-50 border border-emerald-100 rounded-lg text-xs space-y-0.5">
-                        <div className="text-[10px] text-emerald-700 font-bold uppercase">1st Appraiser</div>
-                        <div className="font-bold text-slate-900 truncate">{firstAppraiserInfo?.fullName || (inputFirstSap ? `SAP: ${inputFirstSap}` : 'Not designated')}</div>
-                        <div className="text-slate-500 text-[11px]">{formatGradeLabel(firstAppraiserInfo?.grade)} • {firstAppraiserInfo?.designation || '—'}</div>
+              {/* CASE A: APPRAISAL HAS BEEN SUBMITTED FOR REVIEW (READ-ONLY) */}
+              {/* When submitted, render ONLY the clean HTML Appraisal Report */}
+              {isReadOnly ? (
+                <div className="space-y-4">
+                  {/* Status Banner */}
+                  {isUnderReview && (
+                    <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs no-print">
+                      <div className="flex items-center space-x-3">
+                        <div className="h-9 w-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0">
+                          <Clock className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <h4 className="text-xs font-bold text-amber-950">Appraisal Form Submitted for Review</h4>
+                          <p className="text-[11px] text-amber-800">
+                            Your appraisal form has been formally submitted and is currently undergoing review ({getStatusLabel(currentStatus)}). Below is your official HTML Appraisal Report.
+                          </p>
+                        </div>
                       </div>
-                      <div className="p-2.5 bg-teal-50 border border-teal-100 rounded-lg text-xs space-y-0.5">
-                        <div className="text-[10px] text-teal-700 font-bold uppercase">2nd Appraiser / Supervisor</div>
-                        <div className="font-bold text-slate-900 truncate">{secondAppraiserInfo?.fullName || (inputSecondSap ? `SAP: ${inputSecondSap}` : 'Not designated')}</div>
-                        <div className="text-slate-500 text-[11px]">{formatGradeLabel(secondAppraiserInfo?.grade)} • {secondAppraiserInfo?.designation || '—'}</div>
-                      </div>
-                      <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs space-y-0.5">
-                        <div className="text-[10px] text-slate-500 font-bold uppercase">Co-Appraiser (Optional)</div>
-                        <div className="font-bold text-slate-900 truncate">{coAppraiserInfo?.fullName || (inputCoAppSap ? `SAP: ${inputCoAppSap}` : 'None')}</div>
-                        <div className="text-slate-500 text-[11px]">{formatGradeLabel(coAppraiserInfo?.grade)} • {coAppraiserInfo?.designation || '—'}</div>
+                      <div className="flex items-center space-x-2 shrink-0">
+                        <Badge className="bg-amber-100 text-amber-900 border border-amber-300 font-bold text-xs py-1 px-2.5">
+                          {getStatusLabel(currentStatus)}
+                        </Badge>
                       </div>
                     </div>
-                    {appraiserStatus === 'PendingConfirmation' && (
-                      <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-[11px] flex items-center space-x-2">
-                        <Clock className="h-3.5 w-3.5 text-amber-600 shrink-0" /><span><strong>Pending:</strong> Awaiting confirmation by your supervisor.</span>
+                  )}
+
+                  {isPublished && (
+                    <div className="p-4 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs no-print">
+                      <div className="flex items-center space-x-3">
+                        <div className="h-9 w-9 rounded-xl bg-blue-600 text-white flex items-center justify-center shrink-0">
+                          <ShieldCheck className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <h4 className="text-xs font-bold text-blue-950">Appraisal Evaluation Published</h4>
+                          <p className="text-[11px] text-blue-800">
+                            Your appraisal review is complete and published. Below is your official HTML Appraisal Report. Please inspect your scores and submit your formal agreement or disagreement.
+                          </p>
+                        </div>
                       </div>
-                    )}
-                    {appraiserStatus === 'Rejected' && (
-                      <div className="p-2.5 rounded-lg bg-red-50 border border-red-200 text-red-900 text-[11px] flex items-center space-x-2">
-                        <AlertTriangle className="h-3.5 w-3.5 text-red-600 shrink-0" /><span><strong>Returned:</strong> {rejectionReason || 'Please update and re-submit.'}</span>
-                      </div>
-                    )}
-                    {appraiserStatus !== 'Validated' && appraiserStatus !== 'PendingConfirmation' && (
-                      <Button variant="outline" size="sm" onClick={() => setShowUpdateModal(true)} className="text-xs font-bold border-amber-300 text-amber-800 hover:bg-amber-50">
-                        <Edit3 className="h-3.5 w-3.5 mr-1" />Setup / Update Appraisers
+                      <Button size="sm" onClick={() => setActiveTab('review')} className="bg-blue-700 hover:bg-blue-800 text-white font-bold text-xs shrink-0 shadow-xs">
+                        <CheckCircle className="h-4 w-4 mr-1.5" />Review & Acknowledge
                       </Button>
-                    )}
-                  </div>
-                )}
-              </div>
+                    </div>
+                  )}
 
-              {/* Gate: Line not validated */}
-              {!isLineValidated && !isReadOnly && (
-                <div className="p-6 bg-slate-50 border border-slate-200 rounded-xl text-center space-y-2">
-                  <Lock className="h-8 w-8 text-amber-500 mx-auto" />
-                  <h4 className="font-bold text-slate-900 text-sm">Form Locked</h4>
-                  <p className="text-xs text-slate-600 max-w-sm mx-auto">Your reporting line must be confirmed before you can fill the form.</p>
-                  <Button variant="outline" size="sm" onClick={() => { setAppraiserSectionOpen(true); setShowUpdateModal(true); }} className="text-xs font-bold mt-1">
-                    <Edit3 className="h-3.5 w-3.5 mr-1" /> Manage Reporting Line
-                  </Button>
+                  {isAgreedOrClosed && (
+                    <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 flex items-center justify-between shadow-xs no-print">
+                      <div className="flex items-center space-x-3">
+                        <div className="h-9 w-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0">
+                          <CheckCircle2 className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <h4 className="text-xs font-bold text-emerald-950">Appraisal Form Finalized & Archived</h4>
+                          <p className="text-[11px] text-emerald-800">
+                            Formally acknowledged ({getStatusLabel(currentStatus)}). Below is your permanent official HTML appraisal report.
+                          </p>
+                        </div>
+                      </div>
+                      <Button variant="outline" size="sm" onClick={handleDownloadPdf} className="border-emerald-600 text-emerald-800 hover:bg-emerald-100 text-xs font-bold shrink-0">
+                        <Printer className="h-3.5 w-3.5 mr-1" />Print / PDF
+                      </Button>
+                    </div>
+                  )}
+
+                  {isDisagreed && (
+                    <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs no-print">
+                      <div className="flex items-center space-x-3">
+                        <div className="h-9 w-9 rounded-xl bg-red-600 text-white flex items-center justify-center shrink-0">
+                          <AlertTriangle className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <h4 className="text-xs font-bold text-amber-950">Formal Disagreement Registered</h4>
+                          <p className="text-[11px] text-amber-800">
+                            Under review by GPM and PMW Administration. Below is your official HTML Appraisal Report.
+                          </p>
+                          {empCycleData?.disagreementAttachmentFileName && (
+                            <div className="mt-1 flex items-center space-x-2">
+                              <span className="text-[10px] font-bold text-red-900 bg-red-100 border border-red-200 px-2 py-0.5 rounded-md flex items-center">
+                                <Paperclip className="h-3 w-3 mr-1 text-red-600" />
+                                Attached Record: {empCycleData.disagreementAttachmentFileName}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleDownloadDisagreementAttachment(empCycleData.disagreementAttachmentFileName, empCycleData.disagreementAttachmentFileData)}
+                                className="text-[10px] text-red-700 underline font-bold hover:text-red-900"
+                              >
+                                Download / Inspect
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <Button size="sm" variant="outline" onClick={() => setActiveTab('review')} className="border-amber-400 text-amber-900 hover:bg-amber-100 text-xs font-bold shrink-0">
+                        <Eye className="h-3.5 w-3.5 mr-1" />View Details
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* Clean Official HTML Appraisal Report */}
+                  <AppraisalPrintableReport
+                    employeeCycle={empCycleData}
+                    objectives={
+                      formMode === 'KPI'
+                        ? (kpiItems.length > 0 ? kpiItems.map(k => ({
+                            id: k.id,
+                            title: k.title,
+                            targetDescription: k.targetDescription,
+                            achievementDetails: k.achievement,
+                            employeeSelfRating: (k as any).employeeSelfRating ?? k.selfRating ?? 4,
+                            firstAppraiserRating: (k as any).firstAppraiserRating ?? k.appraiserRating ?? 4,
+                            secondAppraiserRating: (k as any).secondAppraiserRating ?? (empCycleData?.secondAppraiser ? ((k as any).firstAppraiserRating ?? k.appraiserRating ?? 4) : undefined),
+                            coAppraiserRating: (empCycleData?.coAppraiser || empCycleData?.coAppraiserSapId || empCycleData?.pendingCoAppraiserSapId) ? ((k as any).coAppraiserRating != null ? (k as any).coAppraiserRating : undefined) : undefined,
+                            requiresCoAppraiserReview: Boolean((k as any).requiresCoAppraiserReview),
+                            firstAppraiserComments: (k as any).firstAppraiserComments || k.appraiserComments || 'Objective executed satisfactorily.',
+                            secondAppraiserComments: (k as any).secondAppraiserComments || ''
+                          })) : [])
+                        : [
+                            ...financialItems.map(k => ({ ...k, perspective: 'financial', targetDescription: k.targetDescription, achievementDetails: (k as any).achievementDetails || k.achievement, employeeSelfRating: (k as any).employeeSelfRating ?? (k as any).selfRating ?? 4, firstAppraiserRating: (k as any).firstAppraiserRating, secondAppraiserRating: (k as any).secondAppraiserRating, coAppraiserRating: (k as any).coAppraiserRating, firstAppraiserComments: (k as any).firstAppraiserComments || (k as any).appraiserComments, secondAppraiserComments: (k as any).secondAppraiserComments })),
+                            ...customerItems.map(k => ({ ...k, perspective: 'customer', targetDescription: k.targetDescription, achievementDetails: (k as any).achievementDetails || k.achievement, employeeSelfRating: (k as any).employeeSelfRating ?? (k as any).selfRating ?? 4, firstAppraiserRating: (k as any).firstAppraiserRating, secondAppraiserRating: (k as any).secondAppraiserRating, coAppraiserRating: (k as any).coAppraiserRating, firstAppraiserComments: (k as any).firstAppraiserComments || (k as any).appraiserComments, secondAppraiserComments: (k as any).secondAppraiserComments })),
+                            ...processItems.map(k => ({ ...k, perspective: 'process', targetDescription: k.targetDescription, achievementDetails: (k as any).achievementDetails || k.achievement, employeeSelfRating: (k as any).employeeSelfRating ?? (k as any).selfRating ?? 4, firstAppraiserRating: (k as any).firstAppraiserRating, secondAppraiserRating: (k as any).secondAppraiserRating, coAppraiserRating: (k as any).coAppraiserRating, firstAppraiserComments: (k as any).firstAppraiserComments || (k as any).appraiserComments, secondAppraiserComments: (k as any).secondAppraiserComments })),
+                            ...learningItems.map(k => ({ ...k, perspective: 'learning', targetDescription: k.targetDescription, achievementDetails: (k as any).achievementDetails || k.achievement, employeeSelfRating: (k as any).employeeSelfRating ?? (k as any).selfRating ?? 4, firstAppraiserRating: (k as any).firstAppraiserRating, secondAppraiserRating: (k as any).secondAppraiserRating, coAppraiserRating: (k as any).coAppraiserRating, firstAppraiserComments: (k as any).firstAppraiserComments || (k as any).appraiserComments, secondAppraiserComments: (k as any).secondAppraiserComments })),
+                            ...riskItems.map(r => ({
+                              id: r.id,
+                              title: r.title,
+                              targetDescription: r.complianceTarget || r.description,
+                              achievementDetails: (r as any).actualComplianceResult || (r as any).achievementDetails,
+                              perspective: 'risk',
+                              employeeSelfRating: (r as any).employeeSelfRating ?? (r as any).selfRating ?? 4,
+                              firstAppraiserRating: (r as any).firstAppraiserRating,
+                              secondAppraiserRating: (r as any).secondAppraiserRating,
+                              coAppraiserRating: (r as any).coAppraiserRating,
+                              firstAppraiserComments: (r as any).firstAppraiserComments || (r as any).appraiserComments,
+                              secondAppraiserComments: (r as any).secondAppraiserComments
+                            }))
+                          ]
+                    }
+                    traits={traitItems.length > 0 ? traitItems.map(t => ({
+                      id: t.id,
+                      traitName: t.name,
+                      definition: t.definition,
+                      selfRating: (t as any).selfRating ?? 4,
+                      firstAppraiserRating: (t as any).firstAppraiserRating ?? t.appraiserRating ?? 4,
+                      secondAppraiserRating: (t as any).secondAppraiserRating ?? (empCycleData?.secondAppraiser ? ((t as any).firstAppraiserRating ?? t.appraiserRating ?? 4) : undefined),
+                      coAppraiserRating: (empCycleData?.coAppraiser || empCycleData?.coAppraiserSapId) ? ((t as any).coAppraiserRating ?? ((t as any).firstAppraiserRating ?? t.appraiserRating ?? 4)) : undefined,
+                      firstAppraiserComments: (t as any).firstAppraiserComments || t.appraiserComments || 'Demonstrates strong professional conduct.'
+                    })) : []}
+                    score={appraisalScore}
+                    developmentReview={developmentReview}
+                    isModal={false}
+                  />
                 </div>
-              )}
-
-              {/* Form Content */}
-              {(isLineValidated || isReadOnly) && (
+              ) : (
+                /* CASE B: DRAFT / SELF-ASSESSMENT STAGE (NOT YET SUBMITTED) - EDITABLE FORM */
                 <div className="space-y-3">
-                  {/* Weightage Bar (Collapsible) */}
-                  <div className="bg-white border border-slate-200 rounded-xl overflow-hidden no-print">
-                    <button onClick={() => setWeightageBarOpen(!weightageBarOpen)} className="w-full flex items-center justify-between p-2.5 hover:bg-slate-50 transition-colors">
+                  {/* Collapsible Appraiser Section */}
+                  <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+                    <button onClick={() => setAppraiserSectionOpen(!appraiserSectionOpen)} className="w-full flex items-center justify-between p-3 hover:bg-slate-50 transition-colors">
                       <div className="flex items-center space-x-2">
-                        <Scale className="h-4 w-4 text-slate-500" />
-                        <span className="text-xs font-bold text-slate-700">Perspective Weightages</span>
-                        <span className="text-[11px] text-slate-400">({blocks.map(b => `${b.title.split(' ')[0]} ${b.weightage}%`).join(', ')})</span>
+                        <UserCheck className="h-4 w-4 text-emerald-700" />
+                        <span className="text-xs font-bold text-slate-800">Reporting Line</span>
+                        {appraiserStatus === 'Validated' ? (
+                          <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 text-[10px] font-bold flex items-center space-x-1"><CheckCircle2 className="h-3 w-3" /><span>Confirmed</span></Badge>
+                        ) : appraiserStatus === 'PendingConfirmation' ? (
+                          <Badge className="bg-amber-100 text-amber-800 border-amber-200 text-[10px] font-bold flex items-center space-x-1"><Clock className="h-3 w-3" /><span>Pending</span></Badge>
+                        ) : appraiserStatus === 'Rejected' ? (
+                          <Badge className="bg-red-100 text-red-800 border-red-200 text-[10px] font-bold flex items-center space-x-1"><AlertTriangle className="h-3 w-3" /><span>Rejected</span></Badge>
+                        ) : (
+                          <Badge className="bg-slate-100 text-slate-600 text-[10px] font-bold">Needs Setup</Badge>
+                        )}
+                        {!appraiserSectionOpen && appraiserStatus === 'Validated' && (
+                          <span className="text-[11px] text-slate-500 font-medium hidden sm:inline">— {firstAppraiserInfo?.fullName || 'N/A'} → {secondAppraiserInfo?.fullName || 'N/A'}</span>
+                        )}
                       </div>
-                      {weightageBarOpen ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
+                      {appraiserSectionOpen ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
                     </button>
-                    {weightageBarOpen && (
-                      <div className="px-3 pb-3 border-t border-slate-100">
-                        <WeightageAllocationBar blocks={blocks} onChange={(updatedBlocks) => setBlocks(updatedBlocks)} readOnly={isReadOnly} />
+                    {appraiserSectionOpen && (
+                      <div className="px-3 pb-3 space-y-3 border-t border-slate-100">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2 pt-3">
+                          <div className="p-2.5 bg-emerald-50 border border-emerald-100 rounded-lg text-xs space-y-0.5">
+                            <div className="text-[10px] text-emerald-700 font-bold uppercase">1st Appraiser</div>
+                            <div className="font-bold text-slate-900 truncate">{firstAppraiserInfo?.fullName || (inputFirstSap ? `SAP: ${inputFirstSap}` : 'Not designated')}</div>
+                            <div className="text-slate-500 text-[11px]">{formatGradeLabel(firstAppraiserInfo?.grade)} • {firstAppraiserInfo?.designation || '—'}</div>
+                          </div>
+                          <div className="p-2.5 bg-teal-50 border border-teal-100 rounded-lg text-xs space-y-0.5">
+                            <div className="text-[10px] text-teal-700 font-bold uppercase">2nd Appraiser / Supervisor</div>
+                            <div className="font-bold text-slate-900 truncate">{secondAppraiserInfo?.fullName || (inputSecondSap ? `SAP: ${inputSecondSap}` : 'Not designated')}</div>
+                            <div className="text-slate-500 text-[11px]">{formatGradeLabel(secondAppraiserInfo?.grade)} • {secondAppraiserInfo?.designation || '—'}</div>
+                          </div>
+                          <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs space-y-0.5">
+                            <div className="text-[10px] text-slate-500 font-bold uppercase">Co-Appraiser (Optional)</div>
+                            <div className="font-bold text-slate-900 truncate">{coAppraiserInfo?.fullName || (inputCoAppSap ? `SAP: ${inputCoAppSap}` : 'None')}</div>
+                            <div className="text-slate-500 text-[11px]">{formatGradeLabel(coAppraiserInfo?.grade)} • {coAppraiserInfo?.designation || '—'}</div>
+                          </div>
+                        </div>
+                        {appraiserStatus === 'PendingConfirmation' && (
+                          <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-[11px] flex items-center space-x-2">
+                            <Clock className="h-3.5 w-3.5 text-amber-600 shrink-0" /><span><strong>Pending:</strong> Awaiting confirmation by your supervisor.</span>
+                          </div>
+                        )}
+                        {appraiserStatus === 'Rejected' && (
+                          <div className="p-2.5 rounded-lg bg-red-50 border border-red-200 text-red-900 text-[11px] flex items-center space-x-2">
+                            <AlertTriangle className="h-3.5 w-3.5 text-red-600 shrink-0" /><span><strong>Returned:</strong> {rejectionReason || 'Please update and re-submit.'}</span>
+                          </div>
+                        )}
+                        {appraiserStatus !== 'Validated' && appraiserStatus !== 'PendingConfirmation' && (
+                          <Button variant="outline" size="sm" onClick={() => setShowUpdateModal(true)} className="text-xs font-bold border-amber-300 text-amber-800 hover:bg-amber-50">
+                            <Edit3 className="h-3.5 w-3.5 mr-1" />Setup / Update Appraisers
+                          </Button>
+                        )}
                       </div>
                     )}
                   </div>
 
-                  {/* KPI Form */}
+                  {/* Reporting Line Status Advisory */}
+                  {!isLineValidated && !isReadOnly && (
+                    <div className="p-3 bg-amber-50/80 border border-amber-200 rounded-xl flex items-center justify-between gap-2 text-xs text-amber-900 shadow-2xs">
+                      <div className="flex items-center space-x-2">
+                        <Clock className="h-4 w-4 text-amber-700 shrink-0" />
+                        <span>
+                          <strong>Reporting Line Pending Confirmation:</strong> You can add and save draft objectives now. Formal submission to your evaluators will be enabled once your supervisor validates your reporting line.
+                        </span>
+                      </div>
+                      <Button variant="outline" size="sm" onClick={() => { setAppraiserSectionOpen(true); setShowUpdateModal(true); }} className="text-[11px] font-bold border-amber-300 text-amber-900 hover:bg-amber-100 h-7 shrink-0">
+                        <Edit3 className="h-3 w-3 mr-1" /> View Reporting Line
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* Weightage Bar: Fixed 70/30 banner for KPI forms, or interactive perspective slider for BSC / Risk BSC */}
+                  {formMode === 'KPI' ? (
+                    <div className="bg-slate-50 border border-slate-200/90 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 no-print text-xs">
+                      <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+                        <Scale className="h-4 w-4 text-emerald-700 shrink-0" />
+                        <span className="font-bold text-slate-800">Fixed Weightage Allocation:</span>
+                        <Badge className="bg-emerald-700 text-white text-[11px] font-bold">70% Objectives (Averaged)</Badge>
+                        <Badge className="bg-teal-700 text-white text-[11px] font-bold">30% Behavioural Traits (Averaged)</Badge>
+                      </div>
+                      <span className="text-[11px] text-slate-500 font-medium italic">Fixed for AVP &amp; Below Grades (Non-Modifiable)</span>
+                    </div>
+                  ) : (
+                    <div className="bg-white border border-slate-200 rounded-xl overflow-hidden no-print">
+                      <button onClick={() => setWeightageBarOpen(!weightageBarOpen)} className="w-full flex items-center justify-between p-2.5 hover:bg-slate-50 transition-colors">
+                        <div className="flex items-center space-x-2">
+                          <Scale className="h-4 w-4 text-slate-500" />
+                          <span className="text-xs font-bold text-slate-700">Perspective Weightages</span>
+                          <span className="text-[11px] text-slate-400">({blocks.map(b => `${b.title.split(' ')[0]} ${b.weightage}%`).join(', ')})</span>
+                        </div>
+                        {weightageBarOpen ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
+                      </button>
+                      {weightageBarOpen && (
+                        <div className="px-3 pb-3 border-t border-slate-100">
+                          <WeightageAllocationBar blocks={blocks} onChange={(updatedBlocks) => setBlocks(updatedBlocks)} readOnly={isReadOnly} />
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Form Blocks */}
                   {formMode === 'KPI' && (
                     <>
                       <AppraisalBlockCard id="kpis" title="Part A: KPIs & Objectives" description="Define targets, achievements, and supporting evidence." weightage={blocks.find((b) => b.id === 'kpis')?.weightage || 70} itemCount={kpiItems.length} completedCount={kpiItems.filter((k) => k.appraiserRating > 0).length} rawScore={calculateAverageScore(kpiItems.map((k) => k.appraiserRating))} weightedScore={getBlockScores('kpis').weighted} colorTheme="emerald" defaultExpanded={false}>
@@ -911,11 +1516,14 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
                               onViewEvidence={() => setViewEvidenceItem({ title: item.title, ref: item.evidenceRef || '' })}
                             />
                           ))}
-                          {!isReadOnly && (
-                            <Button variant="outline" size="sm" onClick={() => setKpiItems([...kpiItems, { id: `kpi-${kpiItems.length + 1}`, title: '', targetDescription: '', achievement: '', employeeComments: '', appraiserComments: '', appraiserRating: 0, evidenceRef: '' }])} className="text-xs font-bold border-dashed border-emerald-400 text-emerald-800 hover:bg-emerald-50 w-full py-2 no-print">
+                          <div className="flex items-center space-x-2 pt-1 no-print">
+                            <Button variant="outline" size="sm" onClick={() => setKpiItems([...kpiItems, { id: `kpi-${Date.now()}-${kpiItems.length + 1}`, title: '', targetDescription: '', achievement: '', employeeComments: '', appraiserComments: '', appraiserRating: 0, evidenceRef: '' }])} className="text-xs font-bold border-dashed border-emerald-400 text-emerald-800 hover:bg-emerald-50 flex-1 py-2">
                               <Plus className="h-4 w-4 mr-1.5" />Add Objective
                             </Button>
-                          )}
+                            <Button variant="outline" size="sm" onClick={handleSaveDraft} disabled={saving} className="text-xs font-bold border-emerald-600 text-emerald-800 hover:bg-emerald-50 py-2 px-4 shrink-0 shadow-2xs">
+                              <Save className="h-3.5 w-3.5 mr-1" />{saving ? 'Saving...' : 'Save Draft'}
+                            </Button>
+                          </div>
                         </div>
                       </AppraisalBlockCard>
                       <AppraisalBlockCard id="traits" title="Part B: Behavioural Traits" description="Integrity, teamwork, service excellence competencies." weightage={blocks.find((b) => b.id === 'traits')?.weightage || 30} itemCount={traitItems.length} completedCount={traitItems.filter((t) => t.appraiserRating > 0).length} rawScore={calculateAverageScore(traitItems.map((t) => t.appraiserRating))} weightedScore={getBlockScores('traits').weighted} colorTheme="teal" defaultExpanded={false}>
@@ -930,71 +1538,79 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
                     </>
                   )}
 
-                  {/* BSC / Risk BSC Form */}
                   {(formMode === 'BSC' || formMode === 'RISK_BSC') && (
                     <>
                       <AppraisalBlockCard id="financial" title="P1: Financial & Strategic" description="Revenue, cost optimization, NII." weightage={blocks.find((b) => b.id === 'financial')?.weightage || (formMode === 'BSC' ? 30 : 25)} itemCount={financialItems.length} completedCount={financialItems.filter((k) => k.appraiserRating > 0).length} rawScore={calculateAverageScore(financialItems.map((k) => k.appraiserRating))} weightedScore={getBlockScores('financial').weighted} colorTheme="emerald" defaultExpanded={false}>
                         <div className="space-y-3">
                           {financialItems.map((item, idx) => (<KPIAssessmentItem key={item.id} index={idx} data={item} readOnly={isReadOnly} userRole={currentUserRole} onChange={(updated: KPIItemData) => setFinancialItems(financialItems.map((i) => (i.id === updated.id ? updated : i)))} onRemove={() => setFinancialItems(financialItems.filter((i) => i.id !== item.id))} onOpenEvidence={() => setEvidenceModalItem({ title: item.title, ref: item.evidenceRef || '' })} onViewEvidence={() => setViewEvidenceItem({ title: item.title, ref: item.evidenceRef || '' })} />))}
-                          {!isReadOnly && (<Button variant="outline" size="sm" onClick={() => setFinancialItems([...financialItems, { id: `fin-${financialItems.length + 1}`, title: '', targetDescription: '', achievement: '', employeeComments: '', appraiserComments: '', appraiserRating: 0, evidenceRef: '' }])} className="text-xs font-bold border-dashed border-emerald-400 text-emerald-800 hover:bg-emerald-50 w-full py-2 no-print"><Plus className="h-4 w-4 mr-1.5" />Add Financial Objective</Button>)}
+                          <div className="flex items-center space-x-2 pt-1 no-print">
+                            <Button variant="outline" size="sm" onClick={() => setFinancialItems([...financialItems, { id: `fin-${Date.now()}-${financialItems.length + 1}`, title: '', targetDescription: '', achievement: '', employeeComments: '', appraiserComments: '', appraiserRating: 0, evidenceRef: '' }])} className="text-xs font-bold border-dashed border-emerald-400 text-emerald-800 hover:bg-emerald-50 flex-1 py-2"><Plus className="h-4 w-4 mr-1.5" />Add Financial Objective</Button>
+                            <Button variant="outline" size="sm" onClick={handleSaveDraft} disabled={saving} className="text-xs font-bold border-emerald-600 text-emerald-800 hover:bg-emerald-50 py-2 px-4 shrink-0 shadow-2xs"><Save className="h-3.5 w-3.5 mr-1" />Save Draft</Button>
+                          </div>
                         </div>
                       </AppraisalBlockCard>
                       <AppraisalBlockCard id="customer" title="P2: Customer Centricity" description="Client satisfaction, NPS, onboarding." weightage={blocks.find((b) => b.id === 'customer')?.weightage || (formMode === 'BSC' ? 25 : 20)} itemCount={customerItems.length} completedCount={customerItems.filter((k) => k.appraiserRating > 0).length} rawScore={calculateAverageScore(customerItems.map((k) => k.appraiserRating))} weightedScore={getBlockScores('customer').weighted} colorTheme="blue" defaultExpanded={false}>
                         <div className="space-y-3">
                           {customerItems.map((item, idx) => (<KPIAssessmentItem key={item.id} index={idx} data={item} readOnly={isReadOnly} userRole={currentUserRole} onChange={(updated: KPIItemData) => setCustomerItems(customerItems.map((i) => (i.id === updated.id ? updated : i)))} onRemove={() => setCustomerItems(customerItems.filter((i) => i.id !== item.id))} onOpenEvidence={() => setEvidenceModalItem({ title: item.title, ref: item.evidenceRef || '' })} onViewEvidence={() => setViewEvidenceItem({ title: item.title, ref: item.evidenceRef || '' })} />))}
-                          {!isReadOnly && (<Button variant="outline" size="sm" onClick={() => setCustomerItems([...customerItems, { id: `cust-${customerItems.length + 1}`, title: '', targetDescription: '', achievement: '', employeeComments: '', appraiserComments: '', appraiserRating: 0, evidenceRef: '' }])} className="text-xs font-bold border-dashed border-blue-400 text-blue-800 hover:bg-blue-50 w-full py-2 no-print"><Plus className="h-4 w-4 mr-1.5" />Add Customer Objective</Button>)}
+                          <div className="flex items-center space-x-2 pt-1 no-print">
+                            <Button variant="outline" size="sm" onClick={() => setCustomerItems([...customerItems, { id: `cust-${Date.now()}-${customerItems.length + 1}`, title: '', targetDescription: '', achievement: '', employeeComments: '', appraiserComments: '', appraiserRating: 0, evidenceRef: '' }])} className="text-xs font-bold border-dashed border-blue-400 text-blue-800 hover:bg-blue-50 flex-1 py-2"><Plus className="h-4 w-4 mr-1.5" />Add Customer Objective</Button>
+                            <Button variant="outline" size="sm" onClick={handleSaveDraft} disabled={saving} className="text-xs font-bold border-blue-600 text-blue-800 hover:bg-blue-50 py-2 px-4 shrink-0 shadow-2xs"><Save className="h-3.5 w-3.5 mr-1" />Save Draft</Button>
+                          </div>
                         </div>
                       </AppraisalBlockCard>
                       <AppraisalBlockCard id="process" title="P3: Internal Controls & Compliance" description="Audit, risk controls, TAT, regulatory." weightage={blocks.find((b) => b.id === 'process')?.weightage || (formMode === 'BSC' ? 25 : 20)} itemCount={processItems.length} completedCount={processItems.filter((k) => k.appraiserRating > 0).length} rawScore={calculateAverageScore(processItems.map((k) => k.appraiserRating))} weightedScore={getBlockScores('process').weighted} colorTheme="purple" defaultExpanded={false}>
                         <div className="space-y-3">
                           {processItems.map((item, idx) => (<KPIAssessmentItem key={item.id} index={idx} data={item} readOnly={isReadOnly} userRole={currentUserRole} onChange={(updated: KPIItemData) => setProcessItems(processItems.map((i) => (i.id === updated.id ? updated : i)))} onRemove={() => setProcessItems(processItems.filter((i) => i.id !== item.id))} onOpenEvidence={() => setEvidenceModalItem({ title: item.title, ref: item.evidenceRef || '' })} onViewEvidence={() => setViewEvidenceItem({ title: item.title, ref: item.evidenceRef || '' })} />))}
-                          {!isReadOnly && (<Button variant="outline" size="sm" onClick={() => setProcessItems([...processItems, { id: `proc-${processItems.length + 1}`, title: '', targetDescription: '', achievement: '', employeeComments: '', appraiserComments: '', appraiserRating: 0, evidenceRef: '' }])} className="text-xs font-bold border-dashed border-purple-400 text-purple-800 hover:bg-purple-50 w-full py-2 no-print"><Plus className="h-4 w-4 mr-1.5" />Add Process Objective</Button>)}
+                          <div className="flex items-center space-x-2 pt-1 no-print">
+                            <Button variant="outline" size="sm" onClick={() => setProcessItems([...processItems, { id: `proc-${Date.now()}-${processItems.length + 1}`, title: '', targetDescription: '', achievement: '', employeeComments: '', appraiserComments: '', appraiserRating: 0, evidenceRef: '' }])} className="text-xs font-bold border-dashed border-purple-400 text-purple-800 hover:bg-purple-50 flex-1 py-2"><Plus className="h-4 w-4 mr-1.5" />Add Process Objective</Button>
+                            <Button variant="outline" size="sm" onClick={handleSaveDraft} disabled={saving} className="text-xs font-bold border-purple-600 text-purple-800 hover:bg-purple-50 py-2 px-4 shrink-0 shadow-2xs"><Save className="h-3.5 w-3.5 mr-1" />Save Draft</Button>
+                          </div>
                         </div>
                       </AppraisalBlockCard>
                       <AppraisalBlockCard id="learning" title="P4: Learning & Growth" description="Certifications, capability building, succession." weightage={blocks.find((b) => b.id === 'learning')?.weightage || (formMode === 'BSC' ? 20 : 15)} itemCount={learningItems.length} completedCount={learningItems.filter((k) => k.appraiserRating > 0).length} rawScore={calculateAverageScore(learningItems.map((k) => k.appraiserRating))} weightedScore={getBlockScores('learning').weighted} colorTheme="amber" defaultExpanded={false}>
                         <div className="space-y-3">
                           {learningItems.map((item, idx) => (<KPIAssessmentItem key={item.id} index={idx} data={item} readOnly={isReadOnly} userRole={currentUserRole} onChange={(updated: KPIItemData) => setLearningItems(learningItems.map((i) => (i.id === updated.id ? updated : i)))} onRemove={() => setLearningItems(learningItems.filter((i) => i.id !== item.id))} onOpenEvidence={() => setEvidenceModalItem({ title: item.title, ref: item.evidenceRef || '' })} onViewEvidence={() => setViewEvidenceItem({ title: item.title, ref: item.evidenceRef || '' })} />))}
-                          {!isReadOnly && (<Button variant="outline" size="sm" onClick={() => setLearningItems([...learningItems, { id: `learn-${learningItems.length + 1}`, title: '', targetDescription: '', achievement: '', employeeComments: '', appraiserComments: '', appraiserRating: 0, evidenceRef: '' }])} className="text-xs font-bold border-dashed border-amber-400 text-amber-800 hover:bg-amber-50 w-full py-2 no-print"><Plus className="h-4 w-4 mr-1.5" />Add Learning Objective</Button>)}
+                          <div className="flex items-center space-x-2 pt-1 no-print">
+                            <Button variant="outline" size="sm" onClick={() => setLearningItems([...learningItems, { id: `learn-${Date.now()}-${learningItems.length + 1}`, title: '', targetDescription: '', achievement: '', employeeComments: '', appraiserComments: '', appraiserRating: 0, evidenceRef: '' }])} className="text-xs font-bold border-dashed border-amber-400 text-amber-800 hover:bg-amber-50 flex-1 py-2"><Plus className="h-4 w-4 mr-1.5" />Add Learning Objective</Button>
+                            <Button variant="outline" size="sm" onClick={handleSaveDraft} disabled={saving} className="text-xs font-bold border-amber-600 text-amber-800 hover:bg-amber-50 py-2 px-4 shrink-0 shadow-2xs"><Save className="h-3.5 w-3.5 mr-1" />Save Draft</Button>
+                          </div>
                         </div>
                       </AppraisalBlockCard>
                       {formMode === 'RISK_BSC' && (
                         <AppraisalBlockCard id="risk" title="P5: Risk Adjustment (MRT/MRC)" description="RAROC, limit governance, risk posture." weightage={blocks.find((b) => b.id === 'risk')?.weightage || 20} itemCount={riskItems.length} completedCount={riskItems.filter((k) => k.appraiserRating > 0).length} rawScore={calculateAverageScore(riskItems.map((k) => k.appraiserRating))} weightedScore={getBlockScores('risk').weighted} colorTheme="rose" defaultExpanded={false}>
                           <div className="space-y-3">
                             {riskItems.map((item, idx) => (<RiskAdjustmentItem key={item.id} index={idx} data={item} readOnly={isReadOnly} userRole={currentUserRole} onChange={(updated: RiskItemData) => setRiskItems(riskItems.map((i) => (i.id === updated.id ? updated : i)))} onOpenEvidence={() => setEvidenceModalItem({ title: item.title, ref: item.evidenceRef || '' })} onViewEvidence={() => setViewEvidenceItem({ title: item.title, ref: item.evidenceRef || '' })} />))}
-                            {!isReadOnly && (<Button variant="outline" size="sm" onClick={() => setRiskItems([...riskItems, { id: `risk-${riskItems.length + 1}`, title: '', description: '', complianceTarget: '', actualComplianceResult: '', appraiserRating: 0, evidenceRef: '' }])} className="text-xs font-bold border-dashed border-rose-400 text-rose-800 hover:bg-rose-50 w-full py-2 no-print"><Plus className="h-4 w-4 mr-1.5" />Add Risk Objective</Button>)}
+                            <div className="flex items-center space-x-2 pt-1 no-print">
+                              <Button variant="outline" size="sm" onClick={() => setRiskItems([...riskItems, { id: `risk-${Date.now()}-${riskItems.length + 1}`, title: '', description: '', complianceTarget: '', actualComplianceResult: '', appraiserRating: 0, evidenceRef: '' }])} className="text-xs font-bold border-dashed border-rose-400 text-rose-800 hover:bg-rose-50 flex-1 py-2"><Plus className="h-4 w-4 mr-1.5" />Add Risk Objective</Button>
+                              <Button variant="outline" size="sm" onClick={handleSaveDraft} disabled={saving} className="text-xs font-bold border-rose-600 text-rose-800 hover:bg-rose-50 py-2 px-4 shrink-0 shadow-2xs"><Save className="h-3.5 w-3.5 mr-1" />Save Draft</Button>
+                            </div>
                           </div>
                         </AppraisalBlockCard>
                       )}
                     </>
                   )}
-                </div>
-              )}
 
-              {/* Sticky Action Bar */}
-              {!isReadOnly && isLineValidated && (
-                <div className="fixed bottom-0 left-0 right-0 z-50 no-print">
-                  <div className="max-w-6xl mx-auto px-4 pb-4">
-                    <div className="flex items-center justify-between p-3 bg-white/95 backdrop-blur-lg border border-slate-200 rounded-xl shadow-lg">
-                      <div className="text-xs text-slate-600">
-                        <span className="font-bold text-slate-800">{totalCompletedCount}/{totalItemCount}</span> items scored • Weighted: <span className="font-bold text-emerald-700">{overallWeightedScore.toFixed(2)}</span>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={handleTestNotification}
-                          disabled={testingNotify || submitting}
-                          className="text-xs font-bold border-indigo-200 text-indigo-700 hover:bg-indigo-50 h-8"
-                        >
-                          <Mail className={`h-3.5 w-3.5 mr-1 ${testingNotify ? 'animate-spin' : ''}`} />
-                          {testingNotify ? 'Testing...' : 'Test Email Notification'}
-                        </Button>
-                        <Button variant="outline" size="sm" onClick={handleSaveDraft} disabled={saving} className="text-xs font-bold border-slate-300 text-slate-700 hover:bg-slate-50 h-8">
-                          <Save className="h-3.5 w-3.5 mr-1" />{saving ? 'Saving...' : 'Save Draft'}
-                        </Button>
-                        <Button size="sm" onClick={handleSubmitSelfAssessment} disabled={submitting} className="text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white shadow-md h-8">
-                          <Send className="h-3.5 w-3.5 mr-1" />{submitting ? 'Submitting...' : 'Submit to Appraisers'}
-                        </Button>
+                  {/* Sticky Action Bar */}
+                  <div className="fixed bottom-0 left-0 right-0 z-50 no-print">
+                    <div className="max-w-6xl mx-auto px-4 pb-4">
+                      <div className="flex items-center justify-between p-3 bg-white/95 backdrop-blur-lg border border-slate-200 rounded-xl shadow-lg">
+                        <div className="text-xs text-slate-600">
+                          <span className="font-bold text-slate-800">{totalCompletedCount}/{totalItemCount}</span> items scored • Weighted: <span className="font-bold text-emerald-700">{overallWeightedScore.toFixed(2)}</span>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <Button variant="outline" size="sm" onClick={handleSaveDraft} disabled={saving} className="text-xs font-bold border-slate-300 text-slate-700 hover:bg-slate-50 h-8">
+                            <Save className="h-3.5 w-3.5 mr-1" />{saving ? 'Saving...' : 'Save Draft'}
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={handleSubmitSelfAssessment}
+                            disabled={submitting || !isLineValidated}
+                            title={!isLineValidated ? "Reporting line must be confirmed before submitting" : ""}
+                            className={`text-xs font-bold text-white shadow-md h-8 ${!isLineValidated ? 'bg-slate-400 hover:bg-slate-400 cursor-not-allowed' : 'bg-emerald-600 hover:bg-emerald-500'}`}
+                          >
+                            <Send className="h-3.5 w-3.5 mr-1" />{submitting ? 'Submitting...' : 'Submit to Appraisers'}
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1003,7 +1619,7 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
             </>
           )}
         </div>
-        </TabsContent>
+      </TabsContent>
 
         {/* ═══ TAB 3: REVIEW & RESULTS ═══ */}
         <TabsContent value="review">
@@ -1042,23 +1658,143 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
                 <p className="text-xs text-slate-600">
                   {isAgreedOrClosed ? 'You have formally acknowledged your appraisal. This document is sealed.' : isDisagreed ? 'Your comments are under review with GPM and PMW.' : 'Review your scores below, then confirm or submit a disagreement.'}
                 </p>
-                <div className="grid grid-cols-3 gap-3 p-3 bg-white/80 rounded-xl border border-slate-200">
-                  <div className="text-center"><div className="text-[10px] text-slate-500 uppercase font-bold">Weighted Score</div><div className="text-xl font-black text-emerald-800">{overallWeightedScore.toFixed(2)}</div></div>
-                  <div className="text-center"><div className="text-[10px] text-slate-500 uppercase font-bold">Raw Average</div><div className="text-xl font-black text-slate-800">{overallRawScore.toFixed(2)} / 5.0</div></div>
-                  <div className="text-center"><div className="text-[10px] text-slate-500 uppercase font-bold">Rating</div><div className="text-lg font-black text-emerald-700">{finalRatingLabel}</div></div>
-                </div>
-                <div className="space-y-1.5">
-                  {blockBreakdowns.map((b) => (
-                    <div key={b.id} className="flex items-center justify-between p-2 bg-white rounded-lg border border-slate-100 text-xs">
-                      <span className="font-semibold text-slate-700">{b.title}</span>
-                      <div className="flex items-center space-x-3">
-                        <span className="text-slate-500">{b.weightage}%</span>
-                        <span className="font-bold text-slate-800">{b.rawScore > 0 ? b.rawScore.toFixed(2) : '—'}</span>
-                        <span className="font-bold text-emerald-700">+{b.weightedScore.toFixed(2)}</span>
+                {(() => {
+                  // Compute live evaluated block contributions so consolidation matches individual blocks perfectly
+                  const kpiBlock = blockBreakdowns.find((b) => b.id === 'kpis');
+                  const traitBlock = blockBreakdowns.find((b) => b.id === 'traits');
+
+                  const objRaw = kpiBlock ? kpiBlock.rawScore : getBlockScores('kpis').raw;
+                  const objVal = kpiBlock ? kpiBlock.weightedScore : (objRaw * 0.70);
+
+                  const traitRaw = traitBlock ? traitBlock.rawScore : getBlockScores('traits').raw;
+                  const traitVal = traitBlock ? traitBlock.weightedScore : (traitRaw * 0.30);
+
+                  const finalVal = formMode === 'KPI'
+                    ? (objVal + traitVal)
+                    : overallWeightedScore;
+
+                  const ratingText = getRatingLabel(finalVal);
+
+                  return (
+                    <div className="space-y-3">
+                      {/* Top Consolidated 3-Column Card */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 p-4 bg-white rounded-xl border border-slate-200 shadow-sm">
+                        <div className="text-center p-2 rounded-lg bg-emerald-50/60 border border-emerald-100">
+                          <div className="text-[10px] text-emerald-900 uppercase font-extrabold tracking-wider">Composite Decimal Score</div>
+                          <div className="text-2xl font-black text-emerald-800 mt-0.5">
+                            {finalVal.toFixed(2)} <span className="text-xs font-semibold text-slate-400">/ 5.00</span>
+                          </div>
+                          <div className="text-[10px] font-semibold text-emerald-700 mt-0.5">
+                            {formMode === 'KPI' ? `${objVal.toFixed(2)} (Obj) + ${traitVal.toFixed(2)} (Trait)` : 'Sum of weighted perspectives'}
+                          </div>
+                        </div>
+
+                        <div className="text-center p-2 rounded-lg bg-slate-50 border border-slate-200 flex flex-col justify-center">
+                          <div className="text-[10px] text-slate-500 uppercase font-extrabold tracking-wider">Score Contribution Breakdown</div>
+                          <div className="text-xs font-bold text-slate-800 mt-1 space-y-0.5">
+                            {formMode === 'KPI' ? (
+                              <>
+                                <div>Objectives (70%): <span className="text-emerald-700 font-extrabold">{objVal.toFixed(2)} / 3.50</span> <span className="text-slate-400 text-[10px]">(Avg: {objRaw.toFixed(2)})</span></div>
+                                <div>Behavioural Traits (30%): <span className="text-teal-700 font-extrabold">{traitVal.toFixed(2)} / 1.50</span> <span className="text-slate-400 text-[10px]">(Avg: {traitRaw.toFixed(2)})</span></div>
+                              </>
+                            ) : (
+                              <div>Weighted Perspectives Score: <span className="text-emerald-700 font-extrabold">{overallWeightedScore.toFixed(2)} / 5.00</span></div>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="text-center p-2 rounded-lg bg-emerald-50/60 border border-emerald-100 flex flex-col justify-center items-center">
+                          <div className="text-[10px] text-emerald-900 uppercase font-extrabold tracking-wider">Rating Level</div>
+                          <div className="text-lg font-black text-emerald-800 mt-1">
+                            {ratingText}
+                          </div>
+                        </div>
                       </div>
+
+                      {/* Detailed Consolidated Block Breakdown Table */}
+                      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+                        <div className="bg-slate-100/80 px-4 py-2 text-[10px] font-bold text-slate-600 uppercase tracking-wider grid grid-cols-12">
+                          <div className="col-span-5">Component / Performance Block</div>
+                          <div className="col-span-2 text-center">Weightage</div>
+                          <div className="col-span-2 text-center">Raw Avg (1–5)</div>
+                          <div className="col-span-3 text-right">Decimal Contribution</div>
+                        </div>
+                        <div className="divide-y divide-slate-100 text-xs">
+                          {blockBreakdowns.map((b) => {
+                            const maxContr = (b.weightage * 0.05).toFixed(2);
+                            return (
+                              <div key={b.id} className="px-4 py-2.5 grid grid-cols-12 items-center hover:bg-slate-50/50">
+                                <div className="col-span-5 font-semibold text-slate-800">{b.title}</div>
+                                <div className="col-span-2 text-center font-bold text-slate-600">{b.weightage}%</div>
+                                <div className="col-span-2 text-center font-bold text-slate-700">{b.rawScore > 0 ? b.rawScore.toFixed(2) : '—'} <span className="text-[10px] text-slate-400">/ 5.0</span></div>
+                                <div className="col-span-3 text-right font-black text-emerald-700">+{b.weightedScore.toFixed(2)} <span className="text-[10px] text-slate-400 font-normal">/ {maxContr}</span></div>
+                              </div>
+                            );
+                          })}
+                          <div className="px-4 py-2.5 bg-emerald-900 text-white grid grid-cols-12 items-center font-black rounded-b-xl">
+                            <div className="col-span-5 text-emerald-200 uppercase text-[11px]">Consolidated Total Performance Score</div>
+                            <div className="col-span-2 text-center text-emerald-300">100%</div>
+                            <div className="col-span-2 text-center text-emerald-300">{overallRawScore.toFixed(2)} / 5.0</div>
+                            <div className="col-span-3 text-right text-base text-white">{finalVal.toFixed(2)} / 5.00</div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Disagreement Reason & Supporting Document Display if Disagreed */}
+                      {isDisagreed && (empCycleData?.appraiserRejectionReason || empCycleData?.disagreementReason) && (
+                        <div className="p-3.5 bg-amber-50 border border-amber-300 rounded-xl text-xs text-amber-950 space-y-2">
+                          <div className="font-bold flex items-center justify-between text-amber-900">
+                            <div className="flex items-center space-x-1.5">
+                              <AlertTriangle className="h-4 w-4 text-red-600" />
+                              <span>Recorded Disagreement Justification</span>
+                            </div>
+                            <Badge variant="outline" className="bg-amber-100 text-amber-900 border-amber-300 text-[10px]">
+                              Status: Under Review (GPM / PMW)
+                            </Badge>
+                          </div>
+                          <p className="italic text-slate-800 leading-relaxed font-medium bg-white p-2.5 rounded-lg border border-amber-200">
+                            "{empCycleData.disagreementReason || empCycleData.appraiserRejectionReason}"
+                          </p>
+
+                          {/* Supporting Document Attached for Record */}
+                          {empCycleData?.disagreementAttachmentFileName && (
+                            <div className="p-2.5 bg-white rounded-lg border border-slate-200 flex items-center justify-between shadow-2xs">
+                              <div className="flex items-center space-x-2.5">
+                                <div className="p-1.5 bg-red-50 text-red-600 rounded border border-red-100">
+                                  {empCycleData.disagreementAttachmentFileName.toLowerCase().endsWith('.pdf') ? (
+                                    <FileText className="h-4 w-4" />
+                                  ) : empCycleData.disagreementAttachmentFileName.toLowerCase().includes('xls') ? (
+                                    <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
+                                  ) : (
+                                    <Paperclip className="h-4 w-4 text-blue-600" />
+                                  )}
+                                </div>
+                                <div>
+                                  <div className="font-bold text-slate-900 text-xs flex items-center space-x-1.5">
+                                    <span>{empCycleData.disagreementAttachmentFileName}</span>
+                                    <span className="text-[9px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-mono">
+                                      {empCycleData.disagreementAttachmentSizeBytes ? `${(empCycleData.disagreementAttachmentSizeBytes / (1024 * 1024)).toFixed(2)} MB` : 'Record File'}
+                                    </span>
+                                  </div>
+                                  <span className="text-[10px] text-slate-500">Official Evidence Stored in Audit Dossier</span>
+                                </div>
+                              </div>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleDownloadDisagreementAttachment(empCycleData.disagreementAttachmentFileName, empCycleData.disagreementAttachmentFileData)}
+                                className="border-red-300 text-red-700 hover:bg-red-50 text-xs font-bold h-7"
+                              >
+                                <Download className="h-3.5 w-3.5 mr-1" />
+                                Download / Inspect
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
-                  ))}
-                </div>
+                  );
+                })()}
                 <div className="flex items-center space-x-2 pt-2">
                   {isPublished && (
                     <>
@@ -1070,6 +1806,21 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
                     <Button variant="outline" size="sm" onClick={handleDownloadPdf} className="border-emerald-600 text-emerald-800 hover:bg-emerald-50 font-bold text-xs"><Printer className="h-4 w-4 mr-1.5" />Download PDF</Button>
                   )}
                 </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Appraiser Performance Summary & Career Recommendations */}
+          {appraisalScore?.appraiserComments && (
+            <Card className="border border-emerald-200 shadow-sm mt-4 overflow-hidden bg-emerald-50/30">
+              <div className="bg-gradient-to-r from-emerald-100 to-white px-5 py-3 border-b border-emerald-200 flex items-center space-x-2">
+                <Sparkles className="h-5 w-5 text-emerald-700" />
+                <h3 className="text-sm font-bold text-emerald-950">Overall Appraiser Performance Summary & Career Recommendations</h3>
+              </div>
+              <CardContent className="p-4">
+                <p className="text-xs text-slate-800 leading-relaxed font-medium">
+                  {appraisalScore.appraiserComments}
+                </p>
               </CardContent>
             </Card>
           )}
@@ -1122,24 +1873,113 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
       {/* ═══ MODALS (Preserved) ═══ */}
       {showDisagreementModal && (
         <div className="fixed inset-0 z-[100] bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
-          <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-200 my-auto">
+          <div className="w-full max-w-xl bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-200 my-auto">
             <div className="bg-gradient-to-r from-red-950 via-rose-950 to-slate-950 p-5 text-white flex items-center justify-between">
               <div className="flex items-center space-x-3">
-                <div className="h-10 w-10 rounded-xl bg-red-800/40 p-2 flex items-center justify-center border border-red-500/30"><XCircle className="h-5 w-5 text-red-400" /></div>
-                <div><h3 className="text-base font-bold text-white leading-tight">Formal Appraisal Disagreement</h3><p className="text-[11px] text-red-200">Mandatory Justification Required</p></div>
+                <div className="h-10 w-10 rounded-xl bg-red-800/40 p-2 flex items-center justify-center border border-red-500/30">
+                  <XCircle className="h-5 w-5 text-red-400" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white leading-tight">Formal Appraisal Disagreement</h3>
+                  <p className="text-[11px] text-red-200">Mandatory Justification &amp; Supporting Document Record</p>
+                </div>
               </div>
-              <button onClick={() => setShowDisagreementModal(false)} className="text-slate-300 hover:text-white"><X className="h-5 w-5" /></button>
+              <button onClick={() => setShowDisagreementModal(false)} className="text-slate-300 hover:text-white">
+                <X className="h-5 w-5" />
+              </button>
             </div>
             <div className="p-6 space-y-4 text-xs">
-              <p className="text-slate-600 leading-relaxed">Please provide detailed factual justification for your disagreement. This will be escalated to GPM and PMW Administration.</p>
+              <p className="text-slate-600 leading-relaxed">
+                Please provide detailed factual justification for your disagreement. You can also upload supporting document evidence (e.g. audit clearance, portfolio reports, approval letters) to be archived for record and review by GPM &amp; PMW authorities.
+              </p>
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Mandatory Justification <span className="text-red-500">*</span></label>
-                <textarea rows={5} value={disagreementReason} onChange={(e) => setDisagreementReason(e.target.value)} placeholder="Explain why you disagree with specific scores or comments..." className="w-full p-3 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-red-600 focus:border-red-600 outline-none font-medium" />
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Mandatory Justification <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  rows={4}
+                  value={disagreementReason}
+                  onChange={(e) => setDisagreementReason(e.target.value)}
+                  placeholder="Explain why you disagree with specific scores, ratings or evaluator comments..."
+                  className="w-full p-3 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-red-600 focus:border-red-600 outline-none font-medium"
+                />
+              </div>
+
+              {/* Supporting Document Upload Area */}
+              <div className="space-y-2 pt-1 border-t border-slate-200">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-800 flex items-center space-x-1.5">
+                    <Paperclip className="h-3.5 w-3.5 text-red-600" />
+                    <span>Upload Supporting Document (For Record Purpose)</span>
+                  </label>
+                  <span className="text-[10px] text-slate-500 font-medium">Optional • PDF, Excel, Word (Max 25MB)</span>
+                </div>
+
+                {!disagreementFile ? (
+                  <div className="p-4 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 hover:bg-red-50/30 hover:border-red-300 transition-colors text-center relative cursor-pointer group">
+                    <input
+                      type="file"
+                      accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"
+                      onChange={handleDisagreementFileChange}
+                      className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                    />
+                    <div className="flex flex-col items-center space-y-1.5">
+                      <div className="h-8 w-8 rounded-lg bg-red-100 text-red-700 flex items-center justify-center group-hover:bg-red-200 transition-colors">
+                        <Upload className="h-4 w-4" />
+                      </div>
+                      <span className="font-bold text-slate-800 text-xs">Click to browse or drop supporting file</span>
+                      <span className="text-[10px] text-slate-500">PDF, Excel (.xlsx, .xls), Word (.docx), or Images</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-3 rounded-xl bg-red-50/60 border border-red-200 flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                      <div className="p-2 bg-white rounded-lg border border-red-200 shadow-2xs">
+                        {disagreementFileName.toLowerCase().endsWith('.pdf') ? (
+                          <FileText className="h-5 w-5 text-red-600" />
+                        ) : disagreementFileName.toLowerCase().includes('xls') ? (
+                          <FileSpreadsheet className="h-5 w-5 text-emerald-600" />
+                        ) : (
+                          <Paperclip className="h-5 w-5 text-blue-600" />
+                        )}
+                      </div>
+                      <div>
+                        <h5 className="font-bold text-slate-900 text-xs truncate max-w-[260px]">{disagreementFileName}</h5>
+                        <div className="flex items-center space-x-2 mt-0.5">
+                          <span className="text-[10px] text-slate-500">{(disagreementFileSize / (1024 * 1024)).toFixed(2)} MB</span>
+                          <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.2 rounded">Attached for Record ✓</span>
+                        </div>
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={handleRemoveDisagreementFile}
+                      className="h-7 w-7 text-slate-400 hover:text-red-600 hover:bg-white"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+
+                <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-[10px] text-slate-600 flex items-center space-x-2">
+                  <ShieldCheck className="h-4 w-4 text-emerald-700 shrink-0" />
+                  <span>The document will be securely catalogued into the official disagreement dossier and accessible to GPM &amp; PMW authorities.</span>
+                </div>
               </div>
             </div>
             <div className="p-4 bg-slate-50 border-t flex items-center justify-between">
               <Button variant="secondary" size="sm" onClick={() => setShowDisagreementModal(false)}>Cancel</Button>
-              <Button variant="destructive" size="sm" onClick={handleRecordDisagreement} disabled={submittingDisagreement || !disagreementReason.trim()} className="font-bold text-xs">{submittingDisagreement ? 'Submitting...' : 'Submit Disagreement'}</Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={handleRecordDisagreement}
+                disabled={submittingDisagreement || !disagreementReason.trim()}
+                className="font-bold text-xs"
+              >
+                {submittingDisagreement ? 'Lodging Dispute...' : 'Submit Formal Disagreement'}
+              </Button>
             </div>
           </div>
         </div>
@@ -1156,6 +1996,12 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
               <button onClick={() => setShowUpdateModal(false)} className="text-slate-300 hover:text-white"><X className="h-5 w-5" /></button>
             </div>
             <div className="p-6 space-y-4 text-xs">
+              {modalError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-900 font-bold flex items-center space-x-2 text-xs">
+                  <AlertCircle className="h-4 w-4 text-red-600 shrink-0" />
+                  <span>{modalError}</span>
+                </div>
+              )}
               <p className="text-slate-600 leading-relaxed">Type a SAP ID or staff name to search. Submitting sends confirmation to nominated appraisers.</p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
@@ -1183,6 +2029,87 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
       <AppraisalFormAuditHistoryDrawer isOpen={showAuditHistoryModal} onClose={() => setShowAuditHistoryModal(false)} employeeCycleId={empCycleData?.id} />
       {evidenceModalItem && (<EvidenceUploaderModal isOpen={!!evidenceModalItem} onClose={() => setEvidenceModalItem(null)} itemTitle={evidenceModalItem.title} currentEvidence={evidenceModalItem.ref} onSaveEvidence={(ref) => handleSaveEvidenceForAnyItem(evidenceModalItem.title, ref)} />)}
       {viewEvidenceItem && (<EvidenceViewerModal isOpen={!!viewEvidenceItem} onClose={() => setViewEvidenceItem(null)} itemTitle={viewEvidenceItem.title} evidenceRef={viewEvidenceItem.ref} />)}
+
+      {showPrintModal && (
+        <AppraisalPrintableReport
+          employeeCycle={empCycleData}
+          objectives={
+            formMode === 'KPI'
+              ? (kpiItems.length > 0 ? kpiItems.map(k => ({
+                  id: k.id,
+                  title: k.title,
+                  targetDescription: k.targetDescription,
+                  achievementDetails: k.achievement,
+                  employeeSelfRating: (k as any).employeeSelfRating ?? k.selfRating ?? 4,
+                  firstAppraiserRating: (k as any).firstAppraiserRating,
+                  secondAppraiserRating: (k as any).secondAppraiserRating,
+                  coAppraiserRating: (k as any).coAppraiserRating,
+                  requiresCoAppraiserReview: Boolean((k as any).requiresCoAppraiserReview),
+                  firstAppraiserComments: (k as any).firstAppraiserComments || k.appraiserComments || '',
+                  secondAppraiserComments: (k as any).secondAppraiserComments || ''
+                })) : [])
+              : [
+                  ...financialItems.map(k => ({ ...k, perspective: 'financial', targetDescription: k.targetDescription, achievementDetails: (k as any).achievementDetails || k.achievement, employeeSelfRating: (k as any).employeeSelfRating ?? (k as any).selfRating ?? 4, firstAppraiserRating: (k as any).firstAppraiserRating, secondAppraiserRating: (k as any).secondAppraiserRating, coAppraiserRating: (k as any).coAppraiserRating, firstAppraiserComments: (k as any).firstAppraiserComments || (k as any).appraiserComments, secondAppraiserComments: (k as any).secondAppraiserComments })),
+                  ...customerItems.map(k => ({ ...k, perspective: 'customer', targetDescription: k.targetDescription, achievementDetails: (k as any).achievementDetails || k.achievement, employeeSelfRating: (k as any).employeeSelfRating ?? (k as any).selfRating ?? 4, firstAppraiserRating: (k as any).firstAppraiserRating, secondAppraiserRating: (k as any).secondAppraiserRating, coAppraiserRating: (k as any).coAppraiserRating, firstAppraiserComments: (k as any).firstAppraiserComments || (k as any).appraiserComments, secondAppraiserComments: (k as any).secondAppraiserComments })),
+                  ...processItems.map(k => ({ ...k, perspective: 'process', targetDescription: k.targetDescription, achievementDetails: (k as any).achievementDetails || k.achievement, employeeSelfRating: (k as any).employeeSelfRating ?? (k as any).selfRating ?? 4, firstAppraiserRating: (k as any).firstAppraiserRating, secondAppraiserRating: (k as any).secondAppraiserRating, coAppraiserRating: (k as any).coAppraiserRating, firstAppraiserComments: (k as any).firstAppraiserComments || (k as any).appraiserComments, secondAppraiserComments: (k as any).secondAppraiserComments })),
+                  ...learningItems.map(k => ({ ...k, perspective: 'learning', targetDescription: k.targetDescription, achievementDetails: (k as any).achievementDetails || k.achievement, employeeSelfRating: (k as any).employeeSelfRating ?? (k as any).selfRating ?? 4, firstAppraiserRating: (k as any).firstAppraiserRating, secondAppraiserRating: (k as any).secondAppraiserRating, coAppraiserRating: (k as any).coAppraiserRating, firstAppraiserComments: (k as any).firstAppraiserComments || (k as any).appraiserComments, secondAppraiserComments: (k as any).secondAppraiserComments })),
+                  ...riskItems.map(r => ({
+                    id: r.id,
+                    title: r.title,
+                    targetDescription: r.complianceTarget || r.description,
+                    achievementDetails: (r as any).actualComplianceResult || (r as any).achievementDetails,
+                    perspective: 'risk',
+                    employeeSelfRating: (r as any).employeeSelfRating ?? (r as any).selfRating ?? 4,
+                    firstAppraiserRating: (r as any).firstAppraiserRating,
+                    secondAppraiserRating: (r as any).secondAppraiserRating,
+                    coAppraiserRating: (r as any).coAppraiserRating,
+                    firstAppraiserComments: (r as any).firstAppraiserComments || (r as any).appraiserComments,
+                    secondAppraiserComments: (r as any).secondAppraiserComments
+                  }))
+                ]
+          }
+          traits={traitItems.length > 0 ? traitItems.map(t => ({
+            id: t.id,
+            traitName: t.name,
+            definition: t.definition,
+            selfRating: (t as any).selfRating ?? (t as any).employeeSelfRating,
+            firstAppraiserRating: (t as any).firstAppraiserRating,
+            secondAppraiserRating: (t as any).secondAppraiserRating,
+            coAppraiserRating: (t as any).coAppraiserRating,
+            firstAppraiserComments: (t as any).firstAppraiserComments || t.appraiserComments || ''
+          })) : []}
+          score={appraisalScore}
+          developmentReview={developmentReview}
+          onClose={() => setShowPrintModal(false)}
+          isModal={true}
+        />
+      )}
+
+      {/* Set Appraisal Workflow Stage Modal (PMW Admin Override) */}
+      <SetWorkflowStageModal
+        isOpen={showAdminStageModal}
+        onClose={() => setShowAdminStageModal(false)}
+        onSuccess={() => {
+          if (empCycleData?.id) {
+            loadMyAppraisal(empCycleData.id);
+          }
+        }}
+        target={
+          empCycleData
+            ? {
+                id: empCycleData.employeeId,
+                employeeCycleId: empCycleData.id,
+                sapId: empCycleData.employee?.sapId || currentSapId,
+                fullName: empCycleData.employee?.fullName,
+                grade: empCycleData.employee?.grade,
+                designation: empCycleData.employee?.designation,
+                currentStatus: currentStatus,
+                formType: formMode
+              }
+            : null
+        }
+        cycleId={selectedCycle?.cycleId || empCycleData?.cycleId}
+      />
     </div>
   );
 };

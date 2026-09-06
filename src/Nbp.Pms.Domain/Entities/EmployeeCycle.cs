@@ -46,6 +46,11 @@ public class EmployeeCycle
     public DateTime? ApprovedAt { get; set; }
     public DateTime? PublishedAt { get; set; }
     public DateTime? AcknowledgedAt { get; set; }
+    public string? DisagreementReason { get; set; }
+    public string? DisagreementAttachmentFileName { get; set; }
+    public string? DisagreementAttachmentFileData { get; set; }
+    public long? DisagreementAttachmentSizeBytes { get; set; }
+    public string? DisagreementAttachmentContentType { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }

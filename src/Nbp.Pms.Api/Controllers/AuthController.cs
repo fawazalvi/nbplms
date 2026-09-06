@@ -156,7 +156,8 @@ public class AuthController : ControllerBase
             SapId: user.Employee?.SapId ?? user.Username,
             Roles: new List<string> { user.Role },
             Permissions: GetPermissionsForRole(user.Role),
-            MustChangePassword: user.MustChangePassword
+            MustChangePassword: user.MustChangePassword,
+            AssignedReportingGroups: user.AssignedReportingGroups
         );
 
         return Ok(new AuthResultDto(true, "Authentication successful.", userDto));
@@ -187,7 +188,8 @@ public class AuthController : ControllerBase
             SapId: user.Employee?.SapId ?? user.Username,
             Roles: new List<string> { user.Role },
             Permissions: GetPermissionsForRole(user.Role),
-            MustChangePassword: user.MustChangePassword
+            MustChangePassword: user.MustChangePassword,
+            AssignedReportingGroups: user.AssignedReportingGroups
         );
 
         return Ok(userDto);
