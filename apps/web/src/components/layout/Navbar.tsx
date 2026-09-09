@@ -1,5 +1,5 @@
 import React from 'react';
-import { Bell, ShieldCheck, LogOut } from 'lucide-react';
+import { Bell, ShieldCheck, LogOut, UserCheck } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 
@@ -8,9 +8,11 @@ interface NavbarProps {
   currentUser?: any;
   onRoleChange: (role: string) => void;
   onLogout: () => void;
+  onOpenProfile?: () => void;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ userRole, currentUser, onRoleChange, onLogout }) => {
+export const Navbar: React.FC<NavbarProps> = ({ userRole, currentUser, onRoleChange, onLogout, onOpenProfile }) => {
+
   const getInitials = (name?: string) => {
     if (!name) return 'U';
     return name
@@ -72,18 +74,28 @@ export const Navbar: React.FC<NavbarProps> = ({ userRole, currentUser, onRoleCha
             </span>
           </button>
 
-          <div className="flex items-center space-x-3 border-l border-slate-200 pl-3">
-            <div className="h-9 w-9 rounded-full bg-emerald-800 text-white flex items-center justify-center font-bold text-sm shadow-sm">
-              {getInitials(currentUser?.fullName || 'User')}
-            </div>
-            <div className="hidden md:block text-left">
-              <p className="text-xs font-bold text-slate-900 leading-none">
-                {currentUser?.fullName || (userRole === 'PmwSuperAdmin' ? 'System Administrator' : 'Fawaz Ahmed')}
-              </p>
-              <p className="text-[11px] text-slate-500 leading-tight">
-                {currentUser?.sapId ? `SAP ID: ${currentUser.sapId}` : `User: ${currentUser?.username || 'admin'}`} | {userRole}
-              </p>
-            </div>
+          <div className="flex items-center space-x-2 border-l border-slate-200 pl-3">
+            <button
+              type="button"
+              onClick={onOpenProfile}
+              className="flex items-center space-x-2.5 p-1 rounded-xl hover:bg-slate-100/80 transition-all cursor-pointer group text-left"
+              title="Click to view & update Employee Profile"
+            >
+              <div className="h-9 w-9 rounded-full bg-emerald-800 group-hover:bg-emerald-700 text-white flex items-center justify-center font-bold text-sm shadow-xs transition-colors">
+                {getInitials(currentUser?.fullName || 'User')}
+              </div>
+              <div className="hidden md:block text-left">
+                <div className="flex items-center space-x-1">
+                  <p className="text-xs font-bold text-slate-900 leading-none group-hover:text-emerald-800 transition-colors">
+                    {currentUser?.fullName || (userRole === 'PmwSuperAdmin' ? 'System Administrator' : 'Fawaz Ahmed')}
+                  </p>
+                  <UserCheck className="h-3.5 w-3.5 text-emerald-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+                </div>
+                <p className="text-[11px] text-slate-500 leading-tight mt-0.5">
+                  {currentUser?.sapId ? `SAP ID: ${currentUser.sapId}` : `User: ${currentUser?.username || 'admin'}`} | {userRole}
+                </p>
+              </div>
+            </button>
             <Button variant="ghost" size="icon" onClick={onLogout} title="Sign Out">
               <LogOut className="h-4 w-4 text-slate-500 hover:text-red-600" />
             </Button>

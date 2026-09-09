@@ -718,21 +718,21 @@ export const generateAppraisalPdf = async (
     body: [
       [
         {
-          content: 'A. KEY STRENGTHS DEMONSTRATED\n' + (developmentReview?.keyStrengths || '1. Strong work ethic, operational accuracy, and compliance discipline.\n2. Collaborative team approach and helpful customer service orientation.'),
+          content: 'A. KEY STRENGTHS DEMONSTRATED\n' + (developmentReview?.keyStrengths?.trim() || 'Pending appraiser input during formal evaluation.'),
           styles: { fontSize: 6.8, cellWidth: 93, textColor: darkSlate, fillColor: [255, 255, 255] }
         },
         {
-          content: 'B. AREAS FOR PERFORMANCE DEVELOPMENT\n' + (developmentReview?.developmentAreas || '1. Advanced digital banking workflows and automated reconciliation systems.\n2. Proactive customer complaint resolution and escalation management.'),
+          content: 'B. AREAS FOR PERFORMANCE DEVELOPMENT\n' + (developmentReview?.developmentAreas?.trim() || 'Pending appraiser input during formal evaluation.'),
           styles: { fontSize: 6.8, cellWidth: 93, textColor: darkSlate, fillColor: [255, 255, 255] }
         }
       ],
       [
         {
-          content: 'C. PROPOSED TRAINING & LEARNING ACTION PLAN\n' + (developmentReview?.trainingActionPlan || '1. Mandatory NBP AML/CFT & Trade Operations Certification.\n2. Advanced Digital Branch Management Workshop.'),
+          content: 'C. PROPOSED TRAINING & LEARNING ACTION PLAN\n' + (developmentReview?.trainingActionPlan?.trim() || 'Pending appraiser input during formal evaluation.'),
           styles: { fontSize: 6.8, cellWidth: 93, textColor: darkSlate, fillColor: [255, 255, 255] }
         },
         {
-          content: 'D. SUPERVISOR GUIDANCE & CAREER READINESS\n' + (developmentReview?.supervisorComments || 'Eligible for leadership rotation and supervisory grade progression upon successful completion of nominated training modules.'),
+          content: 'D. SUPERVISOR GUIDANCE & CAREER READINESS\n' + (developmentReview?.supervisorComments?.trim() || 'Pending appraiser input during formal evaluation.'),
           styles: { fontSize: 6.8, cellWidth: 93, textColor: darkSlate, fillColor: [255, 255, 255] }
         }
       ]

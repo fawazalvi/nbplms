@@ -29,6 +29,7 @@ public class PmsDbContext : DbContext, IPmsDbContext
     public DbSet<SystemUser> SystemUsers => Set<SystemUser>();
     public DbSet<EmailConfiguration> EmailConfigurations => Set<EmailConfiguration>();
     public DbSet<WorkflowNotificationConfig> WorkflowNotificationConfigs => Set<WorkflowNotificationConfig>();
+    public DbSet<Location> Locations => Set<Location>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -44,6 +45,15 @@ public class PmsDbContext : DbContext, IPmsDbContext
 
         modelBuilder.Entity<Employee>()
             .HasIndex(e => e.Grade);
+
+        modelBuilder.Entity<Employee>()
+            .HasOne(e => e.LocationRef)
+            .WithMany()
+            .HasForeignKey(e => e.LocationPSACode)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        modelBuilder.Entity<Employee>()
+            .HasIndex(e => e.LocationPSACode);
 
         // Explicit self-referencing appraiser relationships for Employee
         modelBuilder.Entity<Employee>()
@@ -136,5 +146,20 @@ public class PmsDbContext : DbContext, IPmsDbContext
         modelBuilder.Entity<CycleGradeMapping>()
             .HasIndex(g => new { g.CycleId, g.EsgCode })
             .IsUnique();
+
+        // Hierarchical Location Configuration
+        modelBuilder.Entity<Location>(entity =>
+        {
+            entity.ToTable("location", tb => tb.HasTrigger("trg_location_MaintainHierarchy"));
+            entity.HasKey(l => l.PSACode);
+            entity.HasOne(l => l.Parent)
+                  .WithMany(p => p.Children)
+                  .HasForeignKey(l => l.ParentPSACode)
+                  .OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(l => l.ParentPSACode);
+            entity.HasIndex(l => l.PSAPath);
+            entity.HasIndex(l => l.DepthLevel);
+            entity.HasIndex(l => l.PACode);
+        });
     }
 }

@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Nbp.Pms.Domain.Entities;
 
@@ -27,6 +27,7 @@ public interface IPmsDbContext
     DbSet<SystemUser> SystemUsers { get; }
     DbSet<EmailConfiguration> EmailConfigurations { get; }
     DbSet<WorkflowNotificationConfig> WorkflowNotificationConfigs { get; }
+    DbSet<Location> Locations { get; }
 
     EntityEntry<TEntity> Entry<TEntity>(TEntity entity) where TEntity : class;
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);

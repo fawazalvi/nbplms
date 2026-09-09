@@ -82,6 +82,8 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
   userRole: initialRole = 'Employee',
 }) => {
   const currentSapId = currentUser?.sapId || currentUser?.username || '84920';
+  const effectiveRole = initialRole || currentUser?.role || (currentUser?.roles && currentUser?.roles[0]) || 'Employee';
+  const isPmwAdmin = ['PmwSuperAdmin', 'PmwAdmin'].includes(effectiveRole);
 
   // ─── Tab Navigation ───
   const [activeTab, setActiveTab] = useState<'cycles' | 'form' | 'review'>('cycles');
@@ -95,7 +97,7 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
 
   // ─── Form Mode & Role ───
   const [formMode, setFormMode] = useState<'KPI' | 'BSC' | 'RISK_BSC'>(initialFormType);
-  const [currentUserRole, setCurrentUserRole] = useState<string>(initialRole);
+  const [currentUserRole, setCurrentUserRole] = useState<string>(effectiveRole);
 
   // ─── Employee Cycle Data ───
   const [empCycleData, setEmpCycleData] = useState<any>(null);
@@ -264,13 +266,6 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
 
         if (data.developmentReview) {
           setDevelopmentReview(data.developmentReview);
-        } else if (data.employeeCycle.workflowStatus >= 6) { // if at least submitted to first appraiser
-          setDevelopmentReview({
-            keyStrengths: 'Strong analytical skills and problem-solving abilities. Consistently meets and often exceeds targets.',
-            developmentAreas: 'Needs to improve on cross-departmental communication and presentation skills to senior management.',
-            trainingActionPlan: 'Enroll in advanced communication workshops and participate in cross-functional projects in the upcoming cycle.',
-            supervisorComments: 'A valuable team member with great potential. Focusing on these development areas will prepare them for future leadership roles.'
-          });
         } else {
           setDevelopmentReview(null);
         }
@@ -311,13 +306,13 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
             achievement: o.achievementDetails || '',
             employeeComments: '',
             appraiserComments: o.firstAppraiserComments || o.secondAppraiserComments || '',
-            appraiserRating: o.firstAppraiserRating || o.employeeSelfRating || 4,
+            appraiserRating: o.employeeSelfRating || 0,
             evidenceRef: o.evidenceReference || o.evidenceRef || '',
-            selfRating: o.employeeSelfRating || 4,
-            employeeSelfRating: o.employeeSelfRating || 4,
-            firstAppraiserRating: o.firstAppraiserRating || 4,
-            secondAppraiserRating: o.secondAppraiserRating || (data.employeeCycle?.secondAppraiser ? (o.firstAppraiserRating || 4) : undefined),
-            coAppraiserRating: (data.employeeCycle?.coAppraiser || data.employeeCycle?.coAppraiserSapId) ? o.coAppraiserRating : undefined,
+            selfRating: o.employeeSelfRating || undefined,
+            employeeSelfRating: o.employeeSelfRating || undefined,
+            firstAppraiserRating: o.firstAppraiserRating || undefined,
+            secondAppraiserRating: o.secondAppraiserRating || undefined,
+            coAppraiserRating: o.coAppraiserRating || undefined,
             firstAppraiserComments: o.firstAppraiserComments || '',
             secondAppraiserComments: o.secondAppraiserComments || '',
             requiresCoAppraiserReview: Boolean(o.requiresCoAppraiserReview || o.isFlaggedForCoAppraiser),
@@ -367,12 +362,12 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
             achievementDetails: o.achievementDetails || '',
             employeeComments: '',
             appraiserComments: o.firstAppraiserComments || '',
-            appraiserRating: o.firstAppraiserRating || o.employeeSelfRating || 0,
+            appraiserRating: o.employeeSelfRating || 0,
             evidenceRef: o.evidenceReference || o.evidenceRef || '',
-            selfRating: o.employeeSelfRating || 4,
-            employeeSelfRating: o.employeeSelfRating || 4,
-            firstAppraiserRating: o.firstAppraiserRating,
-            secondAppraiserRating: o.secondAppraiserRating,
+            selfRating: o.employeeSelfRating || undefined,
+            employeeSelfRating: o.employeeSelfRating || undefined,
+            firstAppraiserRating: o.firstAppraiserRating || undefined,
+            secondAppraiserRating: o.secondAppraiserRating || undefined,
             coAppraiserRating: o.coAppraiserRating != null ? o.coAppraiserRating : undefined,
             firstAppraiserComments: o.firstAppraiserComments || '',
             secondAppraiserComments: o.secondAppraiserComments || '',
@@ -394,11 +389,11 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
             actualComplianceResult: o.achievementDetails || '',
             achievementDetails: o.achievementDetails || '',
             appraiserComments: o.firstAppraiserComments || '',
-            appraiserRating: o.firstAppraiserRating || o.employeeSelfRating || 0,
-            selfRating: o.employeeSelfRating || 4,
-            employeeSelfRating: o.employeeSelfRating || 4,
-            firstAppraiserRating: o.firstAppraiserRating,
-            secondAppraiserRating: o.secondAppraiserRating,
+            appraiserRating: o.employeeSelfRating || 0,
+            selfRating: o.employeeSelfRating || undefined,
+            employeeSelfRating: o.employeeSelfRating || undefined,
+            firstAppraiserRating: o.firstAppraiserRating || undefined,
+            secondAppraiserRating: o.secondAppraiserRating || undefined,
             coAppraiserRating: o.coAppraiserRating != null ? o.coAppraiserRating : undefined,
             firstAppraiserComments: o.firstAppraiserComments || '',
             secondAppraiserComments: o.secondAppraiserComments || '',
@@ -423,10 +418,10 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
             definition: t.definition || '',
             expectedBehaviour: '',
             appraiserComments: t.firstAppraiserComments || t.secondAppraiserComments || '',
-            appraiserRating: t.firstAppraiserRating || 4,
-            selfRating: t.selfRating || t.employeeSelfRating || 4,
-            firstAppraiserRating: t.firstAppraiserRating || 4,
-            secondAppraiserRating: t.secondAppraiserRating || (data.employeeCycle?.secondAppraiser ? (t.firstAppraiserRating || 4) : undefined),
+            appraiserRating: t.firstAppraiserRating || 0,
+            selfRating: t.selfRating || t.employeeSelfRating || undefined,
+            firstAppraiserRating: t.firstAppraiserRating || undefined,
+            secondAppraiserRating: t.secondAppraiserRating || undefined,
             coAppraiserRating: (data.employeeCycle?.coAppraiser || data.employeeCycle?.coAppraiserSapId) ? t.coAppraiserRating : undefined,
             firstAppraiserComments: t.firstAppraiserComments || '',
             secondAppraiserComments: t.secondAppraiserComments || '',
@@ -536,8 +531,10 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
               title: k.title.trim() || 'KPI Objective',
               targetDescription: k.targetDescription || '',
               achievementDetails: k.achievement || '',
-              employeeSelfRating: k.appraiserRating || 0,
-              firstAppraiserRating: k.appraiserRating || 0,
+              employeeSelfRating: k.appraiserRating || (k as any).employeeSelfRating || (k as any).selfRating || 0,
+              firstAppraiserRating: (k as any).firstAppraiserRating,
+              secondAppraiserRating: (k as any).secondAppraiserRating,
+              coAppraiserRating: (k as any).coAppraiserRating,
               weightage: 10,
               evidenceReference: k.evidenceRef || '',
               requiresCoAppraiserReview: Boolean(k.requiresCoAppraiserReview || (k as any).isFlaggedForCoAppraiser),
@@ -554,8 +551,10 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
               title: k.title.trim() || 'Financial Objective',
               targetDescription: k.targetDescription || '',
               achievementDetails: k.achievement || '',
-              employeeSelfRating: k.appraiserRating || 0,
-              firstAppraiserRating: k.appraiserRating || 0,
+              employeeSelfRating: k.appraiserRating || (k as any).employeeSelfRating || (k as any).selfRating || 0,
+              firstAppraiserRating: (k as any).firstAppraiserRating,
+              secondAppraiserRating: (k as any).secondAppraiserRating,
+              coAppraiserRating: (k as any).coAppraiserRating,
               weightage: 10,
               evidenceReference: k.evidenceRef || '',
               requiresCoAppraiserReview: Boolean(k.requiresCoAppraiserReview || (k as any).isFlaggedForCoAppraiser),
@@ -571,8 +570,10 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
               title: k.title.trim() || 'Customer Objective',
               targetDescription: k.targetDescription || '',
               achievementDetails: k.achievement || '',
-              employeeSelfRating: k.appraiserRating || 0,
-              firstAppraiserRating: k.appraiserRating || 0,
+              employeeSelfRating: k.appraiserRating || (k as any).employeeSelfRating || (k as any).selfRating || 0,
+              firstAppraiserRating: (k as any).firstAppraiserRating,
+              secondAppraiserRating: (k as any).secondAppraiserRating,
+              coAppraiserRating: (k as any).coAppraiserRating,
               weightage: 10,
               evidenceReference: k.evidenceRef || '',
               requiresCoAppraiserReview: Boolean((k as any).requiresCoAppraiserReview || (k as any).isFlaggedForCoAppraiser),
@@ -588,8 +589,10 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
               title: k.title.trim() || 'Internal Process Objective',
               targetDescription: k.targetDescription || '',
               achievementDetails: k.achievement || '',
-              employeeSelfRating: k.appraiserRating || 0,
-              firstAppraiserRating: k.appraiserRating || 0,
+              employeeSelfRating: k.appraiserRating || (k as any).employeeSelfRating || (k as any).selfRating || 0,
+              firstAppraiserRating: (k as any).firstAppraiserRating,
+              secondAppraiserRating: (k as any).secondAppraiserRating,
+              coAppraiserRating: (k as any).coAppraiserRating,
               weightage: 10,
               evidenceReference: k.evidenceRef || '',
               requiresCoAppraiserReview: Boolean((k as any).requiresCoAppraiserReview || (k as any).isFlaggedForCoAppraiser),
@@ -605,8 +608,10 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
               title: k.title.trim() || 'Learning & Growth Objective',
               targetDescription: k.targetDescription || '',
               achievementDetails: k.achievement || '',
-              employeeSelfRating: k.appraiserRating || 0,
-              firstAppraiserRating: k.appraiserRating || 0,
+              employeeSelfRating: k.appraiserRating || (k as any).employeeSelfRating || (k as any).selfRating || 0,
+              firstAppraiserRating: (k as any).firstAppraiserRating,
+              secondAppraiserRating: (k as any).secondAppraiserRating,
+              coAppraiserRating: (k as any).coAppraiserRating,
               weightage: 10,
               evidenceReference: k.evidenceRef || '',
               requiresCoAppraiserReview: Boolean((k as any).requiresCoAppraiserReview || (k as any).isFlaggedForCoAppraiser),
@@ -623,8 +628,10 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
                 title: r.title.trim() || 'Risk Objective',
                 targetDescription: r.complianceTarget || '',
                 achievementDetails: r.actualComplianceResult || '',
-                employeeSelfRating: r.appraiserRating || 0,
-                firstAppraiserRating: r.appraiserRating || 0,
+                employeeSelfRating: r.appraiserRating || (r as any).employeeSelfRating || (r as any).selfRating || 0,
+                firstAppraiserRating: (r as any).firstAppraiserRating,
+                secondAppraiserRating: (r as any).secondAppraiserRating,
+                coAppraiserRating: (r as any).coAppraiserRating,
                 weightage: 10,
                 evidenceReference: r.evidenceRef || '',
                 requiresCoAppraiserReview: Boolean((r as any).requiresCoAppraiserReview || (r as any).isFlaggedForCoAppraiser),
@@ -663,10 +670,10 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
               title: k.title,
               targetDescription: k.targetDescription,
               achievementDetails: k.achievement,
-              employeeSelfRating: k.appraiserRating || 0,
-              firstAppraiserRating: k.appraiserRating || 0,
-              coAppraiserRating: (k as any).coAppraiserRating,
+              employeeSelfRating: k.appraiserRating || (k as any).employeeSelfRating || (k as any).selfRating || 0,
+              firstAppraiserRating: (k as any).firstAppraiserRating,
               secondAppraiserRating: (k as any).secondAppraiserRating,
+              coAppraiserRating: (k as any).coAppraiserRating,
               requiresCoAppraiserReview: (k as any).requiresCoAppraiserReview ?? false,
               isFlaggedForCoAppraiser: (k as any).requiresCoAppraiserReview ?? false,
               weightage: 10,
@@ -683,8 +690,10 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
               title: k.title,
               targetDescription: k.targetDescription,
               achievementDetails: k.achievement,
-              employeeSelfRating: k.appraiserRating || 0,
-              firstAppraiserRating: k.appraiserRating || 0,
+              employeeSelfRating: k.appraiserRating || (k as any).employeeSelfRating || (k as any).selfRating || 0,
+              firstAppraiserRating: (k as any).firstAppraiserRating,
+              secondAppraiserRating: (k as any).secondAppraiserRating,
+              coAppraiserRating: (k as any).coAppraiserRating,
               weightage: 10,
               evidenceReference: k.evidenceRef,
               requiresCoAppraiserReview: Boolean((k as any).requiresCoAppraiserReview || (k as any).isFlaggedForCoAppraiser),
@@ -700,8 +709,10 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
               title: k.title,
               targetDescription: k.targetDescription,
               achievementDetails: k.achievement,
-              employeeSelfRating: k.appraiserRating || 0,
-              firstAppraiserRating: k.appraiserRating || 0,
+              employeeSelfRating: k.appraiserRating || (k as any).employeeSelfRating || (k as any).selfRating || 0,
+              firstAppraiserRating: (k as any).firstAppraiserRating,
+              secondAppraiserRating: (k as any).secondAppraiserRating,
+              coAppraiserRating: (k as any).coAppraiserRating,
               weightage: 10,
               evidenceReference: k.evidenceRef,
               requiresCoAppraiserReview: Boolean((k as any).requiresCoAppraiserReview || (k as any).isFlaggedForCoAppraiser),
@@ -717,8 +728,10 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
               title: k.title,
               targetDescription: k.targetDescription,
               achievementDetails: k.achievement,
-              employeeSelfRating: k.appraiserRating || 0,
-              firstAppraiserRating: k.appraiserRating || 0,
+              employeeSelfRating: k.appraiserRating || (k as any).employeeSelfRating || (k as any).selfRating || 0,
+              firstAppraiserRating: (k as any).firstAppraiserRating,
+              secondAppraiserRating: (k as any).secondAppraiserRating,
+              coAppraiserRating: (k as any).coAppraiserRating,
               weightage: 10,
               evidenceReference: k.evidenceRef,
               requiresCoAppraiserReview: Boolean((k as any).requiresCoAppraiserReview || (k as any).isFlaggedForCoAppraiser),
@@ -734,8 +747,10 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
               title: k.title,
               targetDescription: k.targetDescription,
               achievementDetails: k.achievement,
-              employeeSelfRating: k.appraiserRating || 0,
-              firstAppraiserRating: k.appraiserRating || 0,
+              employeeSelfRating: k.appraiserRating || (k as any).employeeSelfRating || (k as any).selfRating || 0,
+              firstAppraiserRating: (k as any).firstAppraiserRating,
+              secondAppraiserRating: (k as any).secondAppraiserRating,
+              coAppraiserRating: (k as any).coAppraiserRating,
               weightage: 10,
               evidenceReference: k.evidenceRef,
               requiresCoAppraiserReview: Boolean((k as any).requiresCoAppraiserReview || (k as any).isFlaggedForCoAppraiser),
@@ -752,8 +767,10 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
                 title: r.title,
                 targetDescription: r.complianceTarget,
                 achievementDetails: r.actualComplianceResult,
-                employeeSelfRating: r.appraiserRating || 0,
-                firstAppraiserRating: r.appraiserRating || 0,
+                employeeSelfRating: r.appraiserRating || (r as any).employeeSelfRating || (r as any).selfRating || 0,
+                firstAppraiserRating: (r as any).firstAppraiserRating,
+                secondAppraiserRating: (r as any).secondAppraiserRating,
+                coAppraiserRating: (r as any).coAppraiserRating,
                 weightage: 10,
                 evidenceReference: r.evidenceRef,
                 perspectiveName: 'Risk Adjustment'
@@ -1216,15 +1233,17 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
                 <Badge className={`text-[10px] font-bold ${getStatusColor(currentStatus)}`}>{getStatusLabel(currentStatus)}</Badge>
               </div>
               <div className="flex items-center space-x-2 shrink-0">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowAdminStageModal(true)}
-                  className="text-xs font-bold border-purple-300 bg-purple-50 text-purple-900 hover:bg-purple-100 h-7 px-2.5 shadow-2xs"
-                  title="PMW Admin Override: Set Appraisal Workflow Stage"
-                >
-                  <Shield className="h-3 w-3 mr-1 text-purple-700" /> Stage Control
-                </Button>
+                {isPmwAdmin && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowAdminStageModal(true)}
+                    className="text-xs font-bold border-purple-300 bg-purple-50 text-purple-900 hover:bg-purple-100 h-7 px-2.5 shadow-2xs"
+                    title="PMW Admin Override: Set Appraisal Workflow Stage"
+                  >
+                    <Shield className="h-3 w-3 mr-1 text-purple-700" /> Stage Control
+                  </Button>
+                )}
                 {!isReadOnly && (
                   <Button variant="outline" size="sm" onClick={handleSaveDraft} disabled={saving} className="text-xs font-bold border-emerald-600 text-emerald-800 hover:bg-emerald-50 h-7 px-3">
                     <Save className="h-3 w-3 mr-1" />{saving ? 'Saving...' : 'Save Draft'}
@@ -1354,26 +1373,26 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
                             title: k.title,
                             targetDescription: k.targetDescription,
                             achievementDetails: k.achievement,
-                            employeeSelfRating: (k as any).employeeSelfRating ?? k.selfRating ?? 4,
-                            firstAppraiserRating: (k as any).firstAppraiserRating ?? k.appraiserRating ?? 4,
-                            secondAppraiserRating: (k as any).secondAppraiserRating ?? (empCycleData?.secondAppraiser ? ((k as any).firstAppraiserRating ?? k.appraiserRating ?? 4) : undefined),
+                            employeeSelfRating: (k as any).employeeSelfRating ?? k.selfRating ?? k.appraiserRating,
+                            firstAppraiserRating: (k as any).firstAppraiserRating,
+                            secondAppraiserRating: (k as any).secondAppraiserRating,
                             coAppraiserRating: (empCycleData?.coAppraiser || empCycleData?.coAppraiserSapId || empCycleData?.pendingCoAppraiserSapId) ? ((k as any).coAppraiserRating != null ? (k as any).coAppraiserRating : undefined) : undefined,
                             requiresCoAppraiserReview: Boolean((k as any).requiresCoAppraiserReview),
-                            firstAppraiserComments: (k as any).firstAppraiserComments || k.appraiserComments || 'Objective executed satisfactorily.',
+                            firstAppraiserComments: (k as any).firstAppraiserComments || k.appraiserComments || '',
                             secondAppraiserComments: (k as any).secondAppraiserComments || ''
                           })) : [])
                         : [
-                            ...financialItems.map(k => ({ ...k, perspective: 'financial', targetDescription: k.targetDescription, achievementDetails: (k as any).achievementDetails || k.achievement, employeeSelfRating: (k as any).employeeSelfRating ?? (k as any).selfRating ?? 4, firstAppraiserRating: (k as any).firstAppraiserRating, secondAppraiserRating: (k as any).secondAppraiserRating, coAppraiserRating: (k as any).coAppraiserRating, firstAppraiserComments: (k as any).firstAppraiserComments || (k as any).appraiserComments, secondAppraiserComments: (k as any).secondAppraiserComments })),
-                            ...customerItems.map(k => ({ ...k, perspective: 'customer', targetDescription: k.targetDescription, achievementDetails: (k as any).achievementDetails || k.achievement, employeeSelfRating: (k as any).employeeSelfRating ?? (k as any).selfRating ?? 4, firstAppraiserRating: (k as any).firstAppraiserRating, secondAppraiserRating: (k as any).secondAppraiserRating, coAppraiserRating: (k as any).coAppraiserRating, firstAppraiserComments: (k as any).firstAppraiserComments || (k as any).appraiserComments, secondAppraiserComments: (k as any).secondAppraiserComments })),
-                            ...processItems.map(k => ({ ...k, perspective: 'process', targetDescription: k.targetDescription, achievementDetails: (k as any).achievementDetails || k.achievement, employeeSelfRating: (k as any).employeeSelfRating ?? (k as any).selfRating ?? 4, firstAppraiserRating: (k as any).firstAppraiserRating, secondAppraiserRating: (k as any).secondAppraiserRating, coAppraiserRating: (k as any).coAppraiserRating, firstAppraiserComments: (k as any).firstAppraiserComments || (k as any).appraiserComments, secondAppraiserComments: (k as any).secondAppraiserComments })),
-                            ...learningItems.map(k => ({ ...k, perspective: 'learning', targetDescription: k.targetDescription, achievementDetails: (k as any).achievementDetails || k.achievement, employeeSelfRating: (k as any).employeeSelfRating ?? (k as any).selfRating ?? 4, firstAppraiserRating: (k as any).firstAppraiserRating, secondAppraiserRating: (k as any).secondAppraiserRating, coAppraiserRating: (k as any).coAppraiserRating, firstAppraiserComments: (k as any).firstAppraiserComments || (k as any).appraiserComments, secondAppraiserComments: (k as any).secondAppraiserComments })),
+                            ...financialItems.map(k => ({ ...k, perspective: 'financial', targetDescription: k.targetDescription, achievementDetails: (k as any).achievementDetails || k.achievement, employeeSelfRating: (k as any).employeeSelfRating ?? (k as any).selfRating ?? k.appraiserRating, firstAppraiserRating: (k as any).firstAppraiserRating, secondAppraiserRating: (k as any).secondAppraiserRating, coAppraiserRating: (k as any).coAppraiserRating, firstAppraiserComments: (k as any).firstAppraiserComments || (k as any).appraiserComments, secondAppraiserComments: (k as any).secondAppraiserComments })),
+                            ...customerItems.map(k => ({ ...k, perspective: 'customer', targetDescription: k.targetDescription, achievementDetails: (k as any).achievementDetails || k.achievement, employeeSelfRating: (k as any).employeeSelfRating ?? (k as any).selfRating ?? k.appraiserRating, firstAppraiserRating: (k as any).firstAppraiserRating, secondAppraiserRating: (k as any).secondAppraiserRating, coAppraiserRating: (k as any).coAppraiserRating, firstAppraiserComments: (k as any).firstAppraiserComments || (k as any).appraiserComments, secondAppraiserComments: (k as any).secondAppraiserComments })),
+                            ...processItems.map(k => ({ ...k, perspective: 'process', targetDescription: k.targetDescription, achievementDetails: (k as any).achievementDetails || k.achievement, employeeSelfRating: (k as any).employeeSelfRating ?? (k as any).selfRating ?? k.appraiserRating, firstAppraiserRating: (k as any).firstAppraiserRating, secondAppraiserRating: (k as any).secondAppraiserRating, coAppraiserRating: (k as any).coAppraiserRating, firstAppraiserComments: (k as any).firstAppraiserComments || (k as any).appraiserComments, secondAppraiserComments: (k as any).secondAppraiserComments })),
+                            ...learningItems.map(k => ({ ...k, perspective: 'learning', targetDescription: k.targetDescription, achievementDetails: (k as any).achievementDetails || k.achievement, employeeSelfRating: (k as any).employeeSelfRating ?? (k as any).selfRating ?? k.appraiserRating, firstAppraiserRating: (k as any).firstAppraiserRating, secondAppraiserRating: (k as any).secondAppraiserRating, coAppraiserRating: (k as any).coAppraiserRating, firstAppraiserComments: (k as any).firstAppraiserComments || (k as any).appraiserComments, secondAppraiserComments: (k as any).secondAppraiserComments })),
                             ...riskItems.map(r => ({
                               id: r.id,
                               title: r.title,
                               targetDescription: r.complianceTarget || r.description,
                               achievementDetails: (r as any).actualComplianceResult || (r as any).achievementDetails,
                               perspective: 'risk',
-                              employeeSelfRating: (r as any).employeeSelfRating ?? (r as any).selfRating ?? 4,
+                              employeeSelfRating: (r as any).employeeSelfRating ?? (r as any).selfRating ?? r.appraiserRating,
                               firstAppraiserRating: (r as any).firstAppraiserRating,
                               secondAppraiserRating: (r as any).secondAppraiserRating,
                               coAppraiserRating: (r as any).coAppraiserRating,
@@ -1386,11 +1405,11 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
                       id: t.id,
                       traitName: t.name,
                       definition: t.definition,
-                      selfRating: (t as any).selfRating ?? 4,
-                      firstAppraiserRating: (t as any).firstAppraiserRating ?? t.appraiserRating ?? 4,
-                      secondAppraiserRating: (t as any).secondAppraiserRating ?? (empCycleData?.secondAppraiser ? ((t as any).firstAppraiserRating ?? t.appraiserRating ?? 4) : undefined),
-                      coAppraiserRating: (empCycleData?.coAppraiser || empCycleData?.coAppraiserSapId) ? ((t as any).coAppraiserRating ?? ((t as any).firstAppraiserRating ?? t.appraiserRating ?? 4)) : undefined,
-                      firstAppraiserComments: (t as any).firstAppraiserComments || t.appraiserComments || 'Demonstrates strong professional conduct.'
+                      selfRating: (t as any).selfRating ?? (t as any).employeeSelfRating,
+                      firstAppraiserRating: (t as any).firstAppraiserRating,
+                      secondAppraiserRating: (t as any).secondAppraiserRating,
+                      coAppraiserRating: (empCycleData?.coAppraiser || empCycleData?.coAppraiserSapId) ? ((t as any).coAppraiserRating ?? (t as any).firstAppraiserRating) : undefined,
+                      firstAppraiserComments: (t as any).firstAppraiserComments || t.appraiserComments || ''
                     })) : []}
                     score={appraisalScore}
                     developmentReview={developmentReview}
@@ -1836,21 +1855,21 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
                   <div className="p-4 space-y-4">
                     <div>
                       <h4 className="text-xs font-bold text-indigo-800 uppercase tracking-wider mb-1">Key Strengths</h4>
-                      <p className="text-sm text-slate-700 leading-relaxed">{developmentReview.keyStrengths || '—'}</p>
+                      <p className="text-sm text-slate-700 leading-relaxed">{developmentReview.keyStrengths?.trim() || 'Pending appraiser input during formal evaluation.'}</p>
                     </div>
                     <div>
                       <h4 className="text-xs font-bold text-indigo-800 uppercase tracking-wider mb-1">Areas for Development</h4>
-                      <p className="text-sm text-slate-700 leading-relaxed">{developmentReview.developmentAreas || '—'}</p>
+                      <p className="text-sm text-slate-700 leading-relaxed">{developmentReview.developmentAreas?.trim() || 'Pending appraiser input during formal evaluation.'}</p>
                     </div>
                   </div>
                   <div className="p-4 space-y-4 bg-slate-50/50">
                     <div>
                       <h4 className="text-xs font-bold text-indigo-800 uppercase tracking-wider mb-1">Training & Action Plan</h4>
-                      <p className="text-sm text-slate-700 leading-relaxed">{developmentReview.trainingActionPlan || '—'}</p>
+                      <p className="text-sm text-slate-700 leading-relaxed">{developmentReview.trainingActionPlan?.trim() || 'Pending appraiser input during formal evaluation.'}</p>
                     </div>
                     <div>
                       <h4 className="text-xs font-bold text-indigo-800 uppercase tracking-wider mb-1">Supervisor Comments</h4>
-                      <p className="text-sm text-slate-700 italic">{developmentReview.supervisorComments || 'No additional comments provided.'}</p>
+                      <p className="text-sm text-slate-700 italic">{developmentReview.supervisorComments?.trim() || 'Pending appraiser input during formal evaluation.'}</p>
                     </div>
                   </div>
                 </div>
@@ -2086,30 +2105,33 @@ export const ObjectiveFormPage: React.FC<ObjectiveFormPageProps> = ({
       )}
 
       {/* Set Appraisal Workflow Stage Modal (PMW Admin Override) */}
-      <SetWorkflowStageModal
-        isOpen={showAdminStageModal}
-        onClose={() => setShowAdminStageModal(false)}
-        onSuccess={() => {
-          if (empCycleData?.id) {
-            loadMyAppraisal(empCycleData.id);
+      {isPmwAdmin && (
+        <SetWorkflowStageModal
+          isOpen={showAdminStageModal}
+          onClose={() => setShowAdminStageModal(false)}
+          currentUser={currentUser}
+          onSuccess={() => {
+            if (empCycleData?.id) {
+              loadMyAppraisal(empCycleData.id);
+            }
+          }}
+          target={
+            empCycleData
+              ? {
+                  id: empCycleData.employeeId,
+                  employeeCycleId: empCycleData.id,
+                  sapId: empCycleData.employee?.sapId || currentSapId,
+                  fullName: empCycleData.employee?.fullName,
+                  grade: empCycleData.employee?.grade,
+                  designation: empCycleData.employee?.designation,
+                  currentStatus: currentStatus,
+                  formType: formMode
+                }
+              : null
           }
-        }}
-        target={
-          empCycleData
-            ? {
-                id: empCycleData.employeeId,
-                employeeCycleId: empCycleData.id,
-                sapId: empCycleData.employee?.sapId || currentSapId,
-                fullName: empCycleData.employee?.fullName,
-                grade: empCycleData.employee?.grade,
-                designation: empCycleData.employee?.designation,
-                currentStatus: currentStatus,
-                formType: formMode
-              }
-            : null
-        }
-        cycleId={selectedCycle?.cycleId || empCycleData?.cycleId}
-      />
+          cycleId={selectedCycle?.cycleId || empCycleData?.cycleId}
+        />
+      )}
     </div>
   );
 };

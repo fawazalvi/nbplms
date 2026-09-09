@@ -41,7 +41,8 @@ import {
   Scale,
   TrendingUp,
   TrendingDown,
-  Minus
+  Minus,
+  Calendar
 } from 'lucide-react';
 import { formatGradeLabel, formatGroupLabel, formatAppraisalStatus } from '@/lib/formatters';
 import { AppraisalPrintableReport } from '@/components/appraisal/AppraisalPrintableReport';
@@ -53,6 +54,8 @@ interface TeamReviewInboxPageProps {
 
 export const TeamReviewInboxPage: React.FC<TeamReviewInboxPageProps> = ({ currentUser, userRole }) => {
   const [currentAppraiserSapId, setCurrentAppraiserSapId] = useState(currentUser?.sapId || '10004');
+  const [cycles, setCycles] = useState<any[]>([]);
+  const [selectedCycleId, setSelectedCycleId] = useState<string>('ALL');
   const [reviews, setReviews] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'confirmations' | 'pending' | 'completed'>('confirmations');
@@ -221,10 +224,21 @@ export const TeamReviewInboxPage: React.FC<TeamReviewInboxPageProps> = ({ curren
     }
   };
 
-  const loadReviews = async (sapId = currentAppraiserSapId) => {
+  const loadCycles = async () => {
+    try {
+      const data = await api.getCycles();
+      if (Array.isArray(data)) {
+        setCycles(data);
+      }
+    } catch (e: any) {
+      console.error('Failed to load cycles', e);
+    }
+  };
+
+  const loadReviews = async (sapId = currentAppraiserSapId, cycleId = selectedCycleId) => {
     setLoading(true);
     try {
-      const data = await api.getTeamReviews(sapId || '10004');
+      const data = await api.getTeamReviews(sapId || '10004', cycleId);
       setReviews(data);
     } catch (e: any) {
       console.error(e);
@@ -234,8 +248,12 @@ export const TeamReviewInboxPage: React.FC<TeamReviewInboxPageProps> = ({ curren
   };
 
   useEffect(() => {
-    loadReviews(currentAppraiserSapId);
-  }, [currentAppraiserSapId]);
+    loadCycles();
+  }, []);
+
+  useEffect(() => {
+    loadReviews(currentAppraiserSapId, selectedCycleId);
+  }, [currentAppraiserSapId, selectedCycleId]);
 
   const isFirstOrSecondAppraiserFor = (r: any) => {
     if (typeof r.canConfirmLine === 'boolean') return r.canConfirmLine;
@@ -488,9 +506,9 @@ export const TeamReviewInboxPage: React.FC<TeamReviewInboxPageProps> = ({ curren
         setEvalDevReview(data.developmentReview);
       } else {
         setEvalDevReview({
-          keyStrengths: 'Strong analytical skills and customer relationship management.',
-          developmentAreas: 'Needs improvement in digital banking product knowledge.',
-          trainingActionPlan: 'Enroll in advanced digital banking certification program.',
+          keyStrengths: '',
+          developmentAreas: '',
+          trainingActionPlan: '',
           supervisorComments: ''
         });
       }
@@ -726,6 +744,26 @@ export const TeamReviewInboxPage: React.FC<TeamReviewInboxPageProps> = ({ curren
           </p>
         </div>
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+          {/* Appraisal Cycle Filter Dropdown */}
+          <div className="flex items-center space-x-2 bg-white/10 p-1.5 rounded-xl border border-white/20 text-xs">
+            <span className="text-slate-300 font-bold flex items-center gap-1">
+              <Calendar className="h-3.5 w-3.5 text-emerald-400" />
+              <span>Cycle:</span>
+            </span>
+            <select
+              value={selectedCycleId}
+              onChange={(e) => setSelectedCycleId(e.target.value)}
+              className="bg-slate-800 text-emerald-300 font-bold rounded-lg px-2.5 py-1 text-xs focus:outline-none border border-slate-700 max-w-[250px]"
+            >
+              <option value="ALL">All Appraisal Cycles</option>
+              {cycles.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.title || `Cycle ${c.id.substring(0, 8)}`} {c.statusName === 'CycleActive' || c.status === 101 ? '(Active)' : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <div className="flex items-center space-x-2 bg-white/10 p-1.5 rounded-xl border border-white/20 text-xs">
             <span className="text-slate-300 font-bold">Appraiser Context:</span>
             {userRole === 'PmwAdmin' || userRole === 'PmwSuperAdmin' ? (
@@ -745,7 +783,7 @@ export const TeamReviewInboxPage: React.FC<TeamReviewInboxPageProps> = ({ curren
               </span>
             )}
           </div>
-          <Button variant="secondary" size="sm" onClick={() => loadReviews(currentAppraiserSapId)}>
+          <Button variant="secondary" size="sm" onClick={() => loadReviews(currentAppraiserSapId, selectedCycleId)}>
             <RefreshCw className="h-4 w-4 mr-1" />
             Refresh Team List
           </Button>
@@ -975,6 +1013,7 @@ export const TeamReviewInboxPage: React.FC<TeamReviewInboxPageProps> = ({ curren
                     <tr>
                       <th className="p-3">SAP ID</th>
                       <th className="p-3">Appraisee Name</th>
+                      <th className="p-3">Appraisal Cycle</th>
                       <th className="p-3">Grade & Designation</th>
                       <th className="p-3">Place of Posting</th>
                       <th className="p-3">Requested 1st Appraiser</th>
@@ -996,6 +1035,15 @@ export const TeamReviewInboxPage: React.FC<TeamReviewInboxPageProps> = ({ curren
                           </td>
                           <td className="p-3">
                             <div className="font-extrabold text-slate-900 text-sm">{r.employeeName}</div>
+                          </td>
+                          <td className="p-3">
+                            <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-blue-50 border border-blue-200 text-blue-900 text-[11px] font-bold">
+                              <Calendar className="h-3 w-3 text-blue-700 shrink-0" />
+                              <span>{r.cycleTitle || 'Appraisal Cycle'}</span>
+                            </div>
+                            {r.cycleCircularReference && (
+                              <div className="text-[10px] text-slate-500 font-mono mt-0.5">Ref: {r.cycleCircularReference}</div>
+                            )}
                           </td>
                           <td className="p-3">
                             <div className="text-slate-900 font-bold">
@@ -1154,6 +1202,7 @@ export const TeamReviewInboxPage: React.FC<TeamReviewInboxPageProps> = ({ curren
                         <tr>
                           <th className="p-3">SAP ID</th>
                           <th className="p-3">Appraisee Name</th>
+                          <th className="p-3">Appraisal Cycle</th>
                           <th className="p-3">Grade & Designation</th>
                           <th className="p-3">Form Template</th>
                           <th className="p-3">Self-Rating</th>
@@ -1175,6 +1224,15 @@ export const TeamReviewInboxPage: React.FC<TeamReviewInboxPageProps> = ({ curren
                               </td>
                               <td className="p-3">
                                 <div className="font-extrabold text-slate-900 text-sm">{r.employeeName}</div>
+                              </td>
+                              <td className="p-3">
+                                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-blue-50 border border-blue-200 text-blue-900 text-[11px] font-bold">
+                                  <Calendar className="h-3 w-3 text-blue-700 shrink-0" />
+                                  <span>{r.cycleTitle || 'Appraisal Cycle'}</span>
+                                </div>
+                                {r.cycleCircularReference && (
+                                  <div className="text-[10px] text-slate-500 font-mono mt-0.5">Ref: {r.cycleCircularReference}</div>
+                                )}
                               </td>
                               <td className="p-3">
                                 <div className="text-slate-900 font-bold">
@@ -1330,6 +1388,7 @@ export const TeamReviewInboxPage: React.FC<TeamReviewInboxPageProps> = ({ curren
                           </th>
                           <th className="p-3">SAP ID</th>
                           <th className="p-3">Appraisee Name</th>
+                          <th className="p-3">Appraisal Cycle</th>
                           <th className="p-3">Grade & Designation</th>
                           <th className="p-3">Form Template</th>
                           <th className="p-3">1st Appraiser Rating</th>
@@ -1360,6 +1419,15 @@ export const TeamReviewInboxPage: React.FC<TeamReviewInboxPageProps> = ({ curren
                               </td>
                               <td className="p-3">
                                 <div className="font-extrabold text-slate-900 text-sm">{r.employeeName}</div>
+                              </td>
+                              <td className="p-3">
+                                <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-blue-50 border border-blue-200 text-blue-900 text-[11px] font-bold">
+                                  <Calendar className="h-3 w-3 text-blue-700 shrink-0" />
+                                  <span>{r.cycleTitle || 'Appraisal Cycle'}</span>
+                                </div>
+                                {r.cycleCircularReference && (
+                                  <div className="text-[10px] text-slate-500 font-mono mt-0.5">Ref: {r.cycleCircularReference}</div>
+                                )}
                               </td>
                               <td className="p-3">
                                 <div className="text-slate-900 font-bold">
@@ -1435,6 +1503,7 @@ export const TeamReviewInboxPage: React.FC<TeamReviewInboxPageProps> = ({ curren
                         <tr>
                           <th className="p-3">SAP ID</th>
                           <th className="p-3">Appraisee Name</th>
+                          <th className="p-3">Appraisal Cycle</th>
                           <th className="p-3">Grade & Designation</th>
                           <th className="p-3">Form Template</th>
                           <th className="p-3">Sequential Step Status</th>
@@ -1451,6 +1520,15 @@ export const TeamReviewInboxPage: React.FC<TeamReviewInboxPageProps> = ({ curren
                             </td>
                             <td className="p-3">
                               <div className="font-extrabold text-slate-900 text-sm">{r.employeeName}</div>
+                            </td>
+                            <td className="p-3">
+                              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-purple-50 border border-purple-200 text-purple-900 text-[11px] font-bold">
+                                <Calendar className="h-3 w-3 text-purple-700 shrink-0" />
+                                <span>{r.cycleTitle || 'Appraisal Cycle'}</span>
+                              </div>
+                              {r.cycleCircularReference && (
+                                <div className="text-[10px] text-slate-500 font-mono mt-0.5">Ref: {r.cycleCircularReference}</div>
+                              )}
                             </td>
                             <td className="p-3">
                               <div className="text-slate-900 font-bold">
@@ -1555,6 +1633,7 @@ export const TeamReviewInboxPage: React.FC<TeamReviewInboxPageProps> = ({ curren
                         <tr>
                           <th className="p-3">SAP ID</th>
                           <th className="p-3">Appraisee Name</th>
+                          <th className="p-3">Appraisal Cycle</th>
                           <th className="p-3">Grade & Designation</th>
                           <th className="p-3">Form Template</th>
                           <th className="p-3">1st Appraiser Rating</th>
@@ -1572,6 +1651,15 @@ export const TeamReviewInboxPage: React.FC<TeamReviewInboxPageProps> = ({ curren
                             </td>
                             <td className="p-3">
                               <div className="font-extrabold text-slate-900 text-sm">{r.employeeName}</div>
+                            </td>
+                            <td className="p-3">
+                              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-blue-50 border border-blue-200 text-blue-900 text-[11px] font-bold">
+                                <Calendar className="h-3 w-3 text-blue-700 shrink-0" />
+                                <span>{r.cycleTitle || 'Appraisal Cycle'}</span>
+                              </div>
+                              {r.cycleCircularReference && (
+                                <div className="text-[10px] text-slate-500 font-mono mt-0.5">Ref: {r.cycleCircularReference}</div>
+                              )}
                             </td>
                             <td className="p-3">
                               <div className="text-slate-900 font-bold">
@@ -1660,6 +1748,7 @@ export const TeamReviewInboxPage: React.FC<TeamReviewInboxPageProps> = ({ curren
                         <tr>
                           <th className="p-3">SAP ID</th>
                           <th className="p-3">Appraisee Name</th>
+                          <th className="p-3">Appraisal Cycle</th>
                           <th className="p-3">Grade & Designation</th>
                           <th className="p-3">Form Template</th>
                           <th className="p-3">Final Countersigned Score</th>
@@ -1677,6 +1766,15 @@ export const TeamReviewInboxPage: React.FC<TeamReviewInboxPageProps> = ({ curren
                             </td>
                             <td className="p-3">
                               <div className="font-extrabold text-slate-900 text-sm">{r.employeeName}</div>
+                            </td>
+                            <td className="p-3">
+                              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-blue-50 border border-blue-200 text-blue-900 text-[11px] font-bold">
+                                <Calendar className="h-3 w-3 text-blue-700 shrink-0" />
+                                <span>{r.cycleTitle || 'Appraisal Cycle'}</span>
+                              </div>
+                              {r.cycleCircularReference && (
+                                <div className="text-[10px] text-slate-500 font-mono mt-0.5">Ref: {r.cycleCircularReference}</div>
+                              )}
                             </td>
                             <td className="p-3">
                               <div className="text-slate-900 font-bold">
@@ -1760,6 +1858,7 @@ export const TeamReviewInboxPage: React.FC<TeamReviewInboxPageProps> = ({ curren
                         <tr>
                           <th className="p-3">SAP ID</th>
                           <th className="p-3">Appraisee Name</th>
+                          <th className="p-3">Appraisal Cycle</th>
                           <th className="p-3">Grade & Designation</th>
                           <th className="p-3">Form Template</th>
                           <th className="p-3">Status</th>
@@ -1776,6 +1875,15 @@ export const TeamReviewInboxPage: React.FC<TeamReviewInboxPageProps> = ({ curren
                             </td>
                             <td className="p-3">
                               <div className="font-extrabold text-slate-900 text-sm">{r.employeeName}</div>
+                            </td>
+                            <td className="p-3">
+                              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-purple-50 border border-purple-200 text-purple-900 text-[11px] font-bold">
+                                <Calendar className="h-3 w-3 text-purple-700 shrink-0" />
+                                <span>{r.cycleTitle || 'Appraisal Cycle'}</span>
+                              </div>
+                              {r.cycleCircularReference && (
+                                <div className="text-[10px] text-slate-500 font-mono mt-0.5">Ref: {r.cycleCircularReference}</div>
+                              )}
                             </td>
                             <td className="p-3">
                               <div className="text-slate-900 font-bold">
@@ -1850,6 +1958,10 @@ export const TeamReviewInboxPage: React.FC<TeamReviewInboxPageProps> = ({ curren
                     </h3>
                     <Badge className="bg-emerald-500/30 text-emerald-300 border-emerald-400/40 text-[10px] font-mono">
                       SAP: {evalReview.sapId}
+                    </Badge>
+                    <Badge className="bg-blue-500/30 text-blue-200 border-blue-400/40 text-[10px] font-bold flex items-center gap-1">
+                      <Calendar className="h-3 w-3 text-blue-300" />
+                      <span>{evalReview.cycleTitle || 'Appraisal Cycle'}</span>
                     </Badge>
                     <Badge className="bg-amber-400 text-slate-950 text-[10px] font-extrabold">
                       {isCoAppraiser ? '🎯 Co-Appraiser Review' : isSecondAppraiser ? '👔 2nd Appraiser Review' : '👔 1st Appraiser Review'}
@@ -2843,6 +2955,121 @@ export const TeamReviewInboxPage: React.FC<TeamReviewInboxPageProps> = ({ curren
                     </div>
                   )}
 
+                  {/* SECTION 4: DEVELOPMENT REVIEW & FUTURE CAPABILITY ACTION PLAN */}
+                  <div className="border border-slate-300 rounded-xl overflow-hidden bg-white shadow-xs">
+                    <div className="bg-gradient-to-r from-teal-900 via-emerald-900 to-slate-900 px-4 py-3 text-white flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <GraduationCap className="h-4 w-4 text-emerald-300" />
+                        <h4 className="text-xs font-black uppercase tracking-wide">
+                          Section 4: Development Review &amp; Future Capability Action Plan
+                        </h4>
+                      </div>
+                      <span className="text-[10px] font-bold text-emerald-200">
+                        {isModalReadOnly ? 'Sealed Record' : isCoAppraiser ? 'Co-Appraiser View Only' : 'Appraiser Assessment & Recommendations'}
+                      </span>
+                    </div>
+
+                    <div className="p-4 bg-slate-50/50 space-y-4">
+                      <p className="text-[11px] text-slate-600 leading-normal">
+                        Identify the employee's demonstrated core competencies, specific areas targeted for capability growth, nominated training programs (e.g. NBP Staff College), and supervisor guidance for career readiness.
+                      </p>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* A. Key Strengths */}
+                        <div className="bg-white p-3.5 rounded-xl border border-emerald-200 shadow-2xs space-y-2">
+                          <div className="flex items-center justify-between">
+                            <label className="text-xs font-extrabold text-emerald-950 flex items-center space-x-1.5">
+                              <Sparkles className="h-3.5 w-3.5 text-emerald-700" />
+                              <span>A. Key Strengths Demonstrated</span>
+                            </label>
+                            <span className="text-[10px] font-bold text-emerald-700 uppercase bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100">
+                              Core Strengths
+                            </span>
+                          </div>
+                          <textarea
+                            rows={4}
+                            value={evalDevReview?.keyStrengths || ''}
+                            onChange={(e) => setEvalDevReview((prev: any) => ({ ...(prev || {}), keyStrengths: e.target.value }))}
+                            placeholder="Detail standout achievements, functional/technical proficiency, work discipline, compliance culture, and collaborative teamwork..."
+                            readOnly={isModalReadOnly || isCoAppraiser}
+                            className={`w-full p-2.5 border rounded-lg text-xs focus:ring-2 focus:ring-emerald-700 focus:outline-none ${
+                              (isModalReadOnly || isCoAppraiser) ? 'bg-slate-100 text-slate-800 border-slate-200 cursor-not-allowed' : 'bg-white border-slate-300'
+                            }`}
+                          />
+                        </div>
+
+                        {/* B. Development Areas */}
+                        <div className="bg-white p-3.5 rounded-xl border border-amber-200 shadow-2xs space-y-2">
+                          <div className="flex items-center justify-between">
+                            <label className="text-xs font-extrabold text-amber-950 flex items-center space-x-1.5">
+                              <Target className="h-3.5 w-3.5 text-amber-700" />
+                              <span>B. Areas for Performance Development</span>
+                            </label>
+                            <span className="text-[10px] font-bold text-amber-800 uppercase bg-amber-50 px-2 py-0.5 rounded border border-amber-100">
+                              Growth Focus
+                            </span>
+                          </div>
+                          <textarea
+                            rows={4}
+                            value={evalDevReview?.developmentAreas || ''}
+                            onChange={(e) => setEvalDevReview((prev: any) => ({ ...(prev || {}), developmentAreas: e.target.value }))}
+                            placeholder="Identify specific skill gaps, knowledge domains, operational accuracy, digital tools, or regulatory standards requiring enhancement..."
+                            readOnly={isModalReadOnly || isCoAppraiser}
+                            className={`w-full p-2.5 border rounded-lg text-xs focus:ring-2 focus:ring-amber-600 focus:outline-none ${
+                              (isModalReadOnly || isCoAppraiser) ? 'bg-slate-100 text-slate-800 border-slate-200 cursor-not-allowed' : 'bg-white border-slate-300'
+                            }`}
+                          />
+                        </div>
+
+                        {/* C. Proposed Training & Learning Action Plan */}
+                        <div className="bg-white p-3.5 rounded-xl border border-blue-200 shadow-2xs space-y-2">
+                          <div className="flex items-center justify-between">
+                            <label className="text-xs font-extrabold text-blue-950 flex items-center space-x-1.5">
+                              <GraduationCap className="h-3.5 w-3.5 text-blue-700" />
+                              <span>C. Proposed Training &amp; Learning Action Plan</span>
+                            </label>
+                            <span className="text-[10px] font-bold text-blue-800 uppercase bg-blue-50 px-2 py-0.5 rounded border border-blue-100">
+                              Action Plan
+                            </span>
+                          </div>
+                          <textarea
+                            rows={4}
+                            value={evalDevReview?.trainingActionPlan || ''}
+                            onChange={(e) => setEvalDevReview((prev: any) => ({ ...(prev || {}), trainingActionPlan: e.target.value }))}
+                            placeholder="Specify nominated courses (e.g. NBP Staff College), specialized AML/trade certifications, digital banking workshops, or mentoring..."
+                            readOnly={isModalReadOnly || isCoAppraiser}
+                            className={`w-full p-2.5 border rounded-lg text-xs focus:ring-2 focus:ring-blue-600 focus:outline-none ${
+                              (isModalReadOnly || isCoAppraiser) ? 'bg-slate-100 text-slate-800 border-slate-200 cursor-not-allowed' : 'bg-white border-slate-300'
+                            }`}
+                          />
+                        </div>
+
+                        {/* D. Supervisor Guidance & Feedback / Career Readiness */}
+                        <div className="bg-white p-3.5 rounded-xl border border-purple-200 shadow-2xs space-y-2">
+                          <div className="flex items-center justify-between">
+                            <label className="text-xs font-extrabold text-purple-950 flex items-center space-x-1.5">
+                              <Award className="h-3.5 w-3.5 text-purple-700" />
+                              <span>D. Supervisor Guidance &amp; Career Readiness</span>
+                            </label>
+                            <span className="text-[10px] font-bold text-purple-800 uppercase bg-purple-50 px-2 py-0.5 rounded border border-purple-100">
+                              Guidance
+                            </span>
+                          </div>
+                          <textarea
+                            rows={4}
+                            value={evalDevReview?.supervisorComments || ''}
+                            onChange={(e) => setEvalDevReview((prev: any) => ({ ...(prev || {}), supervisorComments: e.target.value }))}
+                            placeholder="Provide supervisor guidance on readiness for higher responsibility, leadership pipeline suitability, and performance progression..."
+                            readOnly={isModalReadOnly || isCoAppraiser}
+                            className={`w-full p-2.5 border rounded-lg text-xs focus:ring-2 focus:ring-purple-600 focus:outline-none ${
+                              (isModalReadOnly || isCoAppraiser) ? 'bg-slate-100 text-slate-800 border-slate-200 cursor-not-allowed' : 'bg-white border-slate-300'
+                            }`}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
                   {/* SECTION 5: OVERALL APPRAISER PERFORMANCE SUMMARY & CAREER RECOMMENDATIONS */}
                   <div className="p-4 bg-slate-50 border border-slate-300 rounded-xl space-y-2">
                     <label className="font-bold text-slate-800 block text-xs">
@@ -3084,6 +3311,12 @@ export const TeamReviewInboxPage: React.FC<TeamReviewInboxPageProps> = ({ curren
             snapshotDesignation: evalReview.designation,
             snapshotReportingGroup: evalReview.group,
             assignedFormType: evalReview.formType,
+            cycle: {
+              title: evalReview.cycleTitle,
+              circularReference: evalReview.cycleCircularReference,
+              startDate: evalReview.cycleStartDate,
+              endDate: evalReview.cycleEndDate
+            },
             employee: {
               fullName: evalReview.employeeName,
               sapId: evalReview.sapId,

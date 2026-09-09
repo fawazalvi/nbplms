@@ -214,9 +214,9 @@ export const AppraisalPrintableReport: React.FC<AppraisalPrintableReportProps> =
     if (items.length === 0 && isBscForm && defaultBscItems[p.id]) {
       items = defaultBscItems[p.id];
     }
-    const valid = items.filter(o => (o.employeeSelfRating ?? o.selfRating) || (o.firstAppraiserRating ?? o.appraiserRating) || o.secondAppraiserRating || o.coAppraiserRating);
+    const valid = items.filter(o => (o.employeeSelfRating ?? o.selfRating) || o.firstAppraiserRating || o.secondAppraiserRating || o.coAppraiserRating);
     const rawAvg = valid.length > 0
-      ? valid.reduce((sum, o) => sum + (o.secondAppraiserRating ?? o.firstAppraiserRating ?? o.appraiserRating ?? o.employeeSelfRating ?? o.selfRating ?? 0), 0) / valid.length
+      ? valid.reduce((sum, o) => sum + (o.secondAppraiserRating ?? o.firstAppraiserRating ?? o.employeeSelfRating ?? o.selfRating ?? 0), 0) / valid.length
       : 4.0;
 
     const selfItems = items.filter(o => (o.employeeSelfRating ?? o.selfRating) != null);
@@ -224,9 +224,9 @@ export const AppraisalPrintableReport: React.FC<AppraisalPrintableReportProps> =
       ? selfItems.reduce((sum, o) => sum + Number(o.employeeSelfRating ?? o.selfRating), 0) / selfItems.length
       : null;
 
-    const app1Items = items.filter(o => !Boolean(hasCoAppraiser && (o.requiresCoAppraiserReview || o.isFlaggedForCoAppraiser || o.coAppraiserRating != null)) && (o.firstAppraiserRating ?? o.appraiserRating) != null);
+    const app1Items = items.filter(o => !Boolean(hasCoAppraiser && (o.requiresCoAppraiserReview || o.isFlaggedForCoAppraiser || o.coAppraiserRating != null)) && o.firstAppraiserRating != null);
     const raw1stAvg = app1Items.length > 0
-      ? app1Items.reduce((sum, o) => sum + Number(o.firstAppraiserRating ?? o.appraiserRating), 0) / app1Items.length
+      ? app1Items.reduce((sum, o) => sum + Number(o.firstAppraiserRating), 0) / app1Items.length
       : null;
 
     const coItems = items.filter(o => o.coAppraiserRating != null);
@@ -255,18 +255,18 @@ export const AppraisalPrintableReport: React.FC<AppraisalPrintableReportProps> =
   });
 
   // KPI Form Calculation
-  const validKpiObjs = objectives.filter(o => (o.employeeSelfRating ?? o.selfRating) || (o.firstAppraiserRating ?? o.appraiserRating) || o.secondAppraiserRating || o.coAppraiserRating);
+  const validKpiObjs = objectives.filter(o => (o.employeeSelfRating ?? o.selfRating) || o.firstAppraiserRating || o.secondAppraiserRating || o.coAppraiserRating);
   const avgObjRating = validKpiObjs.length > 0
-    ? validKpiObjs.reduce((sum, o) => sum + (o.secondAppraiserRating ?? o.firstAppraiserRating ?? o.appraiserRating ?? o.employeeSelfRating ?? o.selfRating ?? 0), 0) / validKpiObjs.length
+    ? validKpiObjs.reduce((sum, o) => sum + (o.secondAppraiserRating ?? o.firstAppraiserRating ?? o.employeeSelfRating ?? o.selfRating ?? 0), 0) / validKpiObjs.length
     : (objectives.length > 0 ? 3.75 : 4.0);
 
   const avgObjSelf = validKpiObjs.filter(o => (o.employeeSelfRating ?? o.selfRating) != null).length > 0
     ? validKpiObjs.reduce((sum, o) => sum + Number(o.employeeSelfRating ?? o.selfRating ?? 0), 0) / validKpiObjs.filter(o => (o.employeeSelfRating ?? o.selfRating) != null).length
     : 4.0;
-  const kpi1stItems = validKpiObjs.filter(o => !Boolean(hasCoAppraiser && (o.requiresCoAppraiserReview || o.isFlaggedForCoAppraiser || o.coAppraiserRating != null)) && (o.firstAppraiserRating ?? o.appraiserRating) != null);
+  const kpi1stItems = validKpiObjs.filter(o => !Boolean(hasCoAppraiser && (o.requiresCoAppraiserReview || o.isFlaggedForCoAppraiser || o.coAppraiserRating != null)) && o.firstAppraiserRating != null);
   const avgObj1st = kpi1stItems.length > 0
-    ? kpi1stItems.reduce((sum, o) => sum + Number(o.firstAppraiserRating ?? o.appraiserRating ?? 0), 0) / kpi1stItems.length
-    : 4.0;
+    ? kpi1stItems.reduce((sum, o) => sum + Number(o.firstAppraiserRating ?? 0), 0) / kpi1stItems.length
+    : null;
   const avgObjCo = validKpiObjs.filter(o => o.coAppraiserRating != null).length > 0
     ? validKpiObjs.reduce((sum, o) => sum + Number(o.coAppraiserRating ?? 0), 0) / validKpiObjs.filter(o => o.coAppraiserRating != null).length
     : null;
@@ -274,17 +274,17 @@ export const AppraisalPrintableReport: React.FC<AppraisalPrintableReportProps> =
     ? validKpiObjs.reduce((sum, o) => sum + Number(o.secondAppraiserRating ?? 0), 0) / validKpiObjs.filter(o => o.secondAppraiserRating != null).length
     : null;
 
-  const validTraits = traits.filter(t => (t.selfRating ?? t.employeeSelfRating) || (t.firstAppraiserRating ?? t.appraiserRating) || t.secondAppraiserRating || t.coAppraiserRating);
+  const validTraits = traits.filter(t => (t.selfRating ?? t.employeeSelfRating) || t.firstAppraiserRating || t.secondAppraiserRating || t.coAppraiserRating);
   const avgTraitRating = validTraits.length > 0
-    ? validTraits.reduce((sum, t) => sum + (t.secondAppraiserRating ?? t.firstAppraiserRating ?? t.appraiserRating ?? t.selfRating ?? t.employeeSelfRating ?? 0), 0) / validTraits.length
+    ? validTraits.reduce((sum, t) => sum + (t.secondAppraiserRating ?? t.firstAppraiserRating ?? t.selfRating ?? t.employeeSelfRating ?? 0), 0) / validTraits.length
     : (traits.length > 0 ? 4.00 : 4.0);
 
   const avgTraitSelf = validTraits.filter(t => (t.selfRating ?? t.employeeSelfRating) != null).length > 0
     ? validTraits.reduce((sum, t) => sum + Number(t.selfRating ?? t.employeeSelfRating ?? 0), 0) / validTraits.filter(t => (t.selfRating ?? t.employeeSelfRating) != null).length
     : 4.0;
-  const avgTrait1st = validTraits.filter(t => (t.firstAppraiserRating ?? t.appraiserRating) != null).length > 0
-    ? validTraits.reduce((sum, t) => sum + Number(t.firstAppraiserRating ?? t.appraiserRating ?? 0), 0) / validTraits.filter(t => (t.firstAppraiserRating ?? t.appraiserRating) != null).length
-    : 4.0;
+  const avgTrait1st = validTraits.filter(t => t.firstAppraiserRating != null).length > 0
+    ? validTraits.reduce((sum, t) => sum + Number(t.firstAppraiserRating ?? 0), 0) / validTraits.filter(t => t.firstAppraiserRating != null).length
+    : null;
   const avgTraitCo = validTraits.filter(t => t.coAppraiserRating != null).length > 0
     ? validTraits.reduce((sum, t) => sum + Number(t.coAppraiserRating ?? 0), 0) / validTraits.filter(t => t.coAppraiserRating != null).length
     : null;
@@ -717,7 +717,7 @@ export const AppraisalPrintableReport: React.FC<AppraisalPrintableReportProps> =
                             <td className="border border-slate-300 p-2 text-center font-black text-emerald-900 bg-emerald-50/60 text-xs">
                               {hasCoAppraiser && (obj.requiresCoAppraiserReview || obj.isFlaggedForCoAppraiser || obj.coAppraiserRating != null)
                                 ? '—'
-                                : ((obj.firstAppraiserRating ?? obj.appraiserRating) != null ? `${Number(obj.firstAppraiserRating ?? obj.appraiserRating).toFixed(1)}` : '—')}
+                                : (obj.firstAppraiserRating != null ? `${Number(obj.firstAppraiserRating).toFixed(1)}` : '—')}
                             </td>
                             {hasCoAppraiser && (
                               <td className="border border-slate-300 p-2 text-center font-bold text-teal-900 bg-teal-50/40 text-xs">
@@ -744,7 +744,7 @@ export const AppraisalPrintableReport: React.FC<AppraisalPrintableReportProps> =
                         {avgObjSelf.toFixed(2)}
                       </td>
                       <td className="border border-slate-300 p-2 text-center font-black text-emerald-900">
-                        {avgObj1st.toFixed(2)}
+                        {avgObj1st != null ? avgObj1st.toFixed(2) : '—'}
                       </td>
                       {hasCoAppraiser && (
                         <td className="border border-slate-300 p-2 text-center text-teal-900 font-bold">
@@ -805,7 +805,7 @@ export const AppraisalPrintableReport: React.FC<AppraisalPrintableReportProps> =
                             {(t.selfRating ?? t.employeeSelfRating) != null ? `${Number(t.selfRating ?? t.employeeSelfRating).toFixed(1)}` : '—'}
                           </td>
                           <td className="border border-slate-300 p-2 text-center font-black text-teal-900 bg-teal-50/60 text-xs">
-                            {(t.firstAppraiserRating ?? t.appraiserRating) != null ? `${Number(t.firstAppraiserRating ?? t.appraiserRating).toFixed(1)}` : '—'}
+                            {t.firstAppraiserRating != null ? `${Number(t.firstAppraiserRating).toFixed(1)}` : '—'}
                           </td>
                           {hasCoAppraiser && (
                             <td className="border border-slate-300 p-2 text-center font-bold text-teal-900 bg-teal-50/40 text-xs">
@@ -831,11 +831,11 @@ export const AppraisalPrintableReport: React.FC<AppraisalPrintableReportProps> =
                         {avgTraitSelf.toFixed(2)}
                       </td>
                       <td className="border border-slate-300 p-2 text-center font-black text-teal-900">
-                        {avgTrait1st.toFixed(2)}
+                        {avgTrait1st != null ? avgTrait1st.toFixed(2) : '—'}
                       </td>
                       {hasCoAppraiser && (
                         <td className="border border-slate-300 p-2 text-center text-teal-900 font-bold">
-                          {avgTraitCo != null ? avgTraitCo.toFixed(2) : avgTrait1st.toFixed(2)}
+                          {avgTraitCo != null ? avgTraitCo.toFixed(2) : '—'}
                         </td>
                       )}
                       <td className="border border-slate-300 p-2 text-center font-bold text-amber-900">
@@ -921,7 +921,7 @@ export const AppraisalPrintableReport: React.FC<AppraisalPrintableReportProps> =
                               <td className="border border-slate-300 p-2 text-center font-black text-emerald-900 bg-emerald-50/60 text-xs">
                                 {hasCoAppraiser && (obj.requiresCoAppraiserReview || obj.isFlaggedForCoAppraiser || obj.coAppraiserRating != null)
                                   ? '—'
-                                  : ((obj.firstAppraiserRating ?? obj.appraiserRating) != null ? `${Number(obj.firstAppraiserRating ?? obj.appraiserRating).toFixed(1)}` : '—')}
+                                  : (obj.firstAppraiserRating != null ? `${Number(obj.firstAppraiserRating).toFixed(1)}` : '—')}
                               </td>
                               {hasCoAppraiser && (
                                 <td className="border border-slate-300 p-2 text-center font-bold text-teal-900 bg-teal-50/40 text-xs">
@@ -1056,29 +1056,29 @@ export const AppraisalPrintableReport: React.FC<AppraisalPrintableReportProps> =
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
               <div className="bg-white p-3 rounded-lg border border-slate-200 space-y-1">
                 <span className="text-[10px] font-extrabold text-emerald-900 uppercase block">A. Key Strengths Demonstrated</span>
-                <p className="text-[11px] text-slate-700 leading-relaxed">
-                  {developmentReview?.keyStrengths || '1. Strong work ethic, operational accuracy, and compliance discipline.\n2. Collaborative team approach and helpful customer service orientation.'}
+                <p className="text-[11px] text-slate-700 leading-relaxed whitespace-pre-line">
+                  {developmentReview?.keyStrengths?.trim() || 'Pending appraiser input during formal evaluation.'}
                 </p>
               </div>
 
               <div className="bg-white p-3 rounded-lg border border-slate-200 space-y-1">
                 <span className="text-[10px] font-extrabold text-amber-900 uppercase block">B. Areas for Performance Development</span>
-                <p className="text-[11px] text-slate-700 leading-relaxed">
-                  {developmentReview?.developmentAreas || '1. Advanced digital banking workflows and automated reconciliation systems.\n2. Proactive customer complaint resolution and escalation management.'}
+                <p className="text-[11px] text-slate-700 leading-relaxed whitespace-pre-line">
+                  {developmentReview?.developmentAreas?.trim() || 'Pending appraiser input during formal evaluation.'}
                 </p>
               </div>
 
               <div className="bg-white p-3 rounded-lg border border-slate-200 space-y-1">
                 <span className="text-[10px] font-extrabold text-blue-900 uppercase block">C. Proposed Training & Learning Action Plan</span>
-                <p className="text-[11px] text-slate-700 leading-relaxed">
-                  {developmentReview?.trainingActionPlan || '1. Mandatory NBP AML/CFT & Trade Operations Certification.\n2. Advanced Digital Branch Management Workshop.'}
+                <p className="text-[11px] text-slate-700 leading-relaxed whitespace-pre-line">
+                  {developmentReview?.trainingActionPlan?.trim() || 'Pending appraiser input during formal evaluation.'}
                 </p>
               </div>
 
               <div className="bg-white p-3 rounded-lg border border-slate-200 space-y-1">
                 <span className="text-[10px] font-extrabold text-purple-900 uppercase block">D. Supervisor Guidance & Career Readiness</span>
-                <p className="text-[11px] text-slate-700 leading-relaxed">
-                  {developmentReview?.supervisorComments || 'Eligible for leadership rotation and supervisory grade progression upon successful completion of nominated training modules.'}
+                <p className="text-[11px] text-slate-700 leading-relaxed whitespace-pre-line">
+                  {developmentReview?.supervisorComments?.trim() || 'Pending appraiser input during formal evaluation.'}
                 </p>
               </div>
             </div>

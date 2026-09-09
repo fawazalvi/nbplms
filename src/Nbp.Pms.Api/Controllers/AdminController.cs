@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Nbp.Pms.Contracts.Enums;
+using Nbp.Pms.Domain.Entities;
 using Nbp.Pms.Infrastructure.Persistence;
+using Nbp.Pms.Application.Services;
 
 namespace Nbp.Pms.Api.Controllers;
 
@@ -11,13 +13,19 @@ public class AdminController : ControllerBase
 {
     private readonly PmsDbContext _db;
     private readonly DbSeederService _seeder;
-    private readonly Nbp.Pms.Application.Services.WorkflowEngine _workflowEngine;
+    private readonly WorkflowEngine _workflowEngine;
+    private readonly FormCalculationService _calcService;
 
-    public AdminController(PmsDbContext db, DbSeederService seeder, Nbp.Pms.Application.Services.WorkflowEngine workflowEngine)
+    public AdminController(
+        PmsDbContext db, 
+        DbSeederService seeder, 
+        WorkflowEngine workflowEngine,
+        FormCalculationService calcService)
     {
         _db = db;
         _seeder = seeder;
         _workflowEngine = workflowEngine;
+        _calcService = calcService;
     }
 
     /// <summary>
@@ -360,14 +368,327 @@ public class AdminController : ControllerBase
         return Ok(new { statusCounts, employeeCycles, cycles, reportingGroups, totalCount = allCycles.Count });
     }
 
+    private async Task<bool> CheckAdminAuthorizationAsync(string? actorSapId, string? actorRole, string? headerRole, string? queryRole)
+    {
+        // 1. If actorSapId corresponds to a real SystemUser, check their database role
+        if (!string.IsNullOrWhiteSpace(actorSapId))
+        {
+            string clean = actorSapId.Trim();
+            if (clean.Equals("PMW_ADMIN", StringComparison.OrdinalIgnoreCase) || 
+                clean.Equals("admin", StringComparison.OrdinalIgnoreCase) || 
+                clean.Equals("superadmin", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            var user = await _db.SystemUsers.FirstOrDefaultAsync(u => u.Username == clean);
+            if (user != null)
+            {
+                return user.Role.Equals("PmwSuperAdmin", StringComparison.OrdinalIgnoreCase) || 
+                       user.Role.Equals("PmwAdmin", StringComparison.OrdinalIgnoreCase);
+            }
+        }
+
+        // 2. Fall back to role header or query or DTO role
+        var role = headerRole ?? queryRole ?? actorRole;
+        if (!string.IsNullOrWhiteSpace(role) && 
+            (role.Equals("PmwSuperAdmin", StringComparison.OrdinalIgnoreCase) || 
+             role.Equals("PmwAdmin", StringComparison.OrdinalIgnoreCase)))
+        {
+            return true;
+        }
+
+        return false;
+    }
+
+    private async Task ApplyStageDetailsInitializationAsync(
+        EmployeeCycle empCycle,
+        WorkflowStatus previousStatus,
+        WorkflowStatus targetStatus,
+        bool resetObjectives,
+        bool resetRatings,
+        string justification,
+        string actor)
+    {
+        empCycle.CurrentStatus = targetStatus;
+        empCycle.UpdatedAt = DateTime.UtcNow;
+
+        // Categorize phases
+        bool isObjectivePhase = targetStatus == WorkflowStatus.ObjectiveDraft ||
+                                targetStatus == WorkflowStatus.ObjectiveSubmitted ||
+                                targetStatus == WorkflowStatus.ObjectiveReturned ||
+                                targetStatus == WorkflowStatus.ObjectiveApproved;
+
+        bool isSelfAssessmentPhase = targetStatus == WorkflowStatus.AnnualReviewSelfAssessment;
+
+        bool isPreEvaluation = isObjectivePhase || isSelfAssessmentPhase;
+
+        bool isPrePublished = isPreEvaluation ||
+                              targetStatus == WorkflowStatus.CoAppraiserReview ||
+                              targetStatus == WorkflowStatus.FirstAppraiserAssessment ||
+                              targetStatus == WorkflowStatus.SecondAppraiserReview ||
+                              targetStatus == WorkflowStatus.GroupPerformanceManagerReview ||
+                              targetStatus == WorkflowStatus.PmwFinalization;
+
+        // 1. Timestamp management
+        if (targetStatus == WorkflowStatus.ObjectiveDraft)
+        {
+            empCycle.SubmittedAt = null;
+            empCycle.ApprovedAt = null;
+            empCycle.PublishedAt = null;
+            empCycle.AcknowledgedAt = null;
+        }
+        else if (targetStatus == WorkflowStatus.ObjectiveReturned)
+        {
+            empCycle.ApprovedAt = null;
+            empCycle.PublishedAt = null;
+            empCycle.AcknowledgedAt = null;
+        }
+        else if (targetStatus == WorkflowStatus.ObjectiveSubmitted)
+        {
+            empCycle.SubmittedAt ??= DateTime.UtcNow;
+            empCycle.ApprovedAt = null;
+            empCycle.PublishedAt = null;
+            empCycle.AcknowledgedAt = null;
+        }
+        else if (targetStatus == WorkflowStatus.ObjectiveApproved)
+        {
+            empCycle.SubmittedAt ??= DateTime.UtcNow;
+            empCycle.ApprovedAt ??= DateTime.UtcNow;
+            empCycle.PublishedAt = null;
+            empCycle.AcknowledgedAt = null;
+        }
+        else if (isPrePublished)
+        {
+            empCycle.ApprovedAt ??= DateTime.UtcNow;
+            empCycle.PublishedAt = null;
+            empCycle.AcknowledgedAt = null;
+        }
+        else if (targetStatus == WorkflowStatus.Published)
+        {
+            empCycle.ApprovedAt ??= DateTime.UtcNow;
+            empCycle.PublishedAt ??= DateTime.UtcNow;
+            empCycle.AcknowledgedAt = null;
+        }
+        else // Post-acknowledgement stages
+        {
+            empCycle.ApprovedAt ??= DateTime.UtcNow;
+            empCycle.PublishedAt ??= DateTime.UtcNow;
+            empCycle.AcknowledgedAt ??= DateTime.UtcNow;
+        }
+
+        // 2. Disagreements initialization / cleanup
+        if (targetStatus != WorkflowStatus.EmployeeDisagreed &&
+            targetStatus != WorkflowStatus.DisagreementGpmReview &&
+            targetStatus != WorkflowStatus.DisagreementPmwReview &&
+            targetStatus != WorkflowStatus.DisagreementResolved)
+        {
+            empCycle.DisagreementReason = null;
+            empCycle.DisagreementAttachmentFileName = null;
+            empCycle.DisagreementAttachmentFileData = null;
+            empCycle.DisagreementAttachmentSizeBytes = null;
+            empCycle.DisagreementAttachmentContentType = null;
+            empCycle.AppraiserRejectionReason = null;
+
+            var openCases = await _db.DisagreementCases
+                .Where(d => d.EmployeeCycleId == empCycle.Id && d.Status != "Resolved")
+                .ToListAsync();
+            foreach (var c in openCases)
+            {
+                c.Status = "Resolved";
+                c.ResolvedAt = DateTime.UtcNow;
+                c.ResolutionNotes = $"Administrative workflow reset to stage '{targetStatus}' by {actor}. Justification: {justification}";
+            }
+        }
+        else if (targetStatus == WorkflowStatus.EmployeeDisagreed ||
+                 targetStatus == WorkflowStatus.DisagreementGpmReview ||
+                 targetStatus == WorkflowStatus.DisagreementPmwReview)
+        {
+            if (string.IsNullOrWhiteSpace(empCycle.DisagreementReason))
+            {
+                empCycle.DisagreementReason = justification;
+            }
+            var existingCase = await _db.DisagreementCases.FirstOrDefaultAsync(d => d.EmployeeCycleId == empCycle.Id && d.Status != "Resolved");
+            if (existingCase == null)
+            {
+                _db.DisagreementCases.Add(new DisagreementCase
+                {
+                    EmployeeCycleId = empCycle.Id,
+                    EmployeeId = empCycle.EmployeeId,
+                    MandatoryDisagreementReason = !string.IsNullOrWhiteSpace(empCycle.DisagreementReason) ? empCycle.DisagreementReason : justification,
+                    Status = targetStatus == WorkflowStatus.DisagreementPmwReview ? "EscalatedPmw" : "PendingGpmReview",
+                    RaisedAt = DateTime.UtcNow
+                });
+            }
+        }
+        else if (targetStatus == WorkflowStatus.DisagreementResolved)
+        {
+            var cases = await _db.DisagreementCases
+                .Where(d => d.EmployeeCycleId == empCycle.Id && d.Status != "Resolved")
+                .ToListAsync();
+            foreach (var c in cases)
+            {
+                c.Status = "Resolved";
+                c.ResolvedAt = DateTime.UtcNow;
+                c.ResolutionNotes = justification;
+            }
+        }
+
+        // 3. Development Review initialization
+        if (isPreEvaluation || targetStatus == WorkflowStatus.CoAppraiserReview || targetStatus == WorkflowStatus.FirstAppraiserAssessment)
+        {
+            var devReview = await _db.DevelopmentReviews.FirstOrDefaultAsync(d => d.EmployeeCycleId == empCycle.Id);
+            if (devReview != null)
+            {
+                devReview.IsSubmitted = false;
+                devReview.SubmittedAt = null;
+            }
+        }
+
+        // 4. Objectives reset option
+        if (resetObjectives)
+        {
+            var objectives = await _db.Objectives.Where(o => o.EmployeeCycleId == empCycle.Id).ToListAsync();
+            _db.Objectives.RemoveRange(objectives);
+        }
+
+        // 5. Scores & Evaluator Ratings cleanup
+        var score = await _db.Scores.FirstOrDefaultAsync(s => s.EmployeeCycleId == empCycle.Id);
+
+        if (isObjectivePhase)
+        {
+            // Wipe score and any evaluator ratings
+            if (score != null) _db.Scores.Remove(score);
+
+            var objectives = await _db.Objectives.Where(o => o.EmployeeCycleId == empCycle.Id).ToListAsync();
+            foreach (var o in objectives)
+            {
+                o.FirstAppraiserRating = null;
+                o.SecondAppraiserRating = null;
+                o.CoAppraiserRating = null;
+                o.EmployeeSelfRating = null;
+                o.AchievementDetails = null;
+                o.EncryptedConfidentialComments = null;
+            }
+
+            var traits = await _db.BehaviourTraits.Where(t => t.EmployeeCycleId == empCycle.Id).ToListAsync();
+            foreach (var t in traits)
+            {
+                t.FirstAppraiserRating = null;
+                t.EncryptedConfidentialComments = null;
+            }
+        }
+        else if (isSelfAssessmentPhase)
+        {
+            // Reset to clean self-assessment: remove final score, clear evaluator ratings
+            if (score != null) _db.Scores.Remove(score);
+
+            var objectives = await _db.Objectives.Where(o => o.EmployeeCycleId == empCycle.Id).ToListAsync();
+            foreach (var o in objectives)
+            {
+                o.FirstAppraiserRating = null;
+                o.SecondAppraiserRating = null;
+                o.CoAppraiserRating = null;
+                o.EncryptedConfidentialComments = null;
+                if (resetRatings)
+                {
+                    o.EmployeeSelfRating = null;
+                    o.AchievementDetails = null;
+                }
+            }
+
+            var traits = await _db.BehaviourTraits.Where(t => t.EmployeeCycleId == empCycle.Id).ToListAsync();
+            foreach (var t in traits)
+            {
+                t.FirstAppraiserRating = null;
+                t.EncryptedConfidentialComments = null;
+            }
+        }
+        else if (targetStatus == WorkflowStatus.CoAppraiserReview)
+        {
+            if (score != null) _db.Scores.Remove(score);
+
+            var objectives = await _db.Objectives.Where(o => o.EmployeeCycleId == empCycle.Id).ToListAsync();
+            foreach (var o in objectives)
+            {
+                o.FirstAppraiserRating = null;
+                o.SecondAppraiserRating = null;
+                o.EncryptedConfidentialComments = null;
+            }
+
+            var traits = await _db.BehaviourTraits.Where(t => t.EmployeeCycleId == empCycle.Id).ToListAsync();
+            foreach (var t in traits)
+            {
+                t.FirstAppraiserRating = null;
+                t.EncryptedConfidentialComments = null;
+            }
+        }
+        else if (targetStatus == WorkflowStatus.FirstAppraiserAssessment)
+        {
+            var objectives = await _db.Objectives.Where(o => o.EmployeeCycleId == empCycle.Id).ToListAsync();
+            foreach (var o in objectives)
+            {
+                o.SecondAppraiserRating = null;
+            }
+        }
+        else if (targetStatus == WorkflowStatus.Published)
+        {
+            // Ensure Score is present when published
+            if (score == null)
+            {
+                var objectives = await _db.Objectives.Where(o => o.EmployeeCycleId == empCycle.Id).ToListAsync();
+                var traits = await _db.BehaviourTraits.Where(t => t.EmployeeCycleId == empCycle.Id).ToListAsync();
+                if (objectives.Count > 0 || traits.Count > 0)
+                {
+                    var calc = _calcService.CalculateAndEncryptScore(empCycle.Id, objectives, traits, justification, 1, empCycle.AssignedFormType);
+                    _db.Scores.Add(calc);
+                }
+            }
+        }
+
+        // Global ResetRatings override
+        if (resetRatings)
+        {
+            if (score != null && _db.Entry(score).State != EntityState.Deleted)
+            {
+                _db.Scores.Remove(score);
+            }
+
+            var objectives = await _db.Objectives.Where(o => o.EmployeeCycleId == empCycle.Id).ToListAsync();
+            foreach (var o in objectives)
+            {
+                o.FirstAppraiserRating = null;
+                o.SecondAppraiserRating = null;
+                o.CoAppraiserRating = null;
+                o.EmployeeSelfRating = null;
+                o.AchievementDetails = null;
+                o.EncryptedConfidentialComments = null;
+            }
+
+            var traits = await _db.BehaviourTraits.Where(t => t.EmployeeCycleId == empCycle.Id).ToListAsync();
+            foreach (var t in traits)
+            {
+                t.FirstAppraiserRating = null;
+                t.EncryptedConfidentialComments = null;
+            }
+        }
+    }
+
     /// <summary>
     /// Force-transition an EmployeeCycle to a target status (PMW Super Admin override).
     /// </summary>
     [HttpPost("force-transition/{employeeCycleId}")]
     public async Task<IActionResult> ForceTransition(
         Guid employeeCycleId,
-        [FromBody] ForceTransitionDto dto)
+        [FromBody] ForceTransitionDto dto,
+        [FromQuery] string? role = null,
+        [FromHeader(Name = "X-User-Role")] string? headerRole = null)
     {
+        if (!await CheckAdminAuthorizationAsync(dto.ActorSapId, dto.ActorRole, headerRole, role))
+        {
+            return StatusCode(403, new { message = "Access Denied. Stage control is restricted exclusively to PMW Administrators." });
+        }
+
         var empCycle = await _db.EmployeeCycles
             .Include(ec => ec.Employee)
             .FirstOrDefaultAsync(ec => ec.Id == employeeCycleId);
@@ -379,8 +700,15 @@ public class AdminController : ControllerBase
             return BadRequest(new { message = $"Invalid target status: {dto.TargetStatus}" });
 
         var previousStatus = empCycle.CurrentStatus;
-        empCycle.CurrentStatus = targetStatus;
-        empCycle.UpdatedAt = DateTime.UtcNow;
+
+        await ApplyStageDetailsInitializationAsync(
+            empCycle,
+            previousStatus,
+            targetStatus,
+            resetObjectives: false,
+            resetRatings: false,
+            dto.Justification,
+            dto.ActorSapId);
 
         // Generate audit event for administrative override
         var audit = new Nbp.Pms.Domain.Entities.AuditEvent
@@ -401,7 +729,11 @@ public class AdminController : ControllerBase
         await _db.SaveChangesAsync();
 
         // Dispatch notifications if configured (MUST be awaited so DbContext isn't disposed)
-        await _workflowEngine.DispatchNotificationsAsync(empCycle, previousStatus, targetStatus);
+        try
+        {
+            await _workflowEngine.DispatchNotificationsAsync(empCycle, previousStatus, targetStatus);
+        }
+        catch { }
 
         return Ok(new
         {
@@ -533,8 +865,16 @@ public class AdminController : ControllerBase
     /// Can target by EmployeeCycleId or SapId (with optional CycleId).
     /// </summary>
     [HttpPost("set-workflow-stage")]
-    public async Task<IActionResult> SetEmployeeWorkflowStage([FromBody] SetWorkflowStageDto dto)
+    public async Task<IActionResult> SetEmployeeWorkflowStage(
+        [FromBody] SetWorkflowStageDto dto,
+        [FromQuery] string? role = null,
+        [FromHeader(Name = "X-User-Role")] string? headerRole = null)
     {
+        if (!await CheckAdminAuthorizationAsync(dto.ActorSapId, dto.ActorRole, headerRole, role))
+        {
+            return StatusCode(403, new { message = "Access Denied. Stage control is restricted exclusively to PMW Administrators." });
+        }
+
         Nbp.Pms.Domain.Entities.EmployeeCycle? empCycle = null;
 
         if (dto.EmployeeCycleId.HasValue && dto.EmployeeCycleId.Value != Guid.Empty)
@@ -579,33 +919,17 @@ public class AdminController : ControllerBase
         }
 
         var previousStatus = empCycle.CurrentStatus;
-        empCycle.CurrentStatus = targetStatus;
-        empCycle.UpdatedAt = DateTime.UtcNow;
-
-        // Optional reset flags
-        if (dto.ResetObjectives == true)
-        {
-            var objectives = await _db.Objectives.Where(o => o.EmployeeCycleId == empCycle.Id).ToListAsync();
-            _db.Objectives.RemoveRange(objectives);
-        }
-
-        if (dto.ResetRatings == true)
-        {
-            var score = await _db.Scores.FirstOrDefaultAsync(s => s.EmployeeCycleId == empCycle.Id);
-            if (score != null) _db.Scores.Remove(score);
-
-            var objectives = await _db.Objectives.Where(o => o.EmployeeCycleId == empCycle.Id).ToListAsync();
-            foreach (var o in objectives)
-            {
-                o.FirstAppraiserRating = null;
-                o.SecondAppraiserRating = null;
-                o.CoAppraiserRating = null;
-                o.EncryptedConfidentialComments = null;
-            }
-        }
-
         string actor = !string.IsNullOrWhiteSpace(dto.ActorSapId) ? dto.ActorSapId.Trim() : "PMW_ADMIN";
         string justification = !string.IsNullOrWhiteSpace(dto.Justification) ? dto.Justification.Trim() : "Administrative workflow stage override by PMW Admin";
+
+        await ApplyStageDetailsInitializationAsync(
+            empCycle,
+            previousStatus,
+            targetStatus,
+            dto.ResetObjectives == true,
+            dto.ResetRatings == true,
+            justification,
+            actor);
 
         var audit = new Nbp.Pms.Domain.Entities.AuditEvent
         {
@@ -647,8 +971,16 @@ public class AdminController : ControllerBase
     /// Bulk administrative mechanism for PMW Admin to set appraisal workflow stage for multiple employees at once.
     /// </summary>
     [HttpPost("bulk-set-workflow-stage")]
-    public async Task<IActionResult> BulkSetWorkflowStage([FromBody] BulkSetWorkflowStageDto dto)
+    public async Task<IActionResult> BulkSetWorkflowStage(
+        [FromBody] BulkSetWorkflowStageDto dto,
+        [FromQuery] string? role = null,
+        [FromHeader(Name = "X-User-Role")] string? headerRole = null)
     {
+        if (!await CheckAdminAuthorizationAsync(dto.ActorSapId, dto.ActorRole, headerRole, role))
+        {
+            return StatusCode(403, new { message = "Access Denied. Stage control is restricted exclusively to PMW Administrators." });
+        }
+
         if ((dto.EmployeeCycleIds == null || dto.EmployeeCycleIds.Count == 0) && (dto.SapIds == null || dto.SapIds.Count == 0))
         {
             return BadRequest(new { message = "At least one EmployeeCycleId or SapId must be provided." });
@@ -686,8 +1018,15 @@ public class AdminController : ControllerBase
         foreach (var ec in cyclesToUpdate)
         {
             var prevStatus = ec.CurrentStatus;
-            ec.CurrentStatus = targetStatus;
-            ec.UpdatedAt = DateTime.UtcNow;
+
+            await ApplyStageDetailsInitializationAsync(
+                ec,
+                prevStatus,
+                targetStatus,
+                resetObjectives: false,
+                resetRatings: false,
+                justification,
+                actor);
 
             _db.AuditEvents.Add(new Nbp.Pms.Domain.Entities.AuditEvent
             {
@@ -717,7 +1056,7 @@ public class AdminController : ControllerBase
     }
 }
 
-public record ForceTransitionDto(string TargetStatus, string Justification, string ActorSapId = "admin");
+public record ForceTransitionDto(string TargetStatus, string Justification, string ActorSapId = "admin", string? ActorRole = null);
 public record TestWorkflowNotificationDto(string TransitionKey, string RecipientEmail, string? RecipientName = "Administrator");
 public record SetWorkflowStageDto(
     Guid? EmployeeCycleId,
@@ -726,6 +1065,7 @@ public record SetWorkflowStageDto(
     string TargetStatus,
     string? Justification,
     string ActorSapId = "PMW_ADMIN",
+    string? ActorRole = null,
     bool? ResetObjectives = false,
     bool? ResetRatings = false
 );
@@ -734,7 +1074,8 @@ public record BulkSetWorkflowStageDto(
     List<string>? SapIds,
     string TargetStatus,
     string? Justification,
-    string ActorSapId = "PMW_ADMIN"
+    string ActorSapId = "PMW_ADMIN",
+    string? ActorRole = null
 );
 
 

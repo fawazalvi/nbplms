@@ -27,6 +27,7 @@ interface SetWorkflowStageModalProps {
   target?: SetWorkflowStageTarget | null;
   bulkTargets?: SetWorkflowStageTarget[];
   cycleId?: string;
+  currentUser?: any;
 }
 
 const STAGE_CATEGORIES = [
@@ -84,7 +85,8 @@ export const SetWorkflowStageModal: React.FC<SetWorkflowStageModalProps> = ({
   onSuccess,
   target,
   bulkTargets,
-  cycleId
+  cycleId,
+  currentUser
 }) => {
   const isBulk = Boolean(bulkTargets && bulkTargets.length > 0);
   const [selectedSap, setSelectedSap] = useState(target?.sapId || '');
@@ -131,6 +133,9 @@ export const SetWorkflowStageModal: React.FC<SetWorkflowStageModalProps> = ({
     setSuccessMsg(null);
 
     try {
+      const actorSap = currentUser?.sapId || currentUser?.username || 'PMW_ADMIN';
+      const actorRole = currentUser?.role || (currentUser?.roles && currentUser?.roles[0]) || 'PmwAdmin';
+
       if (isBulk && bulkTargets) {
         const cycleIds = bulkTargets.map(t => t.employeeCycleId).filter(Boolean) as string[];
         const sapIds = bulkTargets.map(t => t.sapId).filter(Boolean) as string[];
@@ -140,7 +145,8 @@ export const SetWorkflowStageModal: React.FC<SetWorkflowStageModalProps> = ({
           sapIds: cycleIds.length === 0 ? sapIds : undefined,
           targetStatus,
           justification: justification.trim(),
-          actorSapId: 'PMW_ADMIN'
+          actorSapId: actorSap,
+          actorRole: actorRole
         });
 
         setSuccessMsg(res.message || `Successfully set workflow stage to ${targetStatus} for ${bulkTargets.length} employees.`);
@@ -164,7 +170,8 @@ export const SetWorkflowStageModal: React.FC<SetWorkflowStageModalProps> = ({
           cycleId,
           targetStatus,
           justification: justification.trim(),
-          actorSapId: 'PMW_ADMIN',
+          actorSapId: actorSap,
+          actorRole: actorRole,
           resetObjectives,
           resetRatings
         });
@@ -180,6 +187,11 @@ export const SetWorkflowStageModal: React.FC<SetWorkflowStageModalProps> = ({
       try {
         const parsed = JSON.parse(msg);
         if (parsed.message) msg = parsed.message;
+        else if (parsed.title) msg = parsed.title;
+        if (parsed.errors) {
+          const errList = Object.values(parsed.errors).flat().join('; ');
+          if (errList) msg += `: ${errList}`;
+        }
       } catch {}
       setError(msg);
     } finally {
@@ -357,6 +369,40 @@ export const SetWorkflowStageModal: React.FC<SetWorkflowStageModalProps> = ({
                   <span>Reset all evaluator scores and ratings back to null</span>
                 </label>
               </div>
+            </div>
+          )}
+
+          {/* Automated Stage Initialization Guidance */}
+          {targetStatus && (
+            <div className="p-3 bg-purple-50/50 border border-purple-200/80 rounded-xl text-[11px] text-slate-700 space-y-1">
+              <div className="font-bold text-purple-950 flex items-center gap-1.5">
+                <RefreshCw className="h-3 w-3 text-purple-700" />
+                <span>Automated Workflow State Initialization Details</span>
+              </div>
+              <p className="leading-relaxed text-slate-600">
+                {(targetStatus === 'ObjectiveDraft' || targetStatus === 'ObjectiveReturned') &&
+                  'Objectives will be unlocked for employee revision. Submission & approval timestamps will be cleared, and all downstream ratings, composite scores, and development review records will be reset cleanly.'}
+                {targetStatus === 'ObjectiveSubmitted' &&
+                  'Objectives will be marked pending 1st Appraiser approval. Downstream evaluation ratings, composite scores, and publication status will be cleared.'}
+                {targetStatus === 'ObjectiveApproved' &&
+                  'Objectives will be locked as approved. Downstream evaluation scores and ratings will be initialized cleanly for the upcoming annual review phase.'}
+                {targetStatus === 'AnnualReviewSelfAssessment' &&
+                  'Appraisee will be able to input self-scores and achievements. Downstream appraiser ratings, development review submission flags, and final composite scores will be reset.'}
+                {(targetStatus === 'FirstAppraiserAssessment' || targetStatus === 'CoAppraiserReview') &&
+                  'Evaluation will be re-opened for appraiser scoring. 2nd appraiser countersigns, development review submission flags, and publication timestamps will be reset.'}
+                {targetStatus === 'SecondAppraiserReview' &&
+                  'Evaluation routed to 2nd Appraiser / Supervisor for countersign. Publication timestamps and final locks will be cleared.'}
+                {(targetStatus === 'GroupPerformanceManagerReview' || targetStatus === 'PmwFinalization') &&
+                  'Appraisal routed to governance review. Publication timestamps will be cleared.'}
+                {targetStatus === 'Published' &&
+                  'Results published to employee for formal acknowledgement. Pre-existing disagreement cases will be cleared or resolved.'}
+                {(targetStatus === 'EmployeeAgreed' || targetStatus === 'AdministrativelyCompleted') &&
+                  'Appraisal marked permanently completed and locked. Publication and acknowledgement timestamps will be recorded.'}
+                {(targetStatus === 'EmployeeDisagreed' || targetStatus === 'DisagreementGpmReview' || targetStatus === 'DisagreementPmwReview') &&
+                  'Formal disagreement will be initialized with the provided justification comments.'}
+                {targetStatus === 'DisagreementResolved' &&
+                  'Formal disagreement case will be resolved with documented resolution notes.'}
+              </p>
             </div>
           )}
 

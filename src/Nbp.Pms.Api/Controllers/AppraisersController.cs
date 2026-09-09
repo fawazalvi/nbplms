@@ -23,12 +23,12 @@ public class AppraisersController : ControllerBase
     }
 
     [HttpGet("team-reviews")]
-    public async Task<IActionResult> GetTeamReviews([FromQuery] string appraiserSapId = "10004")
+    public async Task<IActionResult> GetTeamReviews([FromQuery] string appraiserSapId = "10004", [FromQuery] Guid? cycleId = null)
     {
         var appraiser = await _db.Employees.FirstOrDefaultAsync(e => e.SapId == appraiserSapId || e.Email == appraiserSapId);
         var appraiserId = appraiser?.Id ?? Guid.Empty;
 
-        var rawReviews = await _db.EmployeeCycles
+        var query = _db.EmployeeCycles
             .Include(ec => ec.Employee)
             .Include(ec => ec.Cycle)
             .Include(ec => ec.FirstAppraiser)
@@ -40,8 +40,14 @@ public class AppraisersController : ControllerBase
                          ec.PendingCoAppraiserSapId == appraiserSapId ||
                          (ec.FirstAppraiser != null && ec.FirstAppraiser.SapId == appraiserSapId) ||
                          (ec.SecondAppraiser != null && ec.SecondAppraiser.SapId == appraiserSapId) ||
-                         (ec.CoAppraiser != null && ec.CoAppraiser.SapId == appraiserSapId))
-            .ToListAsync();
+                         (ec.CoAppraiser != null && ec.CoAppraiser.SapId == appraiserSapId));
+
+        if (cycleId.HasValue && cycleId.Value != Guid.Empty)
+        {
+            query = query.Where(ec => ec.CycleId == cycleId.Value);
+        }
+
+        var rawReviews = await query.ToListAsync();
 
         var allEmployees = await _db.Employees.ToListAsync();
         var empLookup = allEmployees.ToDictionary(e => e.SapId, StringComparer.OrdinalIgnoreCase);
@@ -154,6 +160,13 @@ public class AppraisersController : ControllerBase
             {
                 ec.Id,
                 ec.EmployeeId,
+                ec.CycleId,
+                CycleTitle = ec.Cycle != null ? ec.Cycle.Title : "Appraisal Cycle",
+                CycleStatus = ec.Cycle != null ? ec.Cycle.Status.ToString() : null,
+                CycleCircularReference = ec.Cycle != null ? ec.Cycle.CircularReference : null,
+                CycleStartDate = ec.Cycle != null ? ec.Cycle.StartDate : (DateTime?)null,
+                CycleEndDate = ec.Cycle != null ? ec.Cycle.EndDate : (DateTime?)null,
+                CycleYear = ec.Cycle != null ? ec.Cycle.StartDate.Year : (int?)null,
                 EmployeeName = emp?.FullName ?? "Fawaz Ahmed",
                 SapId = emp?.SapId ?? "84920",
                 Grade = ResolveGrade(empGrade),

@@ -8,6 +8,9 @@ public class Employee
     public required string Grade { get; set; } // OG III, OG II, OG I, AVP, VP, SVP, EVP, SEVP, President/CEO
     public required string Designation { get; set; }
     public required string Location { get; set; }
+    [System.ComponentModel.DataAnnotations.MaxLength(4)]
+    public string? LocationPSACode { get; set; }
+    public virtual Location? LocationRef { get; set; }
     public required string ReportingGroup { get; set; }
     public required string Division { get; set; }
     public required string WingDepartment { get; set; }

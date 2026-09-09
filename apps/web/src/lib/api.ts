@@ -1,12 +1,13 @@
 const API_BASE = '/api/v1';
 
 export async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> {
+  const { headers, ...restOptions } = options || {};
   const res = await fetch(`${API_BASE}${endpoint}`, {
+    ...restOptions,
     headers: {
       'Content-Type': 'application/json',
-      ...options?.headers,
+      ...headers,
     },
-    ...options,
   });
 
   if (!res.ok) {
@@ -39,6 +40,33 @@ export const api = {
   updateGradeMapping: (id: string, data: any) => fetchApi<any>(`/Organization/grades/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
   importGradeMappings: (rows: any[]) => fetchApi<any>('/Organization/grades/import', { method: 'POST', body: JSON.stringify(rows) }),
   deleteGradeMapping: (id: string) => fetchApi<any>(`/Organization/grades/${id}`, { method: 'DELETE' }),
+
+  // Hierarchical Location Management (PSACode Hierarchy)
+  getLocations: (params?: { rootPsa?: string; level?: number; search?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.rootPsa) q.append('rootPsa', params.rootPsa);
+    if (params?.level !== undefined) q.append('level', params.level.toString());
+    if (params?.search) q.append('search', params.search);
+    const qs = q.toString();
+    return fetchApi<LocationItem[]>(`/Locations${qs ? `?${qs}` : ''}`);
+  },
+  getLocationSummary: () => fetchApi<LocationSummary>('/Locations/summary'),
+  getLocationByPsa: (psaCode: string) => fetchApi<LocationDetail>(`/Locations/${encodeURIComponent(psaCode)}`),
+  getLocationSubtree: (psaCode: string) => fetchApi<LocationItem[]>(`/Locations/${encodeURIComponent(psaCode)}/subtree`),
+  createLocation: (data: CreateLocationPayload) =>
+    fetchApi<LocationItem>('/Locations', { method: 'POST', body: JSON.stringify(data) }),
+  updateLocation: (psaCode: string, data: UpdateLocationPayload) =>
+    fetchApi<LocationItem>(`/Locations/${encodeURIComponent(psaCode)}`, { method: 'PUT', body: JSON.stringify(data) }),
+  reparentLocation: (psaCode: string, data: ReparentLocationPayload) =>
+    fetchApi<LocationItem>(`/Locations/${encodeURIComponent(psaCode)}/reparent`, { method: 'PUT', body: JSON.stringify(data) }),
+  deleteLocation: (psaCode: string, actorUserId = 'PMW_ADMIN') =>
+    fetchApi<{ message: string }>(`/Locations/${encodeURIComponent(psaCode)}?actorUserId=${encodeURIComponent(actorUserId)}`, { method: 'DELETE' }),
+
+  // Employee Profile Management & Location Linkage
+  getEmployeeBySapId: (sapId: string) =>
+    fetchApi<EmployeeProfile>(`/Employees/by-sap/${encodeURIComponent(sapId)}`),
+  updateEmployeeProfile: (sapId: string, data: UpdateProfilePayload) =>
+    fetchApi<EmployeeProfile>(`/Employees/by-sap/${encodeURIComponent(sapId)}/profile`, { method: 'PUT', body: JSON.stringify(data) }),
 
   // Auth
   login: (username: string, password: string) => 
@@ -203,8 +231,11 @@ export const api = {
     }),
 
   // Appraiser Team Reviews & Mapping Confirmations
-  getTeamReviews: (appraiserSapId: string = '10004') =>
-    fetchApi<any[]>(`/Appraisers/team-reviews?appraiserSapId=${appraiserSapId}`),
+  getTeamReviews: (appraiserSapId: string = '10004', cycleId?: string) => {
+    const params = new URLSearchParams({ appraiserSapId });
+    if (cycleId && cycleId !== 'ALL') params.append('cycleId', cycleId);
+    return fetchApi<any[]>(`/Appraisers/team-reviews?${params.toString()}`);
+  },
   confirmAppraiserMapping: (employeeCycleId: string, data: { firstAppraiserSapId: string; secondAppraiserSapId: string; coAppraiserSapId?: string | null; actorSapId?: string }) =>
     fetchApi<any>(`/Appraisers/${employeeCycleId}/confirm-appraiser-mapping`, { method: 'POST', body: JSON.stringify(data) }),
   rejectAppraiserMapping: (employeeCycleId: string, data: { rejectionReason: string; actorSapId?: string }) =>
@@ -290,10 +321,24 @@ export const api = {
   },
   forceTransition: (employeeCycleId: string, data: { targetStatus: string; justification: string; actorSapId?: string }) =>
     fetchApi<any>(`/Admin/force-transition/${employeeCycleId}`, { method: 'POST', body: JSON.stringify(data) }),
-  setWorkflowStage: (data: { employeeCycleId?: string; sapId?: string; cycleId?: string; targetStatus: string | number; justification: string; actorSapId?: string; resetObjectives?: boolean; resetRatings?: boolean }) =>
-    fetchApi<any>('/Admin/set-workflow-stage', { method: 'POST', body: JSON.stringify(data) }),
-  bulkSetWorkflowStage: (data: { employeeCycleIds?: string[]; sapIds?: string[]; targetStatus: string | number; justification: string; actorSapId?: string }) =>
-    fetchApi<any>('/Admin/bulk-set-workflow-stage', { method: 'POST', body: JSON.stringify(data) }),
+  setWorkflowStage: (data: { employeeCycleId?: string; sapId?: string; cycleId?: string; targetStatus: string | number; justification: string; actorSapId?: string; actorRole?: string; resetObjectives?: boolean; resetRatings?: boolean }) =>
+    fetchApi<any>('/Admin/set-workflow-stage', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-User-Role': data.actorRole || 'PmwAdmin'
+      },
+      body: JSON.stringify(data)
+    }),
+  bulkSetWorkflowStage: (data: { employeeCycleIds?: string[]; sapIds?: string[]; targetStatus: string | number; justification: string; actorSapId?: string; actorRole?: string }) =>
+    fetchApi<any>('/Admin/bulk-set-workflow-stage', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-User-Role': data.actorRole || 'PmwAdmin'
+      },
+      body: JSON.stringify(data)
+    }),
   getWorkflowAudit: (statusFilter?: string, limit?: number) =>
     fetchApi<any[]>(`/Admin/workflow-audit?${statusFilter ? `statusFilter=${encodeURIComponent(statusFilter)}&` : ''}limit=${limit || 200}`),
   getWorkflowNotifications: () =>
@@ -305,4 +350,125 @@ export const api = {
   getWorkflowNotificationLogs: (limit: number = 50) =>
     fetchApi<any[]>(`/Admin/workflow-notifications/logs?limit=${limit}`),
 };
+
+export interface LocationItem {
+  psaCode: string;
+  parentPSACode: string | null;
+  name: string;
+  paCode: string | null;
+  category: string | null;
+  city: string | null;
+  country: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  psaPath: string;
+  depthLevel: number;
+  childCount: number;
+}
+
+export interface SegmentSummary {
+  psaCode: string;
+  name: string;
+  totalCount: number;
+}
+
+export interface LocationSummary {
+  totalLocations: number;
+  level0Count: number;
+  level1Count: number;
+  level2Count: number;
+  level3Count: number;
+  geoTaggedCount: number;
+  segments: SegmentSummary[];
+}
+
+export interface LocationBreadcrumb {
+  psaCode: string;
+  name: string;
+  depthLevel: number;
+}
+
+export interface LocationDetail {
+  location: LocationItem;
+  parent: LocationItem | null;
+  children: LocationItem[];
+  breadcrumbs: LocationBreadcrumb[];
+}
+
+export interface CreateLocationPayload {
+  psaCode: string;
+  name: string;
+  parentPSACode?: string | null;
+  paCode?: string | null;
+  category?: string | null;
+  city?: string | null;
+  country?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  actorUserId?: string;
+}
+
+export interface UpdateLocationPayload {
+  name?: string;
+  paCode?: string | null;
+  category?: string | null;
+  city?: string | null;
+  country?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  actorUserId?: string;
+}
+
+export interface ReparentLocationPayload {
+  newParentPSACode: string | null;
+  actorUserId?: string;
+}
+
+export interface AppraiserSummary {
+  id: string;
+  sapId: string;
+  fullName: string;
+  designation?: string;
+  email?: string;
+}
+
+export interface EmployeeProfile {
+  id: string;
+  sapId: string;
+  fullName: string;
+  grade: string;
+  gradeCode?: string;
+  gradeTitle?: string;
+  designation: string;
+  location: string;
+  locationPSACode: string | null;
+  locationDetails: LocationItem | null;
+  breadcrumbs: LocationBreadcrumb[];
+  reportingGroup: string;
+  reportingGroupName?: string;
+  reportingGroupCode?: string;
+  reportingGroupFormatted?: string;
+  division: string;
+  wingDepartment: string;
+  regionBranch: string;
+  email: string | null;
+  isMrtOrMrc: boolean;
+  isActive: boolean;
+  firstAppraiser: AppraiserSummary | null;
+  secondAppraiser: AppraiserSummary | null;
+  coAppraiser: AppraiserSummary | null;
+  formTypeAssigned: string;
+  createdAt: string;
+  updatedAt: string | null;
+}
+
+export interface UpdateProfilePayload {
+  locationPSACode?: string;
+  email?: string;
+  designation?: string;
+  division?: string;
+  wingDepartment?: string;
+}
+
+
 

@@ -499,6 +499,220 @@ public class EmployeesController : ControllerBase
         await _db.SaveChangesAsync();
         return Ok(new { message = $"Successfully updated and pre-validated appraiser mappings for {updatedCount} staff members.", count = updatedCount });
     }
+
+    /// <summary>
+    /// Retrieves employee profile details by SAP ID, including hierarchical location metadata and breadcrumbs.
+    /// </summary>
+    [HttpGet("by-sap/{sapId}")]
+    public async Task<IActionResult> GetEmployeeBySapId(string sapId)
+    {
+        var trimmedSapId = sapId.Trim();
+        var emp = await _db.Employees
+            .Include(e => e.FirstAppraiser)
+            .Include(e => e.SecondAppraiser)
+            .Include(e => e.CoAppraiser)
+            .Include(e => e.LocationRef)
+            .FirstOrDefaultAsync(e => e.SapId == trimmedSapId);
+
+        if (emp == null) return NotFound(new { message = $"Employee with SAP ID '{trimmedSapId}' not found." });
+
+        var breadcrumbs = new List<object>();
+        if (emp.LocationRef != null && !string.IsNullOrWhiteSpace(emp.LocationRef.PSAPath))
+        {
+            var segments = emp.LocationRef.PSAPath.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            if (segments.Length > 0)
+            {
+                var ancestorNodes = await _db.Locations
+                    .AsNoTracking()
+                    .Where(l => segments.Contains(l.PSACode))
+                    .ToDictionaryAsync(l => l.PSACode);
+
+                foreach (var seg in segments)
+                {
+                    if (ancestorNodes.TryGetValue(seg, out var anc))
+                    {
+                        breadcrumbs.Add(new
+                        {
+                            anc.PSACode,
+                            anc.Name,
+                            anc.DepthLevel
+                        });
+                    }
+                }
+            }
+        }
+
+        // Resolve Grade Title and Code
+        var gradeMapping = await _db.GradeMappings
+            .AsNoTracking()
+            .FirstOrDefaultAsync(g => g.GradeCode == emp.Grade || g.EsgCode == emp.Grade || g.GradeName == emp.Grade);
+
+        string resolvedGrade = gradeMapping?.GradeCode?.Replace("_", " ") ?? emp.Grade;
+        string resolvedGradeTitle = (resolvedGrade.ToUpperInvariant()) switch
+        {
+            "01" or "PRESIDENT" or "CEO" => "President & CEO",
+            "02" or "SEVP" => "Senior Executive Vice President",
+            "03" or "EVP" => "Executive Vice President",
+            "04" or "SVP" => "Senior Vice President",
+            "05" or "VP" => "Vice President",
+            "06" or "AVP" => "Assistant Vice President",
+            "07" or "OG I" or "OG_I" or "OG-I" => "Officer Grade I",
+            "08" or "OG II" or "OG_II" or "OG-II" => "Officer Grade II",
+            "09" or "OG III" or "OG_III" or "OG-III" => "Officer Grade III",
+            _ => gradeMapping?.GradeName ?? resolvedGrade
+        };
+
+        // Resolve Reporting Group Name and Code
+        var groupMapping = await _db.ReportingGroups
+            .AsNoTracking()
+            .FirstOrDefaultAsync(g => g.GroupCode == emp.ReportingGroup || g.RpsaCode == emp.ReportingGroup || g.GroupName == emp.ReportingGroup);
+
+        string groupName = groupMapping?.GroupName ?? emp.ReportingGroup;
+        string groupCode = groupMapping?.GroupCode ?? groupMapping?.RpsaCode ?? "";
+        string groupFormatted = !string.IsNullOrWhiteSpace(groupCode) ? $"{groupName} ({groupCode})" : groupName;
+
+        return Ok(new
+        {
+            emp.Id,
+            emp.SapId,
+            emp.FullName,
+            emp.Grade,
+            GradeCode = resolvedGrade,
+            GradeTitle = resolvedGradeTitle,
+            emp.Designation,
+            emp.Location,
+            emp.LocationPSACode,
+            LocationDetails = emp.LocationRef != null ? new
+            {
+                emp.LocationRef.PSACode,
+                emp.LocationRef.Name,
+                emp.LocationRef.PACode,
+                emp.LocationRef.Category,
+                emp.LocationRef.City,
+                emp.LocationRef.Country,
+                emp.LocationRef.Latitude,
+                emp.LocationRef.Longitude,
+                emp.LocationRef.PSAPath,
+                emp.LocationRef.DepthLevel
+            } : null,
+            Breadcrumbs = breadcrumbs,
+            emp.ReportingGroup,
+            ReportingGroupName = groupName,
+            ReportingGroupCode = groupCode,
+            ReportingGroupFormatted = groupFormatted,
+            emp.Division,
+            emp.WingDepartment,
+            emp.RegionBranch,
+            emp.IsMrtOrMrc,
+            emp.IsActive,
+            emp.Email,
+            FirstAppraiser = emp.FirstAppraiser != null ? new
+            {
+                emp.FirstAppraiser.Id,
+                emp.FirstAppraiser.SapId,
+                emp.FirstAppraiser.FullName,
+                emp.FirstAppraiser.Designation,
+                emp.FirstAppraiser.Email
+            } : null,
+            SecondAppraiser = emp.SecondAppraiser != null ? new
+            {
+                emp.SecondAppraiser.Id,
+                emp.SecondAppraiser.SapId,
+                emp.SecondAppraiser.FullName,
+                emp.SecondAppraiser.Designation,
+                emp.SecondAppraiser.Email
+            } : null,
+            CoAppraiser = emp.CoAppraiser != null ? new
+            {
+                emp.CoAppraiser.Id,
+                emp.CoAppraiser.SapId,
+                emp.CoAppraiser.FullName,
+                emp.CoAppraiser.Designation,
+                emp.CoAppraiser.Email
+            } : null,
+            FormTypeAssigned = EmployeeImportService.DetermineFormType(emp.Grade, emp.IsMrtOrMrc).ToString(),
+            emp.CreatedAt,
+            emp.UpdatedAt
+        });
+    }
+
+    /// <summary>
+    /// Updates employee profile by SAP ID (e.g. location, email, name).
+    /// </summary>
+    [HttpPut("by-sap/{sapId}/profile")]
+    public async Task<IActionResult> UpdateEmployeeProfile(string sapId, [FromBody] UpdateProfileDto dto)
+    {
+        var trimmedSapId = sapId.Trim();
+        var employee = await _db.Employees
+            .Include(e => e.LocationRef)
+            .FirstOrDefaultAsync(e => e.SapId == trimmedSapId);
+
+        if (employee == null)
+        {
+            return NotFound(new { message = $"Employee with SAP ID '{trimmedSapId}' not found." });
+        }
+
+        // FullName and Grade are governed exclusively by HR Master Records and cannot be updated by users.
+
+        if (!string.IsNullOrWhiteSpace(dto.Email))
+        {
+            employee.Email = dto.Email.Trim();
+        }
+
+        if (!string.IsNullOrWhiteSpace(dto.Designation))
+        {
+            employee.Designation = dto.Designation.Trim();
+        }
+
+        if (!string.IsNullOrWhiteSpace(dto.Division))
+        {
+            employee.Division = dto.Division.Trim();
+        }
+
+        if (!string.IsNullOrWhiteSpace(dto.WingDepartment))
+        {
+            employee.WingDepartment = dto.WingDepartment.Trim();
+        }
+
+        if (!string.IsNullOrWhiteSpace(dto.LocationPSACode))
+        {
+            var psa = dto.LocationPSACode.Trim();
+            var targetLocation = await _db.Locations.FirstOrDefaultAsync(l => l.PSACode == psa);
+            if (targetLocation == null)
+            {
+                return BadRequest(new { message = $"Location with PSA Code '{psa}' does not exist in the organizational hierarchy." });
+            }
+
+            employee.LocationPSACode = targetLocation.PSACode;
+            employee.Location = targetLocation.Name;
+            employee.RegionBranch = targetLocation.Name;
+        }
+
+        employee.UpdatedAt = DateTime.UtcNow;
+
+        // Synchronize linked SystemUser if present
+        var systemUser = await _db.SystemUsers.FirstOrDefaultAsync(u => u.EmployeeId == employee.Id || u.Username == employee.SapId);
+        if (systemUser != null)
+        {
+            systemUser.FullName = employee.FullName;
+            systemUser.Email = employee.Email ?? systemUser.Email;
+        }
+
+        _db.AuditEvents.Add(new AuditEvent
+        {
+            EventType = "EMPLOYEE_PROFILE_UPDATED",
+            ActorUserId = employee.SapId,
+            ActorRole = "Employee",
+            TargetEntityType = nameof(Employee),
+            TargetEntityId = employee.Id.ToString(),
+            ActionDescription = $"Employee {employee.FullName} ({employee.SapId}) updated profile details. Location linked to [{employee.LocationPSACode}] {employee.Location}.",
+            Timestamp = DateTime.UtcNow
+        });
+
+        await _db.SaveChangesAsync();
+
+        return await GetEmployeeBySapId(employee.SapId);
+    }
 }
 
 public record CreateEmployeeDto(
@@ -542,3 +756,10 @@ public record UpdateEmployeeDto(
 
 public record EmployeeAppraiserMappingDto(string EmployeeSapId, string FirstAppraiserSapId, string SecondAppraiserSapId);
 public record BulkAppraiserOverrideRequestDto(List<EmployeeAppraiserMappingDto> Mappings, string ActorSapId = "PMW_ADMIN");
+public record UpdateProfileDto(
+    string? LocationPSACode = null,
+    string? Email = null,
+    string? Designation = null,
+    string? Division = null,
+    string? WingDepartment = null
+);

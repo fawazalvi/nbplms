@@ -27,6 +27,9 @@ import { CycleSnapshotManagerPage } from './pages/pmw/CycleSnapshotManagerPage';
 import { DatabaseToolsPage } from './pages/admin/DatabaseToolsPage';
 import { WorkflowManagementPage } from './pages/admin/WorkflowManagementPage';
 import { AppraiserSetupPage } from './pages/forms/AppraiserSetupPage';
+import { LocationManagementPage } from './pages/admin/LocationManagementPage';
+import { EmployeeProfilePage } from './pages/profile/EmployeeProfilePage';
+import { EmployeeProfileModal } from './pages/profile/EmployeeProfileModal';
 
 export function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -34,6 +37,7 @@ export function App() {
   const [userRole, setUserRole] = useState<string>('EndUser');
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [selectedCycleId, setSelectedCycleId] = useState<string | null>(null);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
   const handleLoginSuccess = (user: any) => {
     setCurrentUser(user);
@@ -72,6 +76,8 @@ export function App() {
           return <EmployeeDataPage userRole={userRole} />;
         case 'organization':
           return <OrganizationManagementPage userRole={userRole} />;
+        case 'locations':
+          return <LocationManagementPage userRole={userRole} />;
         case 'users':
           return <UserManagementPage />;
         case 'email-config':
@@ -149,9 +155,14 @@ export function App() {
           );
         }
         return <EmployeeDataPage userRole={userRole} />;
+      case 'locations':
+        return <LocationManagementPage userRole={userRole} />;
+      case 'profile':
+      case 'my-profile':
+        return <EmployeeProfilePage currentUser={currentUser} userRole={userRole} />;
       case 'my-appraisal':
       case 'forms':
-        return <ObjectiveFormPage currentUser={currentUser} formType={userRole === 'PmwAdmin' ? 'BSC' : 'KPI'} />;
+        return <ObjectiveFormPage currentUser={currentUser} userRole={userRole} formType={userRole === 'PmwAdmin' ? 'BSC' : 'KPI'} />;
       case 'appraiser-setup':
         return <AppraiserSetupPage currentUser={currentUser} userRole={userRole} onNavigate={setActiveTab} />;
       case 'team-reviews':
@@ -245,6 +256,7 @@ export function App() {
           setActiveTab('dashboard');
         }}
         onLogout={handleLogout}
+        onOpenProfile={() => setIsProfileModalOpen(true)}
       />
       <div className="flex flex-1 overflow-hidden relative">
         <Sidebar
@@ -256,6 +268,14 @@ export function App() {
           {renderContent()}
         </main>
       </div>
+
+      {/* Global Employee Profile Modal (Mounted via React Portal) */}
+      <EmployeeProfileModal
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
+        sapId={currentUser?.sapId || currentUser?.username}
+        currentUser={currentUser}
+      />
     </div>
   );
 }

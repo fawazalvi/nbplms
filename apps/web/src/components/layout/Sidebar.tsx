@@ -20,7 +20,8 @@ import {
   Layers,
   Database,
   GraduationCap,
-  UserCheck
+  UserCheck,
+  MapPin
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -59,6 +60,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentRole, activeTab, onTabC
             items: [
               { id: 'employees', label: 'Master Employee Directory', icon: Users },
               { id: 'organization', label: 'Master Groups & Grades', icon: Building2 },
+              { id: 'locations', label: 'Hierarchical Locations', icon: MapPin },
               { id: 'appraiser-setup', label: 'Appraiser Hierarchy Setup', icon: UserCog },
             ]
           },
@@ -92,6 +94,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentRole, activeTab, onTabC
             items: [
               { id: 'cycles', label: 'Appraisal Cycles', icon: Calendar },
               { id: 'cycle-snapshots', label: 'Cycle Snapshot & Rosters', icon: Layers },
+              { id: 'locations', label: 'Hierarchical Locations', icon: MapPin },
               { id: 'gpm-reports', label: 'Group HRBP Operations', icon: Building2 },
             ]
           },
@@ -151,6 +154,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentRole, activeTab, onTabC
             title: 'My Performance & Goals',
             items: [
               { id: 'dashboard', label: 'My Performance Center', icon: LayoutDashboard },
+              { id: 'profile', label: 'My Employee Profile', icon: UserCheck },
             ]
           },
           {

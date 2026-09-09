@@ -296,6 +296,9 @@ public class AppraisalsController : ControllerBase
                     empCycle.Cycle.EndDate,
                     empCycle.Cycle.AcknowledgementDeadline
                 } : null,
+                empCycle.SubmittedAt,
+                empCycle.ApprovedAt,
+                empCycle.PublishedAt,
                 empCycle.AcknowledgedAt,
                 empCycle.CreatedAt,
                 empCycle.UpdatedAt
@@ -503,9 +506,9 @@ public class AppraisalsController : ControllerBase
                     WeightagePercentage = dto.WeightagePercentage ?? dto.Weightage ?? 10.0m,
                     AchievementDetails = dto.AchievementDetails,
                     EmployeeSelfRating = dto.EmployeeSelfRating > 0 ? dto.EmployeeSelfRating : null,
-                    FirstAppraiserRating = dto.FirstAppraiserRating > 0 ? dto.FirstAppraiserRating : null,
-                    CoAppraiserRating = dto.CoAppraiserRating > 0 ? dto.CoAppraiserRating : null,
-                    SecondAppraiserRating = dto.SecondAppraiserRating > 0 ? dto.SecondAppraiserRating : null,
+                    FirstAppraiserRating = (empCycle.CurrentStatus > WorkflowStatus.AnnualReviewSelfAssessment && dto.FirstAppraiserRating > 0) ? dto.FirstAppraiserRating : null,
+                    CoAppraiserRating = (empCycle.CurrentStatus > WorkflowStatus.AnnualReviewSelfAssessment && dto.CoAppraiserRating > 0) ? dto.CoAppraiserRating : null,
+                    SecondAppraiserRating = (empCycle.CurrentStatus > WorkflowStatus.AnnualReviewSelfAssessment && dto.SecondAppraiserRating > 0) ? dto.SecondAppraiserRating : null,
                     RequiresCoAppraiserReview = dto.RequiresCoAppraiserReview ?? dto.IsFlaggedForCoAppraiser ?? false,
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
