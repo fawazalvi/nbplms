@@ -1,18 +1,60 @@
 const API_BASE = '/api/v1';
 
+let authToken: string | null = typeof window !== 'undefined' 
+  ? (localStorage.getItem('nbp_pms_auth_token') || sessionStorage.getItem('nbp_pms_auth_token')) 
+  : null;
+
+export function setAuthToken(token: string | null) {
+  authToken = token;
+  if (typeof window !== 'undefined') {
+    if (token) {
+      localStorage.setItem('nbp_pms_auth_token', token);
+      sessionStorage.setItem('nbp_pms_auth_token', token);
+    } else {
+      localStorage.removeItem('nbp_pms_auth_token');
+      sessionStorage.removeItem('nbp_pms_auth_token');
+      localStorage.removeItem('nbp_pms_user');
+      sessionStorage.removeItem('nbp_pms_active_tab');
+      sessionStorage.removeItem('nbp_pms_user_role');
+      sessionStorage.removeItem('nbp_pms_selected_cycle_id');
+    }
+  }
+}
+
+export function getAuthToken(): string | null {
+  if (!authToken && typeof window !== 'undefined') {
+    authToken = localStorage.getItem('nbp_pms_auth_token') || sessionStorage.getItem('nbp_pms_auth_token');
+  }
+  return authToken;
+}
+
 export async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const { headers, ...restOptions } = options || {};
+  const authHeaders: Record<string, string> = {};
+  const token = getAuthToken();
+  if (token) {
+    authHeaders['Authorization'] = `Bearer ${token}`;
+  }
+
   const res = await fetch(`${API_BASE}${endpoint}`, {
     ...restOptions,
     headers: {
       'Content-Type': 'application/json',
+      ...authHeaders,
       ...headers,
     },
   });
 
   if (!res.ok) {
     const errorText = await res.text();
-    throw new Error(errorText || `API error ${res.status}`);
+    let errorMessage = `API error ${res.status}`;
+    try {
+      const parsed = JSON.parse(errorText);
+      errorMessage = parsed.message || parsed.error || errorText;
+    } catch {
+      errorMessage = errorText || errorMessage;
+    }
+    throw new Error(errorMessage);
   }
 
   return res.json();
@@ -69,8 +111,32 @@ export const api = {
     fetchApi<EmployeeProfile>(`/Employees/by-sap/${encodeURIComponent(sapId)}/profile`, { method: 'PUT', body: JSON.stringify(data) }),
 
   // Auth
-  login: (username: string, password: string) => 
-    fetchApi<any>('/Auth/login', { method: 'POST', body: JSON.stringify({ username, password }) }),
+  login: async (username: string, password: string) => {
+    const res = await fetchApi<any>('/Auth/login', { method: 'POST', body: JSON.stringify({ username, password }) });
+    if (res && res.token) {
+      setAuthToken(res.token);
+      if (res.user && typeof window !== 'undefined') {
+        localStorage.setItem('nbp_pms_user', JSON.stringify(res.user));
+      }
+    }
+    return res;
+  },
+  logout: () => {
+    setAuthToken(null);
+  },
+  getCachedUser: (): any | null => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('nbp_pms_user');
+      if (stored) {
+        try {
+          return JSON.parse(stored);
+        } catch {
+          return null;
+        }
+      }
+    }
+    return null;
+  },
   getMe: () => fetchApi<any>('/Auth/me'),
   changePassword: (currentPassword: string, newPassword: string) =>
     fetchApi<any>('/Auth/change-password', { method: 'POST', body: JSON.stringify({ currentPassword, newPassword }) }),
@@ -98,10 +164,16 @@ export const api = {
     const query = new URLSearchParams(params as any).toString();
     return fetchApi<any[]>(`/Employees${query ? `?${query}` : ''}`);
   },
-  searchEmployees: (query: string) => fetchApi<any[]>(`/Employees/search?query=${encodeURIComponent(query)}`),
+  searchEmployees: (query: string) => fetchApi<any[]>(`/Employees?search=${encodeURIComponent(query)}`),
   getEmployeeBySap: async (sapId: string): Promise<any> => {
     try {
-      const res = await fetchApi<any[]>(`/Employees/search?query=${encodeURIComponent(sapId)}`);
+      const direct = await fetchApi<any>(`/Employees/by-sap/${encodeURIComponent(sapId)}`);
+      if (direct && direct.sapId) return direct;
+    } catch {
+      // Fallback to query search
+    }
+    try {
+      const res = await fetchApi<any[]>(`/Employees?search=${encodeURIComponent(sapId)}`);
       return Array.isArray(res) && res.length > 0 ? res[0] : null;
     } catch {
       return null;

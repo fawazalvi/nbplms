@@ -61,14 +61,25 @@ public class AdminController : ControllerBase
         return Ok(status);
     }
 
+    private bool IsAuthorizedSuperAdmin(string? headerRole = null, string? queryRole = null)
+    {
+        if (User.Identity?.IsAuthenticated == true)
+        {
+            return User.IsInRole("PmwSuperAdmin") || 
+                   User.Claims.Any(c => c.Type == System.Security.Claims.ClaimTypes.Role && 
+                                        string.Equals(c.Value, "PmwSuperAdmin", StringComparison.OrdinalIgnoreCase));
+        }
+
+        return false;
+    }
+
     /// <summary>
     /// Wipes all database tables cleanly. Restricted exclusively to PMW Super Admin.
     /// </summary>
     [HttpPost("clean")]
     public async Task<IActionResult> CleanDatabase([FromQuery] string? role = null, [FromHeader(Name = "X-User-Role")] string? headerRole = null)
     {
-        var effectiveRole = headerRole ?? role;
-        if (!string.Equals(effectiveRole, "PmwSuperAdmin", StringComparison.OrdinalIgnoreCase))
+        if (!IsAuthorizedSuperAdmin(headerRole, role))
         {
             return StatusCode(403, new { message = "Access Denied. Database tools are restricted exclusively to PMW Super Admin." });
         }
@@ -83,8 +94,7 @@ public class AdminController : ControllerBase
     [HttpPost("seed")]
     public async Task<IActionResult> SeedDatabase([FromQuery] string? role = null, [FromHeader(Name = "X-User-Role")] string? headerRole = null)
     {
-        var effectiveRole = headerRole ?? role;
-        if (!string.Equals(effectiveRole, "PmwSuperAdmin", StringComparison.OrdinalIgnoreCase))
+        if (!IsAuthorizedSuperAdmin(headerRole, role))
         {
             return StatusCode(403, new { message = "Access Denied. Database tools are restricted exclusively to PMW Super Admin." });
         }
@@ -119,8 +129,7 @@ public class AdminController : ControllerBase
     [HttpPost("entities/{entityKey}/seed")]
     public async Task<IActionResult> SeedIndividualEntity(string entityKey, [FromQuery] string? role = null, [FromHeader(Name = "X-User-Role")] string? headerRole = null)
     {
-        var effectiveRole = headerRole ?? role;
-        if (!string.Equals(effectiveRole, "PmwSuperAdmin", StringComparison.OrdinalIgnoreCase))
+        if (!IsAuthorizedSuperAdmin(headerRole, role))
         {
             return StatusCode(403, new { message = "Access Denied. Database tools are restricted exclusively to PMW Super Admin." });
         }
@@ -174,8 +183,7 @@ public class AdminController : ControllerBase
     [HttpPost("entities/{entityKey}/clean")]
     public async Task<IActionResult> CleanIndividualEntity(string entityKey, [FromQuery] string? role = null, [FromHeader(Name = "X-User-Role")] string? headerRole = null)
     {
-        var effectiveRole = headerRole ?? role;
-        if (!string.Equals(effectiveRole, "PmwSuperAdmin", StringComparison.OrdinalIgnoreCase))
+        if (!IsAuthorizedSuperAdmin(headerRole, role))
         {
             return StatusCode(403, new { message = "Access Denied. Database tools are restricted exclusively to PMW Super Admin." });
         }
@@ -233,8 +241,7 @@ public class AdminController : ControllerBase
     [HttpPost("schema/migrate")]
     public async Task<IActionResult> MigrateSchema([FromQuery] string? role = null, [FromHeader(Name = "X-User-Role")] string? headerRole = null)
     {
-        var effectiveRole = headerRole ?? role;
-        if (!string.Equals(effectiveRole, "PmwSuperAdmin", StringComparison.OrdinalIgnoreCase))
+        if (!IsAuthorizedSuperAdmin(headerRole, role))
         {
             return StatusCode(403, new { message = "Access Denied. Database tools are restricted exclusively to PMW Super Admin." });
         }
@@ -368,37 +375,16 @@ public class AdminController : ControllerBase
         return Ok(new { statusCounts, employeeCycles, cycles, reportingGroups, totalCount = allCycles.Count });
     }
 
-    private async Task<bool> CheckAdminAuthorizationAsync(string? actorSapId, string? actorRole, string? headerRole, string? queryRole)
+    private Task<bool> CheckAdminAuthorizationAsync(string? actorSapId, string? actorRole, string? headerRole, string? queryRole)
     {
-        // 1. If actorSapId corresponds to a real SystemUser, check their database role
-        if (!string.IsNullOrWhiteSpace(actorSapId))
+        // Strictly enforce cryptographically authenticated ClaimsPrincipal from Bearer token
+        if (User.Identity?.IsAuthenticated == true)
         {
-            string clean = actorSapId.Trim();
-            if (clean.Equals("PMW_ADMIN", StringComparison.OrdinalIgnoreCase) || 
-                clean.Equals("admin", StringComparison.OrdinalIgnoreCase) || 
-                clean.Equals("superadmin", StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-
-            var user = await _db.SystemUsers.FirstOrDefaultAsync(u => u.Username == clean);
-            if (user != null)
-            {
-                return user.Role.Equals("PmwSuperAdmin", StringComparison.OrdinalIgnoreCase) || 
-                       user.Role.Equals("PmwAdmin", StringComparison.OrdinalIgnoreCase);
-            }
+            bool isAuthorized = User.IsInRole("PmwSuperAdmin") || User.IsInRole("PmwAdmin");
+            return Task.FromResult(isAuthorized);
         }
 
-        // 2. Fall back to role header or query or DTO role
-        var role = headerRole ?? queryRole ?? actorRole;
-        if (!string.IsNullOrWhiteSpace(role) && 
-            (role.Equals("PmwSuperAdmin", StringComparison.OrdinalIgnoreCase) || 
-             role.Equals("PmwAdmin", StringComparison.OrdinalIgnoreCase)))
-        {
-            return true;
-        }
-
-        return false;
+        return Task.FromResult(false);
     }
 
     private async Task ApplyStageDetailsInitializationAsync(

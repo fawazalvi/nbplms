@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Nbp.Pms.Contracts.DTOs;
 using Nbp.Pms.Domain.Entities;
@@ -12,13 +13,16 @@ namespace Nbp.Pms.Api.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly PmsDbContext _db;
+    private readonly ITokenService _tokenService;
 
-    public AuthController(PmsDbContext db)
+    public AuthController(PmsDbContext db, ITokenService tokenService)
     {
         _db = db;
+        _tokenService = tokenService;
     }
 
     [HttpPost("login")]
+    [EnableRateLimiting("AuthRateLimit")]
     public async Task<IActionResult> Login([FromBody] LoginRequestDto request)
     {
         if (string.IsNullOrWhiteSpace(request.Username) || string.IsNullOrWhiteSpace(request.Password))
@@ -32,47 +36,7 @@ public class AuthController : ControllerBase
 
         if (user == null)
         {
-            // Auto-provision default admin accounts if they do not yet exist
-            if (request.Username.Trim().Equals("admin", StringComparison.OrdinalIgnoreCase) && 
-                (request.Password == "Admin@Nbp2026!" || request.Password == "Admin@12345!" || request.Password == "Admin@12345"))
-            {
-                user = new SystemUser
-                {
-                    Username = "admin",
-                    PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
-                    FullName = "System Administrator",
-                    Email = "admin@nbp.com.pk",
-                    Role = "PmwSuperAdmin",
-                    IsActive = true,
-                    IsLockedOut = false,
-                    MustChangePassword = false,
-                    CreatedAt = DateTime.UtcNow
-                };
-                _db.SystemUsers.Add(user);
-                await _db.SaveChangesAsync();
-            }
-            else if (request.Username.Trim().Equals("pmwadmin", StringComparison.OrdinalIgnoreCase) && 
-                (request.Password == "Admin@Nbp2026!" || request.Password == "Admin@12345!" || request.Password == "Admin@12345"))
-            {
-                user = new SystemUser
-                {
-                    Username = "pmwadmin",
-                    PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
-                    FullName = "PMW Central Administrator",
-                    Email = "pmwadmin@nbp.com.pk",
-                    Role = "PmwAdmin",
-                    IsActive = true,
-                    IsLockedOut = false,
-                    MustChangePassword = false,
-                    CreatedAt = DateTime.UtcNow
-                };
-                _db.SystemUsers.Add(user);
-                await _db.SaveChangesAsync();
-            }
-            else
-            {
-                return Unauthorized(new AuthResultDto(false, "Invalid credentials. Please check your SAP ID and password.", null));
-            }
+            return Unauthorized(new AuthResultDto(false, "Invalid credentials. Please check your SAP ID and password.", null));
         }
 
         if (!user.IsActive)
@@ -85,19 +49,11 @@ public class AuthController : ControllerBase
             return Unauthorized(new AuthResultDto(false, "Your account is locked due to multiple failed login attempts. Please contact your administrator to unlock.", null));
         }
 
-        // Verify password using BCrypt
+        // Verify password using BCrypt against salted cryptographic hash
         bool passwordValid;
         try
         {
             passwordValid = BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash);
-            if (!passwordValid && user.Username.Equals("admin", StringComparison.OrdinalIgnoreCase))
-            {
-                if (request.Password == "Admin@Nbp2026!" || request.Password == "Admin@12345!" || request.Password == "Admin@12345")
-                {
-                    passwordValid = true;
-                    user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
-                }
-            }
         }
         catch
         {
@@ -148,32 +104,39 @@ public class AuthController : ControllerBase
         });
         await _db.SaveChangesAsync();
 
+        var sapId = user.Employee?.SapId ?? user.Username;
+        var token = _tokenService.GenerateToken(user.Id.ToString(), user.Username, sapId, user.Role);
+
         var userDto = new UserDto(
             Id: user.Id.ToString(),
             Username: user.Username,
             Email: user.Email ?? $"{user.Username}@nbp.com.pk",
             FullName: user.FullName,
-            SapId: user.Employee?.SapId ?? user.Username,
+            SapId: sapId,
             Roles: new List<string> { user.Role },
             Permissions: GetPermissionsForRole(user.Role),
             MustChangePassword: user.MustChangePassword,
             AssignedReportingGroups: user.AssignedReportingGroups
         );
 
-        return Ok(new AuthResultDto(true, "Authentication successful.", userDto));
+        return Ok(new AuthResultDto(true, "Authentication successful.", userDto, token));
     }
 
     [HttpGet("me")]
-    public async Task<IActionResult> GetCurrentUser([FromHeader(Name = "X-User-Id")] string? userId)
+    public async Task<IActionResult> GetCurrentUser([FromHeader(Name = "X-User-Id")] string? headerUserId)
     {
-        if (string.IsNullOrWhiteSpace(userId))
+        var authenticatedUserId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+                               ?? User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value
+                               ?? headerUserId;
+
+        if (string.IsNullOrWhiteSpace(authenticatedUserId))
         {
             return Unauthorized(new { message = "Not authenticated." });
         }
 
         var user = await _db.SystemUsers
             .Include(u => u.Employee)
-            .FirstOrDefaultAsync(u => u.Id.ToString() == userId || u.Username == userId);
+            .FirstOrDefaultAsync(u => u.Id.ToString() == authenticatedUserId || u.Username == authenticatedUserId);
 
         if (user == null)
         {
@@ -196,14 +159,18 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("change-password")]
-    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequestDto request, [FromHeader(Name = "X-User-Id")] string? userId)
+    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequestDto request, [FromHeader(Name = "X-User-Id")] string? headerUserId)
     {
-        if (string.IsNullOrWhiteSpace(userId))
+        var authenticatedUserId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+                               ?? User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value
+                               ?? headerUserId;
+
+        if (string.IsNullOrWhiteSpace(authenticatedUserId))
         {
             return Unauthorized(new { message = "Not authenticated." });
         }
 
-        var user = await _db.SystemUsers.FirstOrDefaultAsync(u => u.Id.ToString() == userId || u.Username == userId);
+        var user = await _db.SystemUsers.FirstOrDefaultAsync(u => u.Id.ToString() == authenticatedUserId || u.Username == authenticatedUserId);
         if (user == null) return NotFound(new { message = "User not found." });
 
         // Verify current password

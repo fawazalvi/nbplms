@@ -20,4 +20,4 @@ public record ForgotPasswordRequestDto(string EmailOrSapId);
 
 public record ResetPasswordRequestDto(string Token, string NewPassword);
 
-public record AuthResultDto(bool Success, string? Message, UserDto? User);
+public record AuthResultDto(bool Success, string? Message, UserDto? User, string? Token = null);
